@@ -63,3 +63,112 @@ export interface Recommendation {
   options: RecommendationOption[];
   recommended: string; // option id
 }
+
+// ---------- Phase 2: Operation result types ----------
+
+export type VerdictDecision = 'APPROVED' | 'NEEDS-CHANGES' | 'NEEDS-INFO';
+
+export interface Verdict {
+  decision: VerdictDecision;
+  reasoning: string;
+  changes_required: string[]; // empty if APPROVED
+}
+
+export interface DiffFile {
+  path: string;                       // repo-relative
+  action: 'create' | 'modify' | 'delete';
+  content: string;                    // full file content for create|modify
+}
+
+export interface Diff {
+  step: string;                       // e.g. '1.2'
+  commit_type: 'feat' | 'fix' | 'test' | 'docs' | 'refactor' | 'chore';
+  commit_subject: string;             // <70 chars, imperative
+  files: DiffFile[];
+  notes: string;                      // freeform; mirrors plan's HOW for the step
+}
+
+export type VerifyOutcome = 'PASS' | 'FAIL' | 'SKIP';
+
+export interface VerifyReport {
+  outcome: VerifyOutcome;
+  command: string;
+  exit_code: number;
+  summary: string;                    // LLM-written narrative
+  failures: string[];                 // empty if PASS
+}
+
+export interface ResolutionDoc {
+  card_id: string;
+  summary: string;                    // 3–5 sentence what-shipped narrative
+  files_changed: string[];
+  ship_commit: string;                // SHA of the resolve commit
+}
+
+export type DriftKind =
+  | 'branch-mismatch'
+  | 'last-commit-mismatch'
+  | 'uncommitted-state-mismatch'
+  | 'tag-mismatch'
+  | 'state-md-template'
+  | 'state-md-missing'
+  | 'state-md-unparseable';
+
+export interface Drift {
+  kind: DriftKind;
+  expected: string;
+  actual: string;
+  detail: string;
+}
+
+export interface CardSummary {
+  id: string;
+  title: string;
+  column: Column;
+  phase: string;
+  priority: number;
+  kind: Kind;
+  labels: string[];
+  blocked_by: string[];
+}
+
+export interface Status {
+  cards: CardSummary[];
+  by_column: Record<Column, number>;
+  by_phase: Record<string, number>;
+}
+
+export interface OrderingEntry {
+  id: string;
+  rank: number;                       // 1-indexed
+  rationale: string;
+}
+
+export interface Ordering {
+  generated_at: string;               // ISO 8601
+  entries: OrderingEntry[];
+}
+
+export interface DiscoveredItem {
+  slug: string;                       // proposed slug for the new card
+  title: string;
+  kind: Kind;
+  rationale: string;
+  source_evidence: string;            // where it was found
+}
+
+export interface ExerciseFinding {
+  id: string;                         // unique within session
+  scenario: string;
+  observed: string;
+  severity: 'note' | 'low' | 'medium' | 'high';
+  evidence: string;
+}
+
+export interface ExerciseSession {
+  id: string;                         // session-id (slug-friendly)
+  goal: string;
+  scenarios: string[];
+  findings: ExerciseFinding[];
+  created: string;
+}
