@@ -16,7 +16,7 @@ import { join, dirname } from 'node:path';
 import matter from 'gray-matter';
 import yaml from 'js-yaml';
 import { CardFrontmatterSchema } from '../../config/schema.js';
-import type { Card, CardFrontmatter } from '../types.js';
+import type { Card, CardFrontmatter, Kind } from '../types.js';
 
 export function buildCardPath(cardsDir: string, id: string): string {
   return join(cardsDir, `${id}.md`);
@@ -92,3 +92,32 @@ export function extractSection(body: string, heading: string): string | null {
 }
 
 export type { Card, CardFrontmatter };
+
+export async function createCard(
+  repo: string,
+  args: { slug: string; title: string; kind: Kind; body?: string },
+): Promise<string> {
+  const today = new Date().toISOString().slice(0, 10);
+  const id = `${today}-${args.slug}`;
+  const path = join(repo, '.conductor', 'cards', `${id}.md`);
+  const frontmatter = CardFrontmatterSchema.parse({
+    id,
+    title: args.title,
+    kind: args.kind,
+    column: 'discovered',
+    phase: 'unassigned',
+    priority: 1,
+    autonomy: 'inherit',
+    model_overrides: {},
+    created: new Date().toISOString(),
+    source: 'user',
+    labels: [],
+    blocked_by: [],
+  });
+  const head = yaml.dump(frontmatter, { lineWidth: 0, noRefs: true });
+  const body = args.body ?? '# Original Issue\n\n';
+  const out = `---\n${head}---\n\n${body}`;
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, out, 'utf8');
+  return id;
+}
