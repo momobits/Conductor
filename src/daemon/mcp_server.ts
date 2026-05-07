@@ -1,0 +1,99 @@
+// src/daemon/mcp_server.ts
+//
+// MCP server exposing conductor.* tools. Streamable HTTP transport mounts on
+// the daemon's Node http.Server at /mcp. Each tool dispatches to the
+// corresponding RPC method in src/rpc/methods.ts.
+
+import { Server as McpServer } from '@modelcontextprotocol/sdk/server/index.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
+import { randomUUID } from 'node:crypto';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { methods, type MethodContext, type MethodName } from '../rpc/methods.js';
+
+const TOOLS = [
+  { name: 'conductor.card_new', description: 'Create a card' },
+  { name: 'conductor.card_get', description: 'Fetch a card by id' },
+  { name: 'conductor.card_list', description: 'List cards' },
+  { name: 'conductor.card_update', description: 'Update card frontmatter or body' },
+  { name: 'conductor.transition', description: 'Move a card to a new column' },
+  { name: 'conductor.scan', description: 'Snapshot of card columns + phases' },
+  { name: 'conductor.order', description: 'Re-rank queue' },
+  { name: 'conductor.discover', description: 'Discover candidate work' },
+  { name: 'conductor.exercise_new', description: 'Open an exercise session' },
+  { name: 'conductor.exercise_file', description: 'File an exercise finding' },
+  { name: 'conductor.work_card', description: 'Spawn a Task Agent on a card' },
+  { name: 'conductor.work_next', description: 'Pick the next eligible card and work it' },
+  { name: 'conductor.recommend', description: 'File a recommendation manually' },
+] as const;
+
+export interface McpAttachArgs {
+  ctx: MethodContext;
+  authToken: string;
+}
+
+export interface McpAttachment {
+  handleRequest: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
+}
+
+export function attachMcpServer(args: McpAttachArgs): McpAttachment {
+  const server = new McpServer(
+    { name: 'conductor', version: '0.1.0' },
+    { capabilities: { tools: {} } },
+  );
+
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: TOOLS.map((t) => ({
+      name: t.name,
+      description: t.description,
+      // Phase 4 advertises permissive object schemas; Phase 5 may swap in
+      // zod-to-json-schema for richer per-tool validation. Server-side
+      // RPC handler still does Zod parsing on the args.
+      inputSchema: { type: 'object', additionalProperties: true },
+    })),
+  }));
+
+  server.setRequestHandler(CallToolRequestSchema, async (req) => {
+    const tool = TOOLS.find((t) => t.name === req.params.name);
+    if (!tool) {
+      return {
+        content: [{ type: 'text', text: `unknown tool: ${req.params.name}` }],
+        isError: true,
+      };
+    }
+    const methodName = req.params.name.replace('conductor.', '') as MethodName;
+    const handler = methods[methodName];
+    try {
+      const result = await handler(args.ctx, req.params.arguments ?? {});
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+    } catch (e) {
+      return {
+        content: [{ type: 'text', text: e instanceof Error ? e.message : String(e) }],
+        isError: true,
+      };
+    }
+  });
+
+  const transport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: () => randomUUID(),
+  });
+  // Connect server to transport. The connect() promise resolves once the
+  // transport is ready to accept HTTP requests.
+  void server.connect(transport);
+
+  return {
+    handleRequest: async (req, res) => {
+      // Bearer auth check before delegating to MCP transport.
+      const h = req.headers.authorization;
+      if (!h || h !== `Bearer ${args.authToken}`) {
+        res.statusCode = 401;
+        res.end('unauthorized');
+        return;
+      }
+      await transport.handleRequest(req, res);
+    },
+  };
+}

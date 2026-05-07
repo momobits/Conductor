@@ -9,9 +9,12 @@ import { startHttpServer, type StartedServer } from './http_server.js';
 import { generateAuthToken } from './auth.js';
 import {
   writePidFile, readPidFile, clearPidFile,
-  writeEndpointFile, readEndpointFile, clearEndpointFile, isProcessAlive,
+  writeEndpointFile, readEndpointFile, clearEndpointFile,
+  writeMcpEndpointFile, clearMcpEndpointFile,
+  isProcessAlive,
 } from './pidfile.js';
 import { InMemoryRuntime } from './runtime.js';
+import { attachMcpServer } from './mcp_server.js';
 
 export interface DaemonHandle {
   url: string;
@@ -40,16 +43,21 @@ export async function startDaemon(args: StartDaemonArgs): Promise<DaemonHandle> 
   const authToken = await generateAuthToken(args.repo);
   const runtime = new InMemoryRuntime();
 
+  const ctx = { repo: args.repo, config, runtime };
+  const mcp = attachMcpServer({ ctx, authToken });
+
   const server: StartedServer = await startHttpServer({
     port: args.port,
     repo: args.repo,
     config,
     runtime,
     authToken,
+    mcp,
   });
 
   await writePidFile(args.repo, process.pid);
   await writeEndpointFile(args.repo, server.url);
+  await writeMcpEndpointFile(args.repo, `${server.url}/mcp`);
 
   return {
     url: server.url,
@@ -58,6 +66,7 @@ export async function startDaemon(args: StartDaemonArgs): Promise<DaemonHandle> 
       await server.close();
       await clearPidFile(args.repo);
       await clearEndpointFile(args.repo);
+      await clearMcpEndpointFile(args.repo);
     },
   };
 }

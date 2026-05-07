@@ -11,6 +11,7 @@ import { join } from 'node:path';
 
 const PID_FILE = 'daemon.pid';
 const ENDPOINT_FILE = 'daemon.endpoint';
+const MCP_ENDPOINT_FILE = 'mcp.endpoint';
 
 export async function writePidFile(repo: string, pid: number): Promise<void> {
   const dir = join(repo, '.conductor');
@@ -56,6 +57,20 @@ export async function readEndpointFile(repo: string): Promise<string | undefined
 export async function clearEndpointFile(repo: string): Promise<void> {
   try {
     await unlink(join(repo, '.conductor', ENDPOINT_FILE));
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+  }
+}
+
+export async function writeMcpEndpointFile(repo: string, url: string): Promise<void> {
+  const dir = join(repo, '.conductor');
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, MCP_ENDPOINT_FILE), url, 'utf8');
+}
+
+export async function clearMcpEndpointFile(repo: string): Promise<void> {
+  try {
+    await unlink(join(repo, '.conductor', MCP_ENDPOINT_FILE));
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
   }
