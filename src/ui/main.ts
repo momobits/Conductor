@@ -7,6 +7,7 @@
 import { makeClient, type RpcClient } from './api.js';
 import { renderBoard } from './views/board.js';
 import { EventStream } from './events.js';
+import { renderCardDetail } from './views/card_detail.js';
 
 interface AppContext {
   rpc: RpcClient;
@@ -55,31 +56,29 @@ async function bootstrap(): Promise<AppContext | null> {
   return { rpc, token, stream };
 }
 
-const routes: Record<string, (ctx: AppContext, root: HTMLElement, params: string[]) => void | Promise<void>> = {
-  board: async (ctx, root) => {
-    const { refresh } = await renderBoard(ctx.rpc, root);
-    ctx.boardRefresh = refresh;
-  },
-  card: async (ctx, root, params) => {
-    root.innerHTML = `<p>Card detail loads in Sub-phase E. id=${params[0] ?? '?'}</p>`;
-  },
-  monitor: async (ctx, root) => {
-    root.innerHTML = '<p>Monitor loads in Sub-phase F.</p>';
-  },
-  routing: async (ctx, root) => {
-    root.innerHTML = '<p>Routing loads in Sub-phase G.</p>';
-  },
-};
+let detailCleanup: (() => void) | null = null;
 
 async function dispatch(ctx: AppContext) {
+  detailCleanup?.();
+  detailCleanup = null;
   const root = document.getElementById('root') as HTMLElement;
   const hash = (window.location.hash || '#/board').slice(1);
   const parts = hash.split('/').filter(Boolean);
   const view = parts[0] ?? 'board';
   const params = parts.slice(1);
-  const handler = routes[view] ?? routes['board'];
-  if (!handler) return;
-  await handler(ctx, root, params);
+  if (view === 'board') {
+    const { refresh } = await renderBoard(ctx.rpc, root);
+    ctx.boardRefresh = refresh;
+  } else if (view === 'card' && params[0]) {
+    const result = await renderCardDetail(ctx.rpc, ctx.stream, root, params[0]);
+    detailCleanup = result.cleanup;
+  } else if (view === 'monitor') {
+    root.innerHTML = '<p>Monitor loads in Task 16.</p>';
+  } else if (view === 'routing') {
+    root.innerHTML = '<p>Routing loads in Task 17.</p>';
+  } else {
+    root.innerHTML = '<p>Unknown view.</p>';
+  }
 }
 
 async function main() {
