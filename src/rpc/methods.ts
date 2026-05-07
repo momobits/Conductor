@@ -18,12 +18,19 @@ import { readCard, writeCard, listCards, createCard } from '../engine/state/card
 import { canTransition } from '../engine/lifecycle.js';
 import { TaskAgent } from '../agent/task_agent.js';
 import type { Column } from '../engine/types.js';
+import type { ModelAdapter } from '../adapters/adapter.js';
+import { scan as scanOp } from '../engine/ops/scan.js';
+import { order as orderOp } from '../engine/ops/order.js';
+import { RoutingAdapter } from '../adapters/routing.js';
 
 export interface MethodContext {
   repo: string;
   config: ProjectConfig;
   runtime: RuntimeStore;
   bus?: EventBus;
+  /** Optional adapter injection. When provided (e.g. in tests), the order
+   *  handler uses it instead of constructing a new RoutingAdapter. */
+  adapter?: ModelAdapter;
 }
 
 type Handler<P, R> = (ctx: MethodContext, params: P) => Promise<R>;
@@ -94,10 +101,17 @@ async function scan(ctx: MethodContext, raw: unknown) {
   return { cards: all, by_column, by_phase };
 }
 
-async function order(_ctx: MethodContext, raw: unknown) {
+async function order(ctx: MethodContext, raw: unknown) {
   OrderParams.parse(raw);
-  // Phase 4 stub. Phase 5 wires the full order op through here.
-  return { generated_at: new Date().toISOString(), entries: [] };
+  // Call the real engine scan op directly to get a proper Status (CardSummary[])
+  // rather than calling the RPC scan handler which returns raw Card[] objects.
+  // This is Option A: use the engine op for Status construction, no existing
+  // callers of the RPC scan handler are affected.
+  const status = await scanOp({ repo: ctx.repo });
+  const adapter = ctx.adapter ?? new RoutingAdapter();
+  const model = ctx.config.routing.functions['order'] ?? ctx.config.routing.default;
+  const ordering = await orderOp({ repo: ctx.repo, status, adapter, model });
+  return ordering;
 }
 
 async function discover(_ctx: MethodContext, raw: unknown) {
