@@ -5,7 +5,7 @@
 // before invoking the engine.
 
 import { z } from 'zod';
-import { ColumnSchema, KindSchema, CardFrontmatterSchema } from '../config/schema.js';
+import { ColumnSchema, KindSchema, CardFrontmatterSchema, ProjectConfigSchema } from '../config/schema.js';
 
 export const CardNewParams = z.object({
   slug: z.string().min(1),
@@ -83,4 +83,9 @@ export const RecommendParams = z.object({
       .min(1),
     recommended: z.string(),
   }),
+});
+
+export const ConfigGetParams = z.object({});
+export const ConfigSetParams = z.object({
+  config: ProjectConfigSchema,
 });

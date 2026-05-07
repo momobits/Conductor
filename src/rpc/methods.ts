@@ -13,7 +13,11 @@ import {
   TransitionParams, ScanParams, OrderParams, DiscoverParams,
   ExerciseNewParams, ExerciseFileParams,
   WorkCardParams, WorkNextParams, RecommendParams,
+  ConfigGetParams, ConfigSetParams,
 } from './schema.js';
+import { dump as yamlDump } from 'js-yaml';
+import { writeFile } from 'node:fs/promises';
+import { loadProjectConfig } from '../config/load.js';
 import { readCard, writeCard, listCards, createCard } from '../engine/state/card.js';
 import { canTransition } from '../engine/lifecycle.js';
 import { TaskAgent } from '../agent/task_agent.js';
@@ -189,6 +193,23 @@ async function recommend(_ctx: MethodContext, raw: unknown) {
   return { ok: true as const };
 }
 
+async function config_get(ctx: MethodContext, raw: unknown) {
+  ConfigGetParams.parse(raw);
+  // Re-read from disk so we surface external edits, not the cached daemon copy.
+  const fresh = await loadProjectConfig(join(ctx.repo, '.conductor', 'config.yaml'));
+  return { config: fresh };
+}
+
+async function config_set(ctx: MethodContext, raw: unknown) {
+  const p = ConfigSetParams.parse(raw);
+  const yaml = yamlDump(p.config, { lineWidth: 100, noRefs: true });
+  await writeFile(join(ctx.repo, '.conductor', 'config.yaml'), yaml, 'utf-8');
+  // Update daemon's in-memory copy so subsequent calls in this session use it.
+  Object.assign(ctx.config, p.config);
+  ctx.bus?.publish({ kind: 'config-changed' });
+  return { ok: true as const };
+}
+
 export const methods = {
   card_new,
   card_get,
@@ -203,6 +224,8 @@ export const methods = {
   work_card,
   work_next,
   recommend,
+  config_get,
+  config_set,
 } satisfies Record<string, Handler<unknown, unknown>>;
 
 export type MethodName = keyof typeof methods;

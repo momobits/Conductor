@@ -28,6 +28,8 @@ const TOOLS = [
   { name: 'conductor.work_card', description: 'Spawn a Task Agent on a card' },
   { name: 'conductor.work_next', description: 'Pick the next eligible card and work it' },
   { name: 'conductor.recommend', description: 'File a recommendation manually' },
+  { name: 'conductor.config_get', description: 'Read the project config from disk' },
+  { name: 'conductor.config_set', description: 'Write and validate the project config' },
 ] as const;
 
 export interface McpAttachArgs {

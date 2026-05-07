@@ -162,4 +162,62 @@ describe('rpc methods', () => {
     const fileStat = await stat(orderingPath).catch(() => null);
     expect(fileStat).not.toBeNull();
   });
+
+  it('config_get returns the current project config', async () => {
+    const repo = setupRepo();
+    // ctx.config is built from schema defaults; the on-disk file (written by setupRepo)
+    // has routing.default=claude-sonnet-4-6 and verify_command="echo ok".
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    const result = await methods.config_get(ctx, {}) as { config: typeof ctx.config };
+    // config_get reads from disk, so values match the file — not the ctx defaults.
+    expect(result.config.routing.default).toBe('claude-sonnet-4-6');
+    expect(result.config.verify_command).toBe('echo ok');
+  });
+
+  it('config_set validates the YAML and writes the file', async () => {
+    const repo = setupRepo();
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    const newConfig = {
+      routing: { default: 'gpt-5', functions: { analyze: 'claude-opus-4-7' } },
+      autonomy: {
+        default: 'auto' as const,
+        transitions: {
+          discovered_to_planned: 'auto' as const,
+          planned_to_approved: 'assist' as const,
+          approved_to_building: 'manual' as const,
+          building_to_verifying: 'auto' as const,
+          verifying_to_shipped: 'assist' as const,
+          shipped_to_archived: 'manual' as const,
+        },
+      },
+      verify_command: 'npm run verify',
+    };
+    await methods.config_set(ctx, { config: newConfig });
+    // Reload from disk
+    const result = await methods.config_get(ctx, {}) as { config: typeof newConfig };
+    expect(result.config.routing.default).toBe('gpt-5');
+    expect(result.config.routing.functions.analyze).toBe('claude-opus-4-7');
+  });
+
+  it('config_set rejects invalid config with a validation error', async () => {
+    const repo = setupRepo();
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    await expect(
+      methods.config_set(ctx, { config: { routing: { default: 123 } } as never }),
+    ).rejects.toThrow();
+  });
+
+  it('config_set publishes config-changed on the bus', async () => {
+    const repo = setupRepo();
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    const { EventBus } = await import('../../src/daemon/event_bus.js');
+    const bus = new EventBus();
+    const events: unknown[] = [];
+    bus.subscribe((e) => events.push(e));
+    // Use the same ctx with bus attached
+    const ctxWithBus = { ...ctx, bus };
+    const freshResult = await methods.config_get(ctxWithBus, {}) as { config: unknown };
+    await methods.config_set(ctxWithBus, { config: freshResult.config as never });
+    expect(events.some((e) => (e as { kind: string }).kind === 'config-changed')).toBe(true);
+  });
 });
