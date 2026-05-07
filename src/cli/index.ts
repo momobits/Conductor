@@ -12,6 +12,8 @@ import { attachWork } from './commands/work.js';
 import { attachTransition } from './commands/transition.js';
 import { attachScan } from './commands/scan.js';
 import { attachOrder } from './commands/order.js';
+import { attachDiscover } from './commands/discover.js';
+import { attachExercise } from './commands/exercise.js';
 
 const program = new Command();
 
@@ -26,6 +28,8 @@ attachWork(program);
 attachTransition(program);
 attachScan(program);
 attachOrder(program);
+attachDiscover(program);
+attachExercise(program);
 
 program.parseAsync(process.argv).catch((e: unknown) => {
   // eslint-disable-next-line no-console
