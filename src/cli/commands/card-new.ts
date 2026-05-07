@@ -10,6 +10,7 @@ import type { Command } from 'commander';
 import yaml from 'js-yaml';
 import type { CardFrontmatter, Kind } from '../../engine/types.js';
 import { CardFrontmatterSchema } from '../../config/schema.js';
+import { discoverDaemon } from '../../rpc/client.js';
 
 export interface CardNewArgs {
   cwd: string;
@@ -34,6 +35,15 @@ export function todayPrefix(now: Date): string {
 }
 
 export async function runCardNew(args: CardNewArgs): Promise<string> {
+  const client = await discoverDaemon(args.cwd);
+  if (client) {
+    const result = await client.call<{ id: string; path: string }>('conductor.card_new', {
+      slug: args.slug,
+      title: args.title,
+      kind: args.kind,
+    });
+    return result.path;
+  }
   const now = args.now ?? new Date();
   const slug = normalizeSlug(args.slug);
   const id = `${todayPrefix(now)}-${slug}`;

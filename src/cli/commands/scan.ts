@@ -6,12 +6,17 @@ import type { Command } from 'commander';
 import { scan } from '../../engine/ops/scan.js';
 import type { Status } from '../../engine/types.js';
 import { COLUMNS } from '../../engine/types.js';
+import { discoverDaemon } from '../../rpc/client.js';
 
 export interface ScanCliArgs {
   cwd: string;
 }
 
 export async function runScan(args: ScanCliArgs): Promise<Status> {
+  const client = await discoverDaemon(args.cwd);
+  if (client) {
+    return client.call<Status>('conductor.scan', {});
+  }
   return scan({ repo: args.cwd });
 }
 
