@@ -9,10 +9,11 @@
   "main": "./dist/engine/index.js",
   "files": ["dist", "README.md", "LICENSE"],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && npm run build:ui",
+    "build:ui": "tsc -p tsconfig.ui.json && node scripts/build-ui.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.ui.json",
     "dev": "tsx src/cli/index.ts"
   },
   "dependencies": {
@@ -24,6 +25,7 @@
     "execa": "^9.5.1",
     "gray-matter": "^4.0.3",
     "js-yaml": "^4.1.0",
+    "marked": "^14.1.0",
     "openai": "^6.1.0",
     "simple-git": "^3.27.0",
     "zod": "^3.23.8"
