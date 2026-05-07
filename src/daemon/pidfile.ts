@@ -53,6 +53,14 @@ export async function readEndpointFile(repo: string): Promise<string | undefined
   }
 }
 
+export async function clearEndpointFile(repo: string): Promise<void> {
+  try {
+    await unlink(join(repo, '.conductor', ENDPOINT_FILE));
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+  }
+}
+
 export function isProcessAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);

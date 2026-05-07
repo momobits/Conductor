@@ -1,7 +1,7 @@
 // src/daemon/index.ts
 //
-// Daemon boot. Starts the HTTP server, generates auth, writes pid +
-// endpoint files. shutdown() reverses everything.
+// Daemon boot. Starts the HTTP server, generates the auth token, writes
+// auth.token / daemon.pid / daemon.endpoint. shutdown() reverses everything.
 
 import { join } from 'node:path';
 import { loadProjectConfig } from '../config/load.js';
@@ -9,7 +9,7 @@ import { startHttpServer, type StartedServer } from './http_server.js';
 import { generateAuthToken } from './auth.js';
 import {
   writePidFile, readPidFile, clearPidFile,
-  writeEndpointFile, readEndpointFile, isProcessAlive,
+  writeEndpointFile, readEndpointFile, clearEndpointFile, isProcessAlive,
 } from './pidfile.js';
 import { InMemoryRuntime } from './runtime.js';
 
@@ -57,6 +57,7 @@ export async function startDaemon(args: StartDaemonArgs): Promise<DaemonHandle> 
     shutdown: async () => {
       await server.close();
       await clearPidFile(args.repo);
+      await clearEndpointFile(args.repo);
     },
   };
 }
@@ -66,6 +67,7 @@ export async function stopDaemon(repo: string): Promise<{ stopped: boolean; reas
   if (!pid) return { stopped: false, reason: 'not-running' };
   if (!isProcessAlive(pid)) {
     await clearPidFile(repo);
+    await clearEndpointFile(repo);
     return { stopped: false, reason: 'not-running' };
   }
   if (pid === process.pid) {
@@ -74,7 +76,11 @@ export async function stopDaemon(repo: string): Promise<{ stopped: boolean; reas
   try {
     process.kill(pid, 'SIGTERM');
     await new Promise((r) => setTimeout(r, 200));
+    if (isProcessAlive(pid)) {
+      return { stopped: false, reason: 'process-still-alive' };
+    }
     await clearPidFile(repo);
+    await clearEndpointFile(repo);
     return { stopped: true };
   } catch (e) {
     return { stopped: false, reason: (e as Error).message };
@@ -88,10 +94,6 @@ export async function statusDaemon(repo: string): Promise<{
 }> {
   const pid = await readPidFile(repo);
   if (!pid || !isProcessAlive(pid)) return { running: false };
-  const fs = await import('node:fs/promises');
-  let endpoint: string | undefined;
-  try {
-    endpoint = (await fs.readFile(join(repo, '.conductor', 'daemon.endpoint'), 'utf8')).trim();
-  } catch { /* not yet written */ }
+  const endpoint = await readEndpointFile(repo);
   return { running: true, pid, endpoint };
 }
