@@ -13,6 +13,7 @@ import type { RuntimeStore } from './runtime.js';
 import { methods, type MethodName, type MethodContext } from '../rpc/methods.js';
 import { createStaticHandler } from './static.js';
 import type { EventBus } from './event_bus.js';
+import { handleSse } from './sse.js';
 
 export interface McpAttachment {
   handleRequest: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
@@ -47,6 +48,21 @@ export async function startHttpServer(args: StartHttpServerArgs): Promise<Starte
       if (staticHandler && (req.method === 'GET' || req.method === 'HEAD')) {
         const handled = await staticHandler(req, res);
         if (handled) return;
+      }
+      // SSE — bearer auth required, same trust model as /rpc.
+      if (req.method === 'GET' && req.url?.startsWith('/events')) {
+        if (!authOk(req, args.authToken)) {
+          res.statusCode = 401;
+          res.end('unauthorized');
+          return;
+        }
+        if (!args.bus) {
+          res.statusCode = 503;
+          res.end('event bus not configured');
+          return;
+        }
+        await handleSse(req, res, args.bus);
+        return;
       }
       // MCP transport route (Task 4.14 wires this; harmless when mcp is undefined)
       if (req.url?.startsWith('/mcp') && args.mcp) {
