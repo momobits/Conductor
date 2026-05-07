@@ -73,11 +73,12 @@ export class InMemoryRuntime implements RuntimeStore {
   }
 
   getActiveSession(cardId: string): SessionRecord | undefined {
-    return this.sessions.get(cardId);
+    const s = this.sessions.get(cardId);
+    return s ? { ...s } : undefined;
   }
 
   listActiveSessions(): SessionRecord[] {
-    return [...this.sessions.values()];
+    return [...this.sessions.values()].map((s) => ({ ...s }));
   }
 
   addCost(cardId: string, delta: CostDelta): void {
@@ -87,11 +88,13 @@ export class InMemoryRuntime implements RuntimeStore {
   }
 
   getCardCost(cardId: string): CostTotals {
-    return this.cardCost.get(cardId) ?? { ...ZERO };
+    const c = this.cardCost.get(cardId);
+    return c ? { ...c } : { ...ZERO };
   }
 
   getDayCost(yyyymmdd: string): CostTotals {
-    return this.dayCost.get(yyyymmdd) ?? { ...ZERO };
+    const c = this.dayCost.get(yyyymmdd);
+    return c ? { ...c } : { ...ZERO };
   }
 }
 
