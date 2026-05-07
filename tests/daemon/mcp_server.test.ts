@@ -68,4 +68,22 @@ describe('mcp_server', () => {
     const r = JSON.parse((result.content as { type: string; text: string }[])[0].text);
     expect(r.by_column).toMatchObject({ discovered: 0 });
   });
+
+  it('rejects /mcp without bearer token with 401', async () => {
+    const res = await fetch(`${handle.url}/mcp`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects /mcp with wrong bearer token with 401', async () => {
+    const res = await fetch(`${handle.url}/mcp`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer wrong-token' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+    });
+    expect(res.status).toBe(401);
+  });
 });

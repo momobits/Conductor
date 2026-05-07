@@ -77,6 +77,7 @@ export async function stopDaemon(repo: string): Promise<{ stopped: boolean; reas
   if (!isProcessAlive(pid)) {
     await clearPidFile(repo);
     await clearEndpointFile(repo);
+    await clearMcpEndpointFile(repo);
     return { stopped: false, reason: 'not-running' };
   }
   if (pid === process.pid) {
@@ -90,6 +91,7 @@ export async function stopDaemon(repo: string): Promise<{ stopped: boolean; reas
     }
     await clearPidFile(repo);
     await clearEndpointFile(repo);
+    await clearMcpEndpointFile(repo);
     return { stopped: true };
   } catch (e) {
     return { stopped: false, reason: (e as Error).message };
