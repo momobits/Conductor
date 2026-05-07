@@ -21,6 +21,8 @@ import type { Column } from '../engine/types.js';
 import type { ModelAdapter } from '../adapters/adapter.js';
 import { scan as scanOp } from '../engine/ops/scan.js';
 import { order as orderOp } from '../engine/ops/order.js';
+import { discover as discoverOp } from '../engine/ops/discover.js';
+import { appendExerciseFinding } from '../engine/ops/exercise.js';
 import { RoutingAdapter } from '../adapters/routing.js';
 
 export interface MethodContext {
@@ -114,9 +116,13 @@ async function order(ctx: MethodContext, raw: unknown) {
   return ordering;
 }
 
-async function discover(_ctx: MethodContext, raw: unknown) {
+async function discover(ctx: MethodContext, raw: unknown) {
   DiscoverParams.parse(raw);
-  return { items: [] };
+  const adapter = ctx.adapter ?? new RoutingAdapter();
+  const model = ctx.config.routing.functions['discover'] ?? ctx.config.routing.default;
+  const result = await discoverOp({ repo: ctx.repo, adapter, model });
+  // discoverOp returns DiscoveredItem[] directly
+  return { items: result };
 }
 
 async function exercise_new(_ctx: MethodContext, raw: unknown) {
@@ -125,9 +131,10 @@ async function exercise_new(_ctx: MethodContext, raw: unknown) {
   return { sessionId, goal: p.goal };
 }
 
-async function exercise_file(_ctx: MethodContext, raw: unknown) {
-  ExerciseFileParams.parse(raw);
-  return { cardId: undefined };
+async function exercise_file(ctx: MethodContext, raw: unknown) {
+  const p = ExerciseFileParams.parse(raw);
+  await appendExerciseFinding({ repo: ctx.repo, sessionId: p.sessionId, finding: p.finding });
+  return { ok: true as const };
 }
 
 async function work_card(ctx: MethodContext, raw: unknown) {

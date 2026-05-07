@@ -53,6 +53,16 @@ class SmartMockAdapter implements ModelAdapter {
         model: 'smart-mock',
       };
     }
+    if (sp.includes('scanning a software project')) {
+      return {
+        text: JSON.stringify({ items: [] }),
+        toolCalls: [],
+        inputTokens: 1,
+        outputTokens: 1,
+        totalTokens: 2,
+        model: 'smart-mock',
+      };
+    }
     throw new Error(`SmartMockAdapter: no handler for op=${req.operation} system="${sp.slice(0, 60)}"`);
   }
 
@@ -107,6 +117,31 @@ describe('rpc methods', () => {
     runtime.startSession({ cardId: '2026-05-07-x', runId: 'r1', operation: 'analyze' });
     const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime };
     await expect(methods.work_card(ctx, { id: '2026-05-07-x' })).rejects.toThrow(/already-running/);
+  });
+
+  it('discover returns items from the engine op', async () => {
+    const repo = setupRepo();
+    const adapter = new SmartMockAdapter(repo);
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime(), adapter };
+    const result = await methods.discover(ctx, {}) as { items: unknown[] };
+    expect(Array.isArray(result.items)).toBe(true);
+  });
+
+  it('exercise_file appends a finding to the session control file', async () => {
+    const repo = setupRepo();
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    const session = await methods.exercise_new(ctx, { goal: 'Test exercise sessions' }) as { sessionId: string };
+    const result = await methods.exercise_file(ctx, {
+      sessionId: session.sessionId,
+      finding: { scenario: 'Login flow', observed: 'Redirects to /500', severity: 'high', evidence: 'screenshot.png' },
+    }) as { ok: true };
+    expect(result.ok).toBe(true);
+    // The control file should contain the finding details
+    const { readFile } = await import('node:fs/promises');
+    const controlPath = join(repo, '.conductor', 'exercise', session.sessionId, '_control.md');
+    const text = await readFile(controlPath, 'utf-8');
+    expect(text).toContain('Login flow');
+    expect(text).toContain('Redirects to /500');
   });
 
   it('order writes ordering.md and returns ranked entries', async () => {

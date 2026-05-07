@@ -178,6 +178,32 @@ export async function exerciseFile(args: ExerciseFileArgs): Promise<Card> {
   };
 }
 
+export interface AppendFindingArgs {
+  repo: string;
+  sessionId: string;
+  finding: {
+    scenario: string;
+    observed: string;
+    severity: 'note' | 'low' | 'medium' | 'high';
+    evidence?: string;
+  };
+}
+
+export async function appendExerciseFinding(args: AppendFindingArgs): Promise<void> {
+  const dir = sessionDir(args.repo, args.sessionId);
+  await mkdir(dir, { recursive: true });
+  const ctrl = controlPath(args.repo, args.sessionId);
+  const lines = [
+    `\n### Finding: ${args.finding.scenario}`,
+    `- severity: ${args.finding.severity}`,
+    `- observed: ${args.finding.observed}`,
+  ];
+  if (args.finding.evidence) {
+    lines.push(`- evidence: ${args.finding.evidence}`);
+  }
+  await appendFile(ctrl, `${lines.join('\n')}\n`);
+}
+
 export interface ExerciseAutoArgs {
   repo: string;
   adapter: ModelAdapter;
