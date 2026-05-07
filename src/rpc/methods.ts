@@ -14,6 +14,7 @@ import {
   ExerciseNewParams, ExerciseFileParams,
   WorkCardParams, WorkNextParams, RecommendParams,
   ConfigGetParams, ConfigSetParams, SessionStatusParams,
+  ChatParams,
 } from './schema.js';
 import { dump as yamlDump } from 'js-yaml';
 import { writeFile } from 'node:fs/promises';
@@ -28,6 +29,7 @@ import { order as orderOp } from '../engine/ops/order.js';
 import { discover as discoverOp } from '../engine/ops/discover.js';
 import { appendExerciseFinding } from '../engine/ops/exercise.js';
 import { RoutingAdapter } from '../adapters/routing.js';
+import { chat as chatOp } from '../engine/ops/chat.js';
 
 export interface MethodContext {
   repo: string;
@@ -219,6 +221,16 @@ async function session_status(ctx: MethodContext, raw: unknown) {
   return { sessions: ctx.runtime.listActiveSessions() };
 }
 
+async function chat(ctx: MethodContext, raw: unknown) {
+  const p = ChatParams.parse(raw);
+  const cardPath = join(cardsDir(ctx.repo), `${p.cardId}.md`);
+  const card = await readCard(cardPath);
+  const adapter = ctx.adapter ?? new RoutingAdapter();
+  const model = ctx.config.routing.functions['chat'] ?? ctx.config.routing.default;
+  const result = await chatOp({ repo: ctx.repo, card, message: p.message, adapter, model });
+  return { reply: result.reply };
+}
+
 export const methods = {
   card_new,
   card_get,
@@ -236,6 +248,7 @@ export const methods = {
   config_get,
   config_set,
   session_status,
+  chat,
 } satisfies Record<string, Handler<unknown, unknown>>;
 
 export type MethodName = keyof typeof methods;

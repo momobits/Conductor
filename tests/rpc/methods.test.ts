@@ -63,6 +63,16 @@ class SmartMockAdapter implements ModelAdapter {
         model: 'smart-mock',
       };
     }
+    if (sp.includes('engineering collaborator')) {
+      return {
+        text: 'Stub reply.',
+        toolCalls: [],
+        inputTokens: 1,
+        outputTokens: 1,
+        totalTokens: 2,
+        model: 'smart-mock',
+      };
+    }
     throw new Error(`SmartMockAdapter: no handler for op=${req.operation} system="${sp.slice(0, 60)}"`);
   }
 
@@ -253,5 +263,17 @@ describe('rpc methods', () => {
       ctx.runtime.endSession('a');
       ctx.runtime.endSession('b');
     }
+  });
+
+  it('chat appends a turn to the card body', async () => {
+    const repo = setupRepo();
+    const adapter = new SmartMockAdapter(repo);
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime(), adapter };
+    const { id } = await methods.card_new(ctx, { slug: 'chat-card', title: 'Chat target', kind: 'issue', body: 'Body.' });
+    const result = await methods.chat(ctx, { cardId: id, message: 'Hello?' }) as { reply: string };
+    expect(typeof result.reply).toBe('string');
+    expect(result.reply.length).toBeGreaterThan(0);
+    const reread = await methods.card_get(ctx, { id }) as { body: string };
+    expect(reread.body).toContain('Hello?');
   });
 });

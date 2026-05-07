@@ -31,6 +31,7 @@ const TOOLS = [
   { name: 'conductor.config_get', description: 'Read the project config from disk' },
   { name: 'conductor.config_set', description: 'Write and validate the project config' },
   { name: 'conductor.session_status', description: 'Query active TaskAgent sessions' },
+  { name: 'conductor.chat', description: 'Chat with the model about a specific card' },
 ] as const;
 
 export interface McpAttachArgs {

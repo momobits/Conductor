@@ -93,3 +93,8 @@ export const ConfigSetParams = z.object({
 export const SessionStatusParams = z.object({
   cardId: z.string().optional(),
 });
+
+export const ChatParams = z.object({
+  cardId: z.string().min(1),
+  message: z.string().min(1),
+});
