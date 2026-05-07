@@ -1,0 +1,116 @@
+// src/engine/ops/verify.ts
+//
+// Operation: run the project's verify command, ask the model to
+// classify the outcome, append a Verification Report.
+
+import type { ModelAdapter } from '../../adapters/adapter.js';
+import type { Card, VerifyReport } from '../types.js';
+import { appendSection } from '../state/card.js';
+
+export interface RunnerResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+}
+
+export type Runner = (command: string) => Promise<RunnerResult>;
+
+export interface VerifyArgs {
+  card: Card;
+  adapter: ModelAdapter;
+  model: string;
+  command: string;
+  runner: Runner;
+}
+
+const SYSTEM_PROMPT = `You are evaluating the output of a verification
+command. Decide whether verification PASSed, FAILed, or was SKIPped, and
+extract distinct failures.
+
+Return ONLY a single JSON object on one line, no Markdown fence:
+
+  {
+    "outcome": "PASS" | "FAIL" | "SKIP",
+    "summary": "<2-3 sentence narrative>",
+    "failures": ["<one failure per item>", ...]
+  }
+
+PASS  — command exited 0 and all tests/checks succeeded.
+FAIL  — command exited non-zero or output indicates failures.
+SKIP  — no tests/checks were applicable (e.g. empty test suite).`.trim();
+
+function truncate(s: string, max = 4000): string {
+  return s.length <= max ? s : s.slice(0, max) + `\n... [truncated ${s.length - max} chars]`;
+}
+
+export async function verify(args: VerifyArgs): Promise<VerifyReport> {
+  const { card, adapter, model, command, runner } = args;
+
+  const result = await runner(command);
+
+  const userPrompt = [
+    `Card: ${card.frontmatter.id}`,
+    `Verify command: ${command}`,
+    `Exit code: ${result.exitCode}`,
+    '',
+    '--- stdout ---',
+    truncate(result.stdout),
+    '',
+    '--- stderr ---',
+    truncate(result.stderr),
+  ].join('\n');
+
+  const resp = await adapter.invoke({
+    operation: 'verify',
+    model,
+    system: SYSTEM_PROMPT,
+    user: userPrompt,
+  });
+
+  let parsed: { outcome: VerifyReport['outcome']; summary: string; failures: string[] };
+  try {
+    const raw = JSON.parse(resp.text.trim());
+    parsed = {
+      outcome: raw.outcome,
+      summary: String(raw.summary ?? ''),
+      failures: Array.isArray(raw.failures) ? raw.failures.map(String) : [],
+    };
+  } catch (e) {
+    throw new Error(`Failed to parse verify JSON: ${(e as Error).message}\n--- raw ---\n${resp.text}`);
+  }
+
+  const report: VerifyReport = {
+    outcome: parsed.outcome,
+    command,
+    exit_code: result.exitCode,
+    summary: parsed.summary,
+    failures: parsed.failures,
+  };
+
+  const sectionBody = [
+    `**Outcome:** ${report.outcome}`,
+    `**Command:** \`${report.command}\``,
+    `**Exit code:** ${report.exit_code}`,
+    '',
+    `**Summary:** ${report.summary}`,
+    '',
+    report.failures.length > 0
+      ? '**Failures:**\n' + report.failures.map((f) => `- ${f}`).join('\n')
+      : '**Failures:** (none)',
+  ].join('\n');
+
+  await appendSection(card.path, 'Verification Report', sectionBody);
+  return report;
+}
+
+// Default runner — used by CLI invocations. Importable for production but
+// not pulled into tests so we can keep test runs hermetic.
+export async function defaultRunner(command: string): Promise<RunnerResult> {
+  const { execa } = await import('execa');
+  const proc = await execa(command, { shell: true, reject: false });
+  return {
+    stdout: proc.stdout ?? '',
+    stderr: proc.stderr ?? '',
+    exitCode: proc.exitCode ?? 0,
+  };
+}

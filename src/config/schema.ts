@@ -58,6 +58,7 @@ export const ProjectConfigSchema = z
           .default({}),
       })
       .default({}),
+    verify_command: z.string().default('npm test'),
   })
   .strict();
 
