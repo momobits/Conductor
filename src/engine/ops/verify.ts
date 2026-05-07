@@ -4,7 +4,7 @@
 // classify the outcome, append a Verification Report.
 
 import type { ModelAdapter } from '../../adapters/adapter.js';
-import type { Card, VerifyReport } from '../types.js';
+import type { Card, VerifyReport, VerifyOutcome } from '../types.js';
 import { appendSection } from '../state/card.js';
 
 export interface RunnerResult {
@@ -22,6 +22,8 @@ export interface VerifyArgs {
   command: string;
   runner: Runner;
 }
+
+const VALID_OUTCOMES: VerifyOutcome[] = ['PASS', 'FAIL', 'SKIP'];
 
 const SYSTEM_PROMPT = `You are evaluating the output of a verification
 command. Decide whether verification PASSed, FAILed, or was SKIPped, and
@@ -70,6 +72,11 @@ export async function verify(args: VerifyArgs): Promise<VerifyReport> {
   let parsed: { outcome: VerifyReport['outcome']; summary: string; failures: string[] };
   try {
     const raw = JSON.parse(resp.text.trim());
+    if (!VALID_OUTCOMES.includes(raw.outcome)) {
+      throw new Error(
+        `Invalid outcome "${raw.outcome}" from model; expected one of ${VALID_OUTCOMES.join(', ')}.\n--- raw ---\n${resp.text}`,
+      );
+    }
     parsed = {
       outcome: raw.outcome,
       summary: String(raw.summary ?? ''),

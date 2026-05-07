@@ -103,4 +103,18 @@ describe('verify op', () => {
     });
     expect(report.outcome).toBe('SKIP');
   });
+
+  it('throws when model returns an unrecognized outcome', async () => {
+    const adapter = new MockAdapter();
+    adapter.push({
+      text: JSON.stringify({ outcome: 'UNKNOWN', summary: 's', failures: [] }),
+      inputTokens: 1, outputTokens: 1,
+    });
+    const card = await readCard(cardPath);
+    const runner = async () => ({ stdout: '', stderr: '', exitCode: 0 });
+    await expect(verify({
+      card, adapter, model: 'mock-model',
+      command: 'npm test', runner,
+    })).rejects.toThrow(/Invalid outcome/);
+  });
 });
