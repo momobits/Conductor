@@ -11,6 +11,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && npm run build:ui",
     "build:ui": "tsc -p tsconfig.ui.json && node scripts/build-ui.mjs",
+    "pretest": "npm run build:ui",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.ui.json",

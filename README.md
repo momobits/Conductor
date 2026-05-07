@@ -140,6 +140,38 @@ When a Task Agent advances a card across a column transition, it consults `.cond
 
 Each Task Agent run writes `.conductor/runs/<run-id>/events.jsonl`. Schema per spec § 14: `{ts, kind, card_id?, op?, payload?}` per line.
 
+## Local web UI (Phase 5)
+
+The daemon serves a small SPA at `http://127.0.0.1:<port>/` whenever it
+is running. The UI is plain TypeScript + HTML/CSS — no framework, no
+bundler. It talks HTTP-only to the existing JSON-RPC and SSE endpoints.
+
+Open the UI:
+
+```bash
+conductor daemon start
+# Then open the URL printed; the auth token rides as ?token=… in the URL
+# on first visit and is stored in localStorage afterwards.
+```
+
+Surfaces:
+
+| View        | Hash route        | Notes                                                                       |
+|-------------|-------------------|-----------------------------------------------------------------------------|
+| Board       | `#/board`         | Drag cards between columns; manual/assist gates pop a confirm dialog.       |
+| Card detail | `#/card/<id>`     | Markdown render, frontmatter sidebar, "Work this card" button, live agent stream, per-card chat. |
+| Monitor     | `#/monitor`       | Live table of active TaskAgent sessions.                                    |
+| Routing     | `#/routing`       | YAML editor for `.conductor/config.yaml` (server validates on save).        |
+
+Real-time updates flow through `GET /events` (SSE) — watcher events
+(`cards-changed`, `state-changed`, `ordering-changed`), session lifecycle
+(`session-start`, `session-operation`, `session-end`), and per-card
+TaskAgent events (`task-event`).
+
+Build the UI assets locally with `npm run build:ui`. The daemon resolves
+`dist/ui/` relative to its own module path. `npm test` automatically
+builds the UI first via the `pretest` hook.
+
 ## Try it
 
 ```bash
