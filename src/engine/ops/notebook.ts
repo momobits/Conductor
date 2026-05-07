@@ -7,7 +7,7 @@
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import type { Card } from '../types.js';
-import { appendSection } from '../state/card.js';
+import { appendSection, extractSection } from '../state/card.js';
 
 export interface NotebookArgs {
   repo: string;
@@ -27,18 +27,10 @@ interface NbCell {
   execution_count?: number | null;
 }
 
-function extractSection(body: string, heading: string): string {
-  const idx = body.indexOf(`## ${heading}`);
-  if (idx < 0) return '_(none)_';
-  const after = body.slice(idx + heading.length + 3);
-  const nextH2 = after.search(/\n##\s+/);
-  return (nextH2 >= 0 ? after.slice(0, nextH2) : after).trim();
-}
-
 export async function notebook(args: NotebookArgs): Promise<NotebookResult> {
   const { repo, card, command } = args;
 
-  const verifySection = extractSection(card.body, 'Verification Report');
+  const verifySection = extractSection(card.body, 'Verification Report') ?? '_(none)_';
 
   const cells: NbCell[] = [
     {

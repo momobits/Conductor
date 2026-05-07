@@ -6,7 +6,7 @@
 
 import type { ModelAdapter } from '../../adapters/adapter.js';
 import type { Card } from '../types.js';
-import { appendSection } from '../state/card.js';
+import { appendSection, extractSection } from '../state/card.js';
 
 export interface PlanArgs {
   card: Card;
@@ -33,12 +33,10 @@ MUST include all six fields:
 Steps must be small, sequential, and independently verifiable. Number them
 1.1, 1.2, etc. Output Markdown only — no preamble.`.trim();
 
-const ANALYSIS_HEADING = '## Analysis';
-
 export async function plan(args: PlanArgs): Promise<PlanResult> {
   const { card, adapter, model } = args;
 
-  const analysis = extractAnalysisSection(card.body);
+  const analysis = extractSection(card.body, 'Analysis');
   if (!analysis) {
     throw new Error(`Card ${card.frontmatter.id} has no Analysis section; run analyze first.`);
   }
@@ -64,12 +62,4 @@ export async function plan(args: PlanArgs): Promise<PlanResult> {
     text: resp.text,
     tokens: resp.inputTokens + resp.outputTokens,
   };
-}
-
-function extractAnalysisSection(body: string): string | null {
-  const idx = body.indexOf(ANALYSIS_HEADING);
-  if (idx < 0) return null;
-  const after = body.slice(idx + ANALYSIS_HEADING.length);
-  const nextH2 = after.search(/\n##\s+/);
-  return (nextH2 >= 0 ? after.slice(0, nextH2) : after).trim();
 }

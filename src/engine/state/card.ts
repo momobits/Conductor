@@ -79,4 +79,16 @@ export async function appendSection(
   await writeCard(card);
 }
 
+/** Extract the body of an `## <heading>` section from a card body. Returns
+ *  the trimmed content between the heading and the next `## ` heading (or
+ *  end of body), or `null` if the heading is not present. */
+export function extractSection(body: string, heading: string): string | null {
+  const fullHeading = `## ${heading}`;
+  const idx = body.indexOf(fullHeading);
+  if (idx < 0) return null;
+  const after = body.slice(idx + fullHeading.length);
+  const nextH2 = after.search(/\n##\s+/);
+  return (nextH2 >= 0 ? after.slice(0, nextH2) : after).trim();
+}
+
 export type { Card, CardFrontmatter };

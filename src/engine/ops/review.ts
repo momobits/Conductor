@@ -6,7 +6,7 @@
 
 import type { ModelAdapter } from '../../adapters/adapter.js';
 import type { Card, Verdict, VerdictDecision } from '../types.js';
-import { appendSection } from '../state/card.js';
+import { appendSection, extractSection } from '../state/card.js';
 
 const VALID_DECISIONS: VerdictDecision[] = ['APPROVED', 'NEEDS-CHANGES', 'NEEDS-INFO'];
 
@@ -34,20 +34,10 @@ Use APPROVED only when the plan is acceptable as-written. Use
 NEEDS-CHANGES when concrete edits would make it acceptable. Use
 NEEDS-INFO when more facts must be gathered before review can complete.`.trim();
 
-const PLAN_HEADING = '## Implementation Plan';
-
-function extractPlan(body: string): string | null {
-  const idx = body.indexOf(PLAN_HEADING);
-  if (idx < 0) return null;
-  const after = body.slice(idx + PLAN_HEADING.length);
-  const nextH2 = after.search(/\n##\s+/);
-  return (nextH2 >= 0 ? after.slice(0, nextH2) : after).trim();
-}
-
 export async function review(args: ReviewArgs): Promise<Verdict> {
   const { card, adapter, model } = args;
 
-  const plan = extractPlan(card.body);
+  const plan = extractSection(card.body, 'Implementation Plan');
   if (!plan) {
     throw new Error(`Card ${card.frontmatter.id} has no Implementation Plan; run plan first.`);
   }
