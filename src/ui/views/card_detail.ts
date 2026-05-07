@@ -21,6 +21,25 @@ function escape(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 }
 
+function showTransitionDialog(from: string, to: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const dialog = document.createElement('dialog');
+    dialog.innerHTML = `
+      <h3>Approve transition?</h3>
+      <p><code>${escape(from)}</code> → <code>${escape(to)}</code></p>
+      <p>The Task Agent halted at this gate. (Phase 6 will surface a Conductor recommendation here.)</p>
+      <div class="actions">
+        <button class="secondary" data-act="cancel">Cancel</button>
+        <button data-act="ok">Approve</button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+    dialog.querySelector('[data-act="cancel"]')!.addEventListener('click', () => { dialog.remove(); resolve(false); });
+    dialog.querySelector('[data-act="ok"]')!.addEventListener('click', () => { dialog.remove(); resolve(true); });
+    dialog.showModal();
+  });
+}
+
 function fmtFrontmatter(fm: Record<string, unknown>): string {
   const keys = ['id', 'kind', 'column', 'phase', 'priority', 'autonomy', 'created'] as const;
   return keys.map((k) => {
@@ -88,7 +107,24 @@ export async function renderCardDetail(
       case 'op_start': appendEvent(`▸ ${evt.operation}`); break;
       case 'op_complete': appendEvent(`✓ ${evt.operation}`); break;
       case 'transition': appendEvent(`→ ${evt.from} → ${evt.to}`); break;
-      case 'transition_request': appendEvent(`? ${evt.from} → ${evt.to} (awaiting approval)`, 'halt'); break;
+      case 'transition_request': {
+        appendEvent(`? ${evt.from} → ${evt.to} (awaiting approval)`, 'halt');
+        showTransitionDialog(evt.from!, evt.to!).then(async (approved) => {
+          if (!approved) {
+            appendEvent('· cancelled by user');
+            return;
+          }
+          try {
+            await rpc.call('transition', { id: cardId, to: evt.to });
+            appendEvent(`→ approved & transitioned to ${evt.to}`, 'complete');
+            // Re-run work_card to continue from the new column
+            await rpc.call('work_card', { id: cardId });
+          } catch (err) {
+            appendEvent(`✗ approval failed: ${(err as Error).message}`, 'error');
+          }
+        });
+        break;
+      }
       case 'halt': appendEvent(`■ halt: ${evt.reason}`, 'halt'); break;
       case 'error': appendEvent(`✗ ${evt.message}`, 'error'); break;
       case 'complete': appendEvent(`■ done`, 'complete'); break;
