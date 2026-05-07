@@ -73,7 +73,9 @@ async function dispatch(ctx: AppContext) {
     const result = await renderCardDetail(ctx.rpc, ctx.stream, root, params[0]);
     detailCleanup = result.cleanup;
   } else if (view === 'monitor') {
-    root.innerHTML = '<p>Monitor loads in Task 16.</p>';
+    const { renderMonitor } = await import('./views/monitor.js');
+    const result = await renderMonitor(ctx.rpc, ctx.stream, root);
+    detailCleanup = result.cleanup;
   } else if (view === 'routing') {
     root.innerHTML = '<p>Routing loads in Task 17.</p>';
   } else {
