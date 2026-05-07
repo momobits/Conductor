@@ -18,6 +18,7 @@ import {
 import { InMemoryRuntime } from './runtime.js';
 import { attachMcpServer } from './mcp_server.js';
 import { startWatcher, type WatcherHandle } from './watcher.js';
+import { EventBus } from './event_bus.js';
 
 export interface DaemonHandle {
   url: string;
@@ -45,8 +46,9 @@ export async function startDaemon(args: StartDaemonArgs): Promise<DaemonHandle> 
   const config = await loadProjectConfig(join(args.repo, '.conductor', 'config.yaml'));
   const authToken = await generateAuthToken(args.repo);
   const runtime = new InMemoryRuntime();
+  const bus = new EventBus();
 
-  const ctx = { repo: args.repo, config, runtime };
+  const ctx = { repo: args.repo, config, runtime, bus };
   const mcp = attachMcpServer({ ctx, authToken });
 
   // Resolve dist/ui/ relative to this file. When running from source via tsx,
@@ -66,6 +68,7 @@ export async function startDaemon(args: StartDaemonArgs): Promise<DaemonHandle> 
     authToken,
     mcp,
     uiRoot,
+    bus,
   });
 
   await writePidFile(args.repo, process.pid);
@@ -74,11 +77,7 @@ export async function startDaemon(args: StartDaemonArgs): Promise<DaemonHandle> 
 
   const watcher: WatcherHandle = await startWatcher({
     repo: args.repo,
-    onEvent: (e) => {
-      // Phase 4: emit to stderr for observability; Phase 5 wires consumers.
-      // eslint-disable-next-line no-console
-      console.error(`[watcher] ${e.kind}${'path' in e ? ` ${e.path}` : ''}`);
-    },
+    bus,
   });
 
   return {
@@ -87,6 +86,7 @@ export async function startDaemon(args: StartDaemonArgs): Promise<DaemonHandle> 
     shutdown: async () => {
       await watcher.close();
       await server.close();
+      bus.close();
       await clearPidFile(args.repo);
       await clearEndpointFile(args.repo);
       await clearMcpEndpointFile(args.repo);

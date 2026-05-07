@@ -7,6 +7,7 @@
 import { join } from 'node:path';
 import type { ProjectConfig } from '../config/schema.js';
 import type { RuntimeStore } from '../daemon/runtime.js';
+import type { EventBus } from '../daemon/event_bus.js';
 import {
   CardNewParams, CardGetParams, CardListParams, CardUpdateParams,
   TransitionParams, ScanParams, OrderParams, DiscoverParams,
@@ -22,6 +23,7 @@ export interface MethodContext {
   repo: string;
   config: ProjectConfig;
   runtime: RuntimeStore;
+  bus?: EventBus;
 }
 
 type Handler<P, R> = (ctx: MethodContext, params: P) => Promise<R>;
@@ -121,18 +123,28 @@ async function work_card(ctx: MethodContext, raw: unknown) {
   }
   const agent = new TaskAgent({ repo: ctx.repo, cardId: p.id, config: ctx.config, step: p.step });
   ctx.runtime.startSession({ cardId: p.id, runId: agent.runId, operation: 'work' });
+  ctx.bus?.publish({ kind: 'session-start', cardId: p.id, runId: agent.runId });
   try {
     let finalColumn: Column = 'discovered';
     let halted = false;
     let reason: string | undefined;
     for await (const e of agent.run()) {
-      if (e.kind === 'op_start') ctx.runtime.updateSessionOperation(p.id, e.operation);
-      else if (e.kind === 'complete') finalColumn = e.finalColumn;
-      else if (e.kind === 'halt') { halted = true; reason = e.reason; finalColumn = e.finalColumn; }
+      ctx.bus?.publish({ kind: 'task-event', cardId: p.id, runId: agent.runId, event: e });
+      if (e.kind === 'op_start') {
+        ctx.runtime.updateSessionOperation(p.id, e.operation);
+        ctx.bus?.publish({ kind: 'session-operation', cardId: p.id, runId: agent.runId, operation: e.operation });
+      } else if (e.kind === 'complete') {
+        finalColumn = e.finalColumn;
+      } else if (e.kind === 'halt') {
+        halted = true;
+        reason = e.reason;
+        finalColumn = e.finalColumn;
+      }
     }
     return { runId: agent.runId, finalColumn, halted, reason };
   } finally {
     ctx.runtime.endSession(p.id);
+    ctx.bus?.publish({ kind: 'session-end', cardId: p.id, runId: agent.runId });
   }
 }
 

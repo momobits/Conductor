@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, appendFileSync } from 'node:fs';
+import { writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startWatcher } from '../../src/daemon/watcher.js';
+import { EventBus } from '../../src/daemon/event_bus.js';
 
 function delay(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -48,5 +50,25 @@ describe('watcher', () => {
     } finally {
       await w.close();
     }
+  });
+
+  it('publishes events to the bus', async () => {
+    const repo = mkdtempSync(join(tmpdir(), 'conductor-watch-bus-'));
+    mkdirSync(join(repo, '.conductor', 'cards'), { recursive: true });
+
+    const bus = new EventBus();
+    const collected: unknown[] = [];
+    bus.subscribe((e) => { collected.push(e); });
+    const w = await startWatcher({ repo, bus });
+    // Let chokidar stabilize before triggering a change (matches existing test pattern).
+    await delay(150);
+    await writeFile(join(repo, '.conductor', 'cards', 'new-card.md'), '---\n---\n');
+    // chokidar fires asynchronously; poll briefly.
+    for (let i = 0; i < 50 && collected.length === 0; i++) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    expect(collected.length).toBeGreaterThan(0);
+    expect((collected[0] as { kind: string }).kind).toBe('cards-changed');
+    await w.close();
   });
 });

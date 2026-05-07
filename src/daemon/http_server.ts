@@ -12,6 +12,7 @@ import type { ProjectConfig } from '../config/schema.js';
 import type { RuntimeStore } from './runtime.js';
 import { methods, type MethodName, type MethodContext } from '../rpc/methods.js';
 import { createStaticHandler } from './static.js';
+import type { EventBus } from './event_bus.js';
 
 export interface McpAttachment {
   handleRequest: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
@@ -25,6 +26,7 @@ export interface StartHttpServerArgs {
   authToken: string;
   mcp?: McpAttachment;
   uiRoot?: string;
+  bus?: EventBus;
 }
 
 export interface StartedServer {
@@ -36,7 +38,7 @@ export interface StartedServer {
 const METHOD_PREFIX = 'conductor.';
 
 export async function startHttpServer(args: StartHttpServerArgs): Promise<StartedServer> {
-  const ctx: MethodContext = { repo: args.repo, config: args.config, runtime: args.runtime };
+  const ctx: MethodContext = { repo: args.repo, config: args.config, runtime: args.runtime, bus: args.bus };
   const staticHandler = args.uiRoot ? createStaticHandler(args.uiRoot) : null;
 
   const server: Server = createServer(async (req, res) => {

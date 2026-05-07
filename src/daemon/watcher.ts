@@ -6,6 +6,7 @@
 
 import chokidar from 'chokidar';
 import { join, sep } from 'node:path';
+import type { EventBus } from './event_bus.js';
 
 export type WatcherEvent =
   | { kind: 'cards-changed'; path: string }
@@ -14,7 +15,8 @@ export type WatcherEvent =
 
 export interface WatcherArgs {
   repo: string;
-  onEvent: (event: WatcherEvent) => void;
+  onEvent?: (event: WatcherEvent) => void;
+  bus?: EventBus;
 }
 
 export interface WatcherHandle {
@@ -40,13 +42,17 @@ export async function startWatcher(args: WatcherArgs): Promise<WatcherHandle> {
 
   const cardsPathFragment = `${sep}cards${sep}`;
   const handler = (path: string) => {
+    let event: WatcherEvent | null = null;
     if (path.includes(cardsPathFragment) || path.endsWith(`${sep}cards`)) {
-      args.onEvent({ kind: 'cards-changed', path });
+      event = { kind: 'cards-changed', path };
     } else if (path.endsWith('state.md')) {
-      args.onEvent({ kind: 'state-changed' });
+      event = { kind: 'state-changed' };
     } else if (path.endsWith('ordering.md')) {
-      args.onEvent({ kind: 'ordering-changed' });
+      event = { kind: 'ordering-changed' };
     }
+    if (!event) return;
+    if (args.bus) args.bus.publish(event);
+    if (args.onEvent) args.onEvent(event);
   };
 
   watch.on('add', handler);
