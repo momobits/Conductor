@@ -61,6 +61,7 @@ let detailCleanup: (() => void) | null = null;
 async function dispatch(ctx: AppContext) {
   detailCleanup?.();
   detailCleanup = null;
+  ctx.boardRefresh = undefined;
   const root = document.getElementById('root') as HTMLElement;
   const hash = (window.location.hash || '#/board').slice(1);
   const parts = hash.split('/').filter(Boolean);
