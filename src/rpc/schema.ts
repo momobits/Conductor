@@ -89,3 +89,7 @@ export const ConfigGetParams = z.object({});
 export const ConfigSetParams = z.object({
   config: ProjectConfigSchema,
 });
+
+export const SessionStatusParams = z.object({
+  cardId: z.string().optional(),
+});

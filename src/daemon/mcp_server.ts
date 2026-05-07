@@ -30,6 +30,7 @@ const TOOLS = [
   { name: 'conductor.recommend', description: 'File a recommendation manually' },
   { name: 'conductor.config_get', description: 'Read the project config from disk' },
   { name: 'conductor.config_set', description: 'Write and validate the project config' },
+  { name: 'conductor.session_status', description: 'Query active TaskAgent sessions' },
 ] as const;
 
 export interface McpAttachArgs {

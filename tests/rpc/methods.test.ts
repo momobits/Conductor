@@ -220,4 +220,38 @@ describe('rpc methods', () => {
     await methods.config_set(ctxWithBus, { config: freshResult.config as never });
     expect(events.some((e) => (e as { kind: string }).kind === 'config-changed')).toBe(true);
   });
+
+  it('session_status returns null when no agent is running', async () => {
+    const repo = setupRepo();
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    const result = await methods.session_status(ctx, { cardId: 'no-such-card' }) as { session: null | unknown };
+    expect(result.session).toBeNull();
+  });
+
+  it('session_status returns the active session when one is running', async () => {
+    const repo = setupRepo();
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    ctx.runtime.startSession({ cardId: 'c1', runId: 'r1', operation: 'analyze' });
+    try {
+      const result = await methods.session_status(ctx, { cardId: 'c1' }) as { session: { runId: string; operation: string } };
+      expect(result.session.runId).toBe('r1');
+      expect(result.session.operation).toBe('analyze');
+    } finally {
+      ctx.runtime.endSession('c1');
+    }
+  });
+
+  it('session_status without cardId returns all active sessions', async () => {
+    const repo = setupRepo();
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    ctx.runtime.startSession({ cardId: 'a', runId: 'ra', operation: 'analyze' });
+    ctx.runtime.startSession({ cardId: 'b', runId: 'rb', operation: 'plan' });
+    try {
+      const result = await methods.session_status(ctx, {}) as { sessions: Array<{ cardId: string }> };
+      expect(result.sessions.map((s) => s.cardId).sort()).toEqual(['a', 'b']);
+    } finally {
+      ctx.runtime.endSession('a');
+      ctx.runtime.endSession('b');
+    }
+  });
 });

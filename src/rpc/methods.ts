@@ -13,7 +13,7 @@ import {
   TransitionParams, ScanParams, OrderParams, DiscoverParams,
   ExerciseNewParams, ExerciseFileParams,
   WorkCardParams, WorkNextParams, RecommendParams,
-  ConfigGetParams, ConfigSetParams,
+  ConfigGetParams, ConfigSetParams, SessionStatusParams,
 } from './schema.js';
 import { dump as yamlDump } from 'js-yaml';
 import { writeFile } from 'node:fs/promises';
@@ -210,6 +210,15 @@ async function config_set(ctx: MethodContext, raw: unknown) {
   return { ok: true as const };
 }
 
+async function session_status(ctx: MethodContext, raw: unknown) {
+  const p = SessionStatusParams.parse(raw);
+  if (p.cardId) {
+    const s = ctx.runtime.getActiveSession(p.cardId);
+    return { session: s ?? null };
+  }
+  return { sessions: ctx.runtime.listActiveSessions() };
+}
+
 export const methods = {
   card_new,
   card_get,
@@ -226,6 +235,7 @@ export const methods = {
   recommend,
   config_get,
   config_set,
+  session_status,
 } satisfies Record<string, Handler<unknown, unknown>>;
 
 export type MethodName = keyof typeof methods;
