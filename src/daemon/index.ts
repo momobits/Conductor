@@ -15,6 +15,7 @@ import {
 } from './pidfile.js';
 import { InMemoryRuntime } from './runtime.js';
 import { attachMcpServer } from './mcp_server.js';
+import { startWatcher, type WatcherHandle } from './watcher.js';
 
 export interface DaemonHandle {
   url: string;
@@ -59,10 +60,20 @@ export async function startDaemon(args: StartDaemonArgs): Promise<DaemonHandle> 
   await writeEndpointFile(args.repo, server.url);
   await writeMcpEndpointFile(args.repo, `${server.url}/mcp`);
 
+  const watcher: WatcherHandle = await startWatcher({
+    repo: args.repo,
+    onEvent: (e) => {
+      // Phase 4: emit to stderr for observability; Phase 5 wires consumers.
+      // eslint-disable-next-line no-console
+      console.error(`[watcher] ${e.kind}${'path' in e ? ` ${e.path}` : ''}`);
+    },
+  });
+
   return {
     url: server.url,
     port: server.port,
     shutdown: async () => {
+      await watcher.close();
       await server.close();
       await clearPidFile(args.repo);
       await clearEndpointFile(args.repo);
