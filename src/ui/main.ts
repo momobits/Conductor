@@ -77,7 +77,8 @@ async function dispatch(ctx: AppContext) {
     const result = await renderMonitor(ctx.rpc, ctx.stream, root);
     detailCleanup = result.cleanup;
   } else if (view === 'routing') {
-    root.innerHTML = '<p>Routing loads in Task 17.</p>';
+    const { renderRouting } = await import('./views/routing.js');
+    await renderRouting(ctx.rpc, root);
   } else {
     root.innerHTML = '<p>Unknown view.</p>';
   }
