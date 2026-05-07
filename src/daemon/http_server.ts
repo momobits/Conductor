@@ -7,6 +7,7 @@
 
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { ZodError } from 'zod';
 import type { ProjectConfig } from '../config/schema.js';
 import type { RuntimeStore } from './runtime.js';
 import { methods, type MethodName, type MethodContext } from '../rpc/methods.js';
@@ -72,10 +73,7 @@ export async function startHttpServer(args: StartHttpServerArgs): Promise<Starte
         writeJson(res, 200, { jsonrpc: '2.0', id: parsed.id ?? null, result });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        // Catch Zod validation errors and common invalid-param patterns → -32602
-        const code = /Zod|invalid|expected|required|too_small|too small|min|max|String|Number|at least/i.test(message)
-          ? -32602
-          : -32603;
+        const code = err instanceof ZodError ? -32602 : -32603;
         writeJson(res, 200, { jsonrpc: '2.0', id: parsed.id ?? null, error: { code, message } });
       }
     } catch (err) {
@@ -107,6 +105,7 @@ function authOk(req: IncomingMessage, token: string): boolean {
   return scheme === 'Bearer' && value === token;
 }
 
+// No size cap: /rpc is localhost-only; the auth token is the trust boundary.
 async function readBody(req: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
   for await (const chunk of req) chunks.push(chunk as Buffer);

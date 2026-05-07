@@ -79,4 +79,11 @@ describe('http_server', () => {
     const body = r.body as { error: { code: number } };
     expect(body.error.code).toBe(-32602);
   });
+
+  it('returns -32602 for card_update refine failure (no patch and no append)', async () => {
+    const r = await rpc(server, 'conductor.card_update', { id: 'x' }, token);
+    const body = r.body as { error: { code: number; message: string } };
+    expect(body.error.code).toBe(-32602);
+    expect(body.error.message).toMatch(/frontmatterPatch|bodyAppend/);
+  });
 });
