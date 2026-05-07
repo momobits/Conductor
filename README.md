@@ -93,6 +93,53 @@ project that never routes to a given provider doesn't need its key.
 | Gemini | `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) |
 | Local | `CONDUCTOR_LOCAL_BASE_URL` (default `http://localhost:11434/v1`), `CONDUCTOR_LOCAL_API_KEY` (default `ollama`) |
 
+## Daemon, MCP, and HTTP/JSON-RPC (Phase 4)
+
+When you start a Conductor daemon, every other surface — the CLI, foreign AI CLIs (Claude Code, Codex, Gemini CLI, OpenCode), and CI scripts — talks to the same engine through one of two transports.
+
+**Start the daemon:**
+
+```sh
+conductor daemon start --port 7180         # foreground, default port
+conductor daemon start --port 0 --detach   # random port, background (Phase 4 ships start; full --detach behavior on Windows lands in Phase 5)
+conductor daemon status
+conductor daemon stop
+```
+
+The daemon writes (all gitignored):
+
+- `.conductor/daemon.pid` — process id
+- `.conductor/daemon.endpoint` — `http://127.0.0.1:<port>`
+- `.conductor/auth.token` — bearer token, rotated every start
+- `.conductor/mcp.endpoint` — `http://127.0.0.1:<port>/mcp`
+
+### JSON-RPC at `/rpc`
+
+```sh
+curl -X POST http://127.0.0.1:7180/rpc \
+  -H "Authorization: Bearer $(cat .conductor/auth.token)" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"conductor.scan","params":{}}'
+```
+
+Method namespace mirrors the MCP tools: `conductor.card_new`, `conductor.card_get`, `conductor.card_list`, `conductor.card_update`, `conductor.transition`, `conductor.scan`, `conductor.order`, `conductor.discover`, `conductor.exercise_new`, `conductor.exercise_file`, `conductor.work_card`, `conductor.work_next`, `conductor.recommend`.
+
+### MCP at `/mcp`
+
+Foreign AI CLIs configure Conductor as an MCP server pointed at `.conductor/mcp.endpoint`. Streamable HTTP transport. Bearer auth. Same 13 tools.
+
+### Deterministic autonomy gates
+
+When a Task Agent advances a card across a column transition, it consults `.conductor/config.yaml` `autonomy.transitions` for the policy:
+
+- `auto` → transitions silently
+- `assist` → emits `transition_request` event, halts, surfaces a recommendation (Phase 6 will add the confidence model that may auto-approve assist)
+- `manual` → emits `transition_request` event, halts, requires human approval via `conductor transition <id> <to>` or the MCP `conductor.transition` tool
+
+### Run logs
+
+Each Task Agent run writes `.conductor/runs/<run-id>/events.jsonl`. Schema per spec § 14: `{ts, kind, card_id?, op?, payload?}` per line.
+
 ## Try it
 
 ```bash
