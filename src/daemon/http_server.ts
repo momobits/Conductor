@@ -11,6 +11,7 @@ import { ZodError } from 'zod';
 import type { ProjectConfig } from '../config/schema.js';
 import type { RuntimeStore } from './runtime.js';
 import { methods, type MethodName, type MethodContext } from '../rpc/methods.js';
+import { createStaticHandler } from './static.js';
 
 export interface McpAttachment {
   handleRequest: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
@@ -23,6 +24,7 @@ export interface StartHttpServerArgs {
   runtime: RuntimeStore;
   authToken: string;
   mcp?: McpAttachment;
+  uiRoot?: string;
 }
 
 export interface StartedServer {
@@ -35,9 +37,15 @@ const METHOD_PREFIX = 'conductor.';
 
 export async function startHttpServer(args: StartHttpServerArgs): Promise<StartedServer> {
   const ctx: MethodContext = { repo: args.repo, config: args.config, runtime: args.runtime };
+  const staticHandler = args.uiRoot ? createStaticHandler(args.uiRoot) : null;
 
   const server: Server = createServer(async (req, res) => {
     try {
+      // Static UI route (no auth — bootstrap path)
+      if (staticHandler && (req.method === 'GET' || req.method === 'HEAD')) {
+        const handled = await staticHandler(req, res);
+        if (handled) return;
+      }
       // MCP transport route (Task 4.14 wires this; harmless when mcp is undefined)
       if (req.url?.startsWith('/mcp') && args.mcp) {
         await args.mcp.handleRequest(req, res);
