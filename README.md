@@ -6,22 +6,32 @@ audit), and Symphony (autonomous orchestration).
 
 ## Status
 
-**Phase 1** (Engine spine + CLI). Not feature-complete; see
-`docs/superpowers/specs/2026-05-06-conductor-design1.md` for the full
-design and `docs/superpowers/plans/2026-05-07-phase-1-engine-spine.md`
-for the active plan.
+**Phase 2** (Operations breadth + Control discipline + migration). The
+full Relay+Control pipeline runs on Claude via the CLI; existing
+`.relay/` / `.control/` repos can be migrated. See
+`docs/superpowers/specs/2026-05-06-conductor-design1.md` and
+`docs/superpowers/plans/2026-05-07-phase-2-operations-discipline-migration.md`.
 
-## Phase 1 capabilities
+## Capabilities
 
-- `conductor init` — scaffold `.conductor/` in a repo
+- `conductor init` — scaffold `.conductor/`
 - `conductor card new <slug> [--title ...] [--kind ...]` — file a card
-- `conductor work <card>` — run analyze + plan via Claude, advance card
-  to `planned`
-- `conductor transition <card> <column>` — manual lifecycle transition
+- `conductor work <card> [--step <id>]` — advance the card by one
+  pipeline step (analyze/plan/review/implement/verify/notebook/resolve)
+- `conductor transition <card> <column>` — manual lifecycle move
+- `conductor scan` — list active cards by column
+- `conductor order` — write a ranked `ordering.md`
+- `conductor discover` — file cards from repo TODO/FIXME + recent log
+- `conductor exercise map|auto <session> --goal <text>` — capability
+  walkthroughs
+- `conductor phase close <name>` — gate-and-tag a phase
+- `conductor drift` — print the `[control:drift]` block
+- `conductor import [--relay PATH] [--control PATH] [--dry-run]` —
+  migrate an existing repo
 
-Phase 2 adds review, implement, verify, notebook, resolve. Phase 3 adds
-multi-model adapters. Phase 4 adds the daemon, MCP server, and HTTP API.
-Phase 5 adds the UI. Phase 6 adds the autonomous Conductor brain.
+Phase 3 adds multi-model adapters. Phase 4 adds the daemon, MCP server,
+and HTTP API. Phase 5 adds the UI. Phase 6 adds the autonomous Conductor
+brain.
 
 ## Try it
 
@@ -38,7 +48,7 @@ ANTHROPIC_API_KEY=sk-... node dist/cli/index.js work 2026-05-07-auth-token-expir
 ```bash
 npm test           # run all tests
 npm run typecheck  # type-check without emit
-npm run dev -- <args>  # run the CLI without building (via tsx)
+npm run dev -- <args>  # run the CLI without building
 ```
 
 ## License
