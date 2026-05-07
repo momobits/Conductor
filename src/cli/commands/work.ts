@@ -15,9 +15,10 @@ import { verify, defaultRunner, type Runner } from '../../engine/ops/verify.js';
 import { notebook } from '../../engine/ops/notebook.js';
 import { resolve as resolveOp } from '../../engine/ops/resolve.js';
 import { loadProjectConfig } from '../../config/load.js';
-import { ClaudeAdapter } from '../../adapters/claude.js';
+import { RoutingAdapter } from '../../adapters/routing.js';
 import type { ModelAdapter } from '../../adapters/adapter.js';
 import type { Card, Column } from '../../engine/types.js';
+import type { ProjectConfig } from '../../config/schema.js';
 
 export interface WorkArgs {
   cwd: string;
@@ -44,13 +45,15 @@ export async function runWork(args: WorkArgs): Promise<WorkResult> {
   }
 
   const config = await loadProjectConfig(join(args.cwd, '.conductor', 'config.yaml'));
-  const adapter: ModelAdapter = args.adapter ?? new ClaudeAdapter();
-  const modelFor = (op: string): string => config.routing.functions[op] ?? config.routing.default;
+  const adapter: ModelAdapter = args.adapter ?? new RoutingAdapter();
+  const modelFor = (c: Card, op: string): string => pickModel(c, op, config);
 
   switch (card.frontmatter.column) {
     case 'discovered': {
-      await analyze({ card: await readCard(cardPath), adapter, model: modelFor('analyze') });
-      await planOp({ card: await readCard(cardPath), adapter, model: modelFor('plan') });
+      const c1 = await readCard(cardPath);
+      await analyze({ card: c1, adapter, model: modelFor(c1, 'analyze') });
+      const c2 = await readCard(cardPath);
+      await planOp({ card: c2, adapter, model: modelFor(c2, 'plan') });
       const updated = await readCard(cardPath);
       updated.frontmatter.column = 'planned';
       await writeCard(updated);
@@ -58,9 +61,8 @@ export async function runWork(args: WorkArgs): Promise<WorkResult> {
     }
 
     case 'planned': {
-      const verdict = await review({
-        card: await readCard(cardPath), adapter, model: modelFor('review'),
-      });
+      const c = await readCard(cardPath);
+      const verdict = await review({ card: c, adapter, model: modelFor(c, 'review') });
       if (verdict.decision === 'APPROVED') {
         const updated = await readCard(cardPath);
         updated.frontmatter.column = 'approved';
@@ -82,9 +84,10 @@ export async function runWork(args: WorkArgs): Promise<WorkResult> {
           finalColumn: 'approved',
         };
       }
+      const c = await readCard(cardPath);
       await implement({
-        repo: args.cwd, card: await readCard(cardPath),
-        adapter, model: modelFor('implement'), step: args.step,
+        repo: args.cwd, card: c,
+        adapter, model: modelFor(c, 'implement'), step: args.step,
       });
       const updated = await readCard(cardPath);
       updated.frontmatter.column = 'building';
@@ -94,8 +97,9 @@ export async function runWork(args: WorkArgs): Promise<WorkResult> {
 
     case 'building': {
       const runner = args.runner ?? defaultRunner;
+      const c = await readCard(cardPath);
       const report = await verify({
-        card: await readCard(cardPath), adapter, model: modelFor('verify'),
+        card: c, adapter, model: modelFor(c, 'verify'),
         command: config.verify_command, runner,
       });
       if (report.outcome === 'PASS') {
@@ -120,9 +124,10 @@ export async function runWork(args: WorkArgs): Promise<WorkResult> {
     }
 
     case 'shipped': {
+      const c = await readCard(cardPath);
       await resolveOp({
-        repo: args.cwd, card: await readCard(cardPath),
-        adapter, model: modelFor('resolve'),
+        repo: args.cwd, card: c,
+        adapter, model: modelFor(c, 'resolve'),
       });
       return { halted: false, finalColumn: 'archived' };
     }
@@ -138,6 +143,20 @@ export async function runWork(args: WorkArgs): Promise<WorkResult> {
         finalColumn: card.frontmatter.column,
       };
   }
+}
+
+/** Routing precedence per spec § 7:
+ *  1. Card frontmatter `model_overrides[op]`
+ *  2. Project YAML `routing.functions[op]`
+ *  3. Project YAML `routing.default`
+ *  Throws if all three are unset (zod default ensures `routing.default`
+ *  always has a value, so this should be unreachable). */
+export function pickModel(card: Card, op: string, config: ProjectConfig): string {
+  return (
+    card.frontmatter.model_overrides[op] ??
+    config.routing.functions[op] ??
+    config.routing.default
+  );
 }
 
 export function attachWork(program: Command): void {
