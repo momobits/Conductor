@@ -175,6 +175,8 @@ describe('runWork — Phase 3 routing precedence', () => {
       '    plan: gpt-5',
       'autonomy:',
       '  default: assist',
+      '  transitions:',
+      '    discovered_to_planned: auto',
       'verify_command: npm test',
     ].join('\n') + '\n';
 

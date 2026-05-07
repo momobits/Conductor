@@ -94,5 +94,8 @@ describe('TaskAgent autonomy gates', () => {
     const last = events[events.length - 1];
     expect(last.kind).toBe('halt');
     if (last.kind === 'halt') expect(last.finalColumn).toBe('discovered');
+
+    const cardBody = readFileSync(join(repo, '.conductor', 'cards', `${cardId}.md`), 'utf8');
+    expect(cardBody).toMatch(/column: discovered/);
   });
 });
