@@ -19,6 +19,7 @@ import { notebook } from '../engine/ops/notebook.js';
 import { resolve as resolveOp } from '../engine/ops/resolve.js';
 import { RoutingAdapter } from '../adapters/routing.js';
 import type { TaskEvent } from './events.js';
+import { RunLogWriter } from './runlog.js';
 
 export interface TaskAgentArgs {
   repo: string;
@@ -38,6 +39,7 @@ export class TaskAgent {
   private readonly config: ProjectConfig;
   private readonly step?: string;
   private readonly runner: Runner;
+  private readonly log: RunLogWriter;
 
   constructor(args: TaskAgentArgs) {
     this.repo = args.repo;
@@ -49,6 +51,12 @@ export class TaskAgent {
     const now = (args.now ?? (() => new Date()))();
     const stamp = now.toISOString().replace(/[-:.]/g, '').slice(0, 15); // YYYYMMDDTHHMMSS
     this.runId = `${stamp}-${args.cardId}`;
+    this.log = new RunLogWriter({ repo: this.repo, runId: this.runId, now: args.now });
+  }
+
+  private async emit(e: TaskEvent): Promise<TaskEvent> {
+    await this.log.write(e);
+    return e;
   }
 
   async *run(): AsyncIterable<TaskEvent> {
@@ -57,7 +65,7 @@ export class TaskAgent {
     try {
       card = await readCard(cardPath);
     } catch {
-      yield { kind: 'error', cardId: this.cardId, message: `Card not found: ${this.cardId} (looked at ${cardPath})` };
+      yield await this.emit({ kind: 'error', cardId: this.cardId, message: `Card not found: ${this.cardId} (looked at ${cardPath})` });
       return;
     }
 
@@ -69,122 +77,122 @@ export class TaskAgent {
 
     switch (column) {
       case 'discovered': {
-        yield { kind: 'op_start', cardId: this.cardId, operation: 'analyze', model: modelFor(card, 'analyze') };
+        yield await this.emit({ kind: 'op_start', cardId: this.cardId, operation: 'analyze', model: modelFor(card, 'analyze') });
         const t0 = Date.now();
         await analyze({ card, adapter: this.adapter, model: modelFor(card, 'analyze') });
-        yield { kind: 'op_complete', cardId: this.cardId, operation: 'analyze', durationMs: Date.now() - t0 };
+        yield await this.emit({ kind: 'op_complete', cardId: this.cardId, operation: 'analyze', durationMs: Date.now() - t0 });
 
         const c2 = await readCard(cardPath);
-        yield { kind: 'op_start', cardId: this.cardId, operation: 'plan', model: modelFor(c2, 'plan') };
+        yield await this.emit({ kind: 'op_start', cardId: this.cardId, operation: 'plan', model: modelFor(c2, 'plan') });
         const t1 = Date.now();
         await planOp({ card: c2, adapter: this.adapter, model: modelFor(c2, 'plan') });
-        yield { kind: 'op_complete', cardId: this.cardId, operation: 'plan', durationMs: Date.now() - t1 };
+        yield await this.emit({ kind: 'op_complete', cardId: this.cardId, operation: 'plan', durationMs: Date.now() - t1 });
 
         yield* this.advance(cardPath, 'discovered', 'planned');
-        yield { kind: 'complete', cardId: this.cardId, finalColumn: 'planned' };
+        yield await this.emit({ kind: 'complete', cardId: this.cardId, finalColumn: 'planned' });
         return;
       }
 
       case 'planned': {
         const c = await readCard(cardPath);
-        yield { kind: 'op_start', cardId: this.cardId, operation: 'review', model: modelFor(c, 'review') };
+        yield await this.emit({ kind: 'op_start', cardId: this.cardId, operation: 'review', model: modelFor(c, 'review') });
         const t = Date.now();
         const verdict = await review({ card: c, adapter: this.adapter, model: modelFor(c, 'review') });
-        yield { kind: 'op_complete', cardId: this.cardId, operation: 'review', durationMs: Date.now() - t };
+        yield await this.emit({ kind: 'op_complete', cardId: this.cardId, operation: 'review', durationMs: Date.now() - t });
         if (verdict.decision === 'APPROVED') {
           yield* this.advance(cardPath, 'planned', 'approved');
-          yield { kind: 'complete', cardId: this.cardId, finalColumn: 'approved' };
+          yield await this.emit({ kind: 'complete', cardId: this.cardId, finalColumn: 'approved' });
         } else {
-          yield {
+          yield await this.emit({
             kind: 'halt',
             cardId: this.cardId,
             reason: `Review returned ${verdict.decision}. Card stays in 'planned'.`,
             finalColumn: 'planned',
-          };
+          });
         }
         return;
       }
 
       case 'approved': {
         if (!this.step) {
-          yield {
+          yield await this.emit({
             kind: 'halt',
             cardId: this.cardId,
             reason: `'approved' requires --step <id> (one step per call).`,
             finalColumn: 'approved',
-          };
+          });
           return;
         }
         const c = await readCard(cardPath);
-        yield { kind: 'op_start', cardId: this.cardId, operation: 'implement', model: modelFor(c, 'implement') };
+        yield await this.emit({ kind: 'op_start', cardId: this.cardId, operation: 'implement', model: modelFor(c, 'implement') });
         const t = Date.now();
         await implement({ repo: this.repo, card: c, adapter: this.adapter, model: modelFor(c, 'implement'), step: this.step });
-        yield { kind: 'op_complete', cardId: this.cardId, operation: 'implement', durationMs: Date.now() - t };
+        yield await this.emit({ kind: 'op_complete', cardId: this.cardId, operation: 'implement', durationMs: Date.now() - t });
         yield* this.advance(cardPath, 'approved', 'building');
-        yield { kind: 'complete', cardId: this.cardId, finalColumn: 'building' };
+        yield await this.emit({ kind: 'complete', cardId: this.cardId, finalColumn: 'building' });
         return;
       }
 
       case 'building': {
         const c = await readCard(cardPath);
-        yield { kind: 'op_start', cardId: this.cardId, operation: 'verify', model: modelFor(c, 'verify') };
+        yield await this.emit({ kind: 'op_start', cardId: this.cardId, operation: 'verify', model: modelFor(c, 'verify') });
         const t = Date.now();
         const report = await verify({
           card: c, adapter: this.adapter, model: modelFor(c, 'verify'),
           command: this.config.verify_command, runner: this.runner,
         });
-        yield { kind: 'op_complete', cardId: this.cardId, operation: 'verify', durationMs: Date.now() - t };
+        yield await this.emit({ kind: 'op_complete', cardId: this.cardId, operation: 'verify', durationMs: Date.now() - t });
         if (report.outcome === 'PASS') {
           yield* this.advance(cardPath, 'building', 'verifying');
-          yield { kind: 'complete', cardId: this.cardId, finalColumn: 'verifying' };
+          yield await this.emit({ kind: 'complete', cardId: this.cardId, finalColumn: 'verifying' });
         } else {
-          yield {
+          yield await this.emit({
             kind: 'halt', cardId: this.cardId,
             reason: `Verify outcome=${report.outcome}. Card stays in 'building'.`,
             finalColumn: 'building',
-          };
+          });
         }
         return;
       }
 
       case 'verifying': {
         const c = await readCard(cardPath);
-        yield { kind: 'op_start', cardId: this.cardId, operation: 'notebook' };
+        yield await this.emit({ kind: 'op_start', cardId: this.cardId, operation: 'notebook' });
         const t = Date.now();
         await notebook({ repo: this.repo, card: c, command: this.config.verify_command });
-        yield { kind: 'op_complete', cardId: this.cardId, operation: 'notebook', durationMs: Date.now() - t };
+        yield await this.emit({ kind: 'op_complete', cardId: this.cardId, operation: 'notebook', durationMs: Date.now() - t });
         yield* this.advance(cardPath, 'verifying', 'shipped');
-        yield { kind: 'complete', cardId: this.cardId, finalColumn: 'shipped' };
+        yield await this.emit({ kind: 'complete', cardId: this.cardId, finalColumn: 'shipped' });
         return;
       }
 
       case 'shipped': {
         const c = await readCard(cardPath);
-        yield { kind: 'op_start', cardId: this.cardId, operation: 'resolve', model: modelFor(c, 'resolve') };
+        yield await this.emit({ kind: 'op_start', cardId: this.cardId, operation: 'resolve', model: modelFor(c, 'resolve') });
         const t = Date.now();
         await resolveOp({ repo: this.repo, card: c, adapter: this.adapter, model: modelFor(c, 'resolve') });
-        yield { kind: 'op_complete', cardId: this.cardId, operation: 'resolve', durationMs: Date.now() - t };
+        yield await this.emit({ kind: 'op_complete', cardId: this.cardId, operation: 'resolve', durationMs: Date.now() - t });
         // resolve op moves the card to archived itself
-        yield { kind: 'transition', cardId: this.cardId, from: 'shipped', to: 'archived' };
-        yield { kind: 'complete', cardId: this.cardId, finalColumn: 'archived' };
+        yield await this.emit({ kind: 'transition', cardId: this.cardId, from: 'shipped', to: 'archived' });
+        yield await this.emit({ kind: 'complete', cardId: this.cardId, finalColumn: 'archived' });
         return;
       }
 
       case 'archived': {
-        yield {
+        yield await this.emit({
           kind: 'halt', cardId: this.cardId,
           reason: 'Card is in a terminal state (archived).',
           finalColumn: 'archived',
-        };
+        });
         return;
       }
 
       default: {
-        yield {
+        yield await this.emit({
           kind: 'halt', cardId: this.cardId,
           reason: `Unhandled column: ${column}`,
           finalColumn: column as Column,
-        };
+        });
       }
     }
   }
@@ -193,6 +201,6 @@ export class TaskAgent {
     const updated = await readCard(cardPath);
     updated.frontmatter.column = to;
     await writeCard(updated);
-    yield { kind: 'transition', cardId: this.cardId, from, to };
+    yield await this.emit({ kind: 'transition', cardId: this.cardId, from, to });
   }
 }
