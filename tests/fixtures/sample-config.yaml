@@ -1,0 +1,11 @@
+routing:
+  default: claude-sonnet-4-6
+  functions:
+    analyze: claude-opus-4-7
+    plan: claude-opus-4-7
+autonomy:
+  default: assist
+  transitions:
+    discovered_to_planned: auto
+    planned_to_approved: assist
+    approved_to_building: manual
