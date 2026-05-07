@@ -1,9 +1,10 @@
 // src/ui/views/board.ts
 //
-// Read-only kanban renderer. The drag-and-drop transition layer + live
-// re-render lands in Tasks 12 and 13.
+// Kanban renderer with HTML5 drag-and-drop transition support.
+// Live re-render via SSE lands in Task 13.
 
 import type { RpcClient } from '../api.js';
+import { attachDragDrop } from './board_dnd.js';
 
 const COLUMNS = [
   'discovered', 'planned', 'approved', 'building',
@@ -79,6 +80,12 @@ export async function renderBoard(rpc: RpcClient, root: HTMLElement): Promise<{ 
         }).join('')}
       </div>
     `;
+    attachDragDrop({
+      root,
+      rpc,
+      config,
+      onDropped: () => fetchAndPaint(),
+    });
   }
 
   await fetchAndPaint();
