@@ -6,10 +6,12 @@
 
 import { makeClient, type RpcClient } from './api.js';
 import { renderBoard } from './views/board.js';
+import { EventStream } from './events.js';
 
 interface AppContext {
   rpc: RpcClient;
   token: string;
+  stream: EventStream;
   boardRefresh?: () => Promise<void>;
 }
 
@@ -48,7 +50,9 @@ async function bootstrap(): Promise<AppContext | null> {
     document.getElementById('root')!.textContent = `Auth failed: ${(err as Error).message}`;
     return null;
   }
-  return { rpc, token };
+  const stream = new EventStream(token);
+  stream.start();
+  return { rpc, token, stream };
 }
 
 const routes: Record<string, (ctx: AppContext, root: HTMLElement, params: string[]) => void | Promise<void>> = {
@@ -82,6 +86,11 @@ async function main() {
   const ctx = await bootstrap();
   if (!ctx) return;
   await dispatch(ctx);
+  ctx.stream.on((e) => {
+    if (e.kind === 'cards-changed' || e.kind === 'state-changed' || e.kind === 'session-end') {
+      ctx.boardRefresh?.();
+    }
+  });
   window.addEventListener('hashchange', () => { dispatch(ctx); });
 }
 
