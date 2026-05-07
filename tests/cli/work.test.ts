@@ -50,15 +50,20 @@ describe('runWork', () => {
     expect(card.body).toContain('## Implementation Plan');
   });
 
-  it('halts at planned (next op is review, not implemented in Phase 1)', async () => {
+  it('halts at planned when review returns NEEDS-CHANGES', async () => {
     const adapter = new MockAdapter();
     adapter.push({ text: 'Analysis', inputTokens: 1, outputTokens: 1 });
     adapter.push({ text: 'Plan', inputTokens: 1, outputTokens: 1 });
     await runWork({ cwd: tmp, cardId: id, adapter });
 
-    const result = await runWork({ cwd: tmp, cardId: id, adapter });
+    const reviewAdapter = new MockAdapter();
+    reviewAdapter.push({
+      text: JSON.stringify({ decision: 'NEEDS-CHANGES', reasoning: 'needs work', changes_required: ['fix it'] }),
+      inputTokens: 1, outputTokens: 1,
+    });
+    const result = await runWork({ cwd: tmp, cardId: id, adapter: reviewAdapter });
     expect(result.halted).toBe(true);
-    expect(result.reason).toMatch(/review.*Phase 2/i);
+    expect(result.finalColumn).toBe('planned');
   });
 
   it('throws if the card does not exist', async () => {
