@@ -14,6 +14,7 @@ const SRC = join(ROOT, 'src', 'ui');
 const DST = join(ROOT, 'dist', 'ui');
 const VENDOR_DST = join(DST, 'vendor');
 const MARKED_SRC = join(ROOT, 'node_modules', 'marked', 'lib', 'marked.esm.js');
+const DOMPURIFY_SRC = join(ROOT, 'node_modules', 'dompurify', 'dist', 'purify.es.mjs');
 
 async function copyTree(srcDir, dstDir, predicate) {
   const entries = await readdir(srcDir, { withFileTypes: true });
@@ -36,8 +37,9 @@ async function main() {
   // Copy HTML / CSS — anything that isn't TypeScript.
   await copyTree(SRC, DST, (name) => name.endsWith('.html') || name.endsWith('.css'));
 
-  // Vendor marked from node_modules.
+  // Vendor marked and DOMPurify from node_modules.
   await copyFile(MARKED_SRC, join(VENDOR_DST, 'marked.esm.js'));
+  await copyFile(DOMPURIFY_SRC, join(VENDOR_DST, 'dompurify.esm.js'));
 
   console.log(`build-ui: assets copied to ${relative(ROOT, DST)}/`);
 }

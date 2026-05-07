@@ -1,14 +1,18 @@
 // src/ui/lib/markdown.ts
 //
-// Thin wrapper over the vendored marked. Marked is loaded as a side-effect
-// module from /vendor/marked.esm.js (copied by build-ui.mjs). We do not
-// ship a bundle so the import path is the absolute URL.
+// Thin wrapper over marked + DOMPurify. We render then sanitize so a
+// prompt-injected card body cannot execute scripts in the operator's
+// browser when Phase 6's Conductor brain starts writing card bodies
+// autonomously.
 
 // @ts-expect-error — vendored ES module, no .d.ts
 import { marked } from '/vendor/marked.esm.js';
+// @ts-expect-error — vendored ES module, no .d.ts
+import DOMPurify from '/vendor/dompurify.esm.js';
 
 marked.setOptions({ breaks: false, gfm: true });
 
 export function renderMarkdown(src: string): string {
-  return marked.parse(src) as string;
+  const html = marked.parse(src) as string;
+  return DOMPurify.sanitize(html) as string;
 }
