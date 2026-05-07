@@ -4,6 +4,8 @@
 // auth.token / daemon.pid / daemon.endpoint. shutdown() reverses everything.
 
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { dirname } from 'node:path';
 import { loadProjectConfig } from '../config/load.js';
 import { startHttpServer, type StartedServer } from './http_server.js';
 import { generateAuthToken } from './auth.js';
@@ -47,6 +49,15 @@ export async function startDaemon(args: StartDaemonArgs): Promise<DaemonHandle> 
   const ctx = { repo: args.repo, config, runtime };
   const mcp = attachMcpServer({ ctx, authToken });
 
+  // Resolve dist/ui/ relative to this file. When running from source via tsx,
+  // import.meta.url points into src/daemon/; in the compiled npm package it
+  // points into dist/daemon/. Either way, ../../dist/ui (two levels up) lands
+  // at the repo's dist/ui/ for source builds. For the published package, the
+  // installer ships dist/ui/ inside the package and the same relative path
+  // resolves correctly because src/ is not shipped.
+  const here = dirname(fileURLToPath(import.meta.url));
+  const uiRoot = join(here, '..', '..', 'dist', 'ui');
+
   const server: StartedServer = await startHttpServer({
     port: args.port,
     repo: args.repo,
@@ -54,6 +65,7 @@ export async function startDaemon(args: StartDaemonArgs): Promise<DaemonHandle> 
     runtime,
     authToken,
     mcp,
+    uiRoot,
   });
 
   await writePidFile(args.repo, process.pid);
