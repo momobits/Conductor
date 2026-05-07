@@ -4,11 +4,11 @@
 // model, moves the card to archive/cards/, writes archive/implemented/,
 // removes from cards/. Returns a ResolutionDoc.
 
-import { writeFile, mkdir } from 'node:fs/promises';
+import { writeFile, mkdir, rm } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import type { ModelAdapter } from '../../adapters/adapter.js';
 import type { Card, ResolutionDoc } from '../types.js';
-import { readCard, writeCard } from '../state/card.js';
+import { writeCard } from '../state/card.js';
 import { lastCommitSha } from '../state/git.js';
 
 export interface ResolveArgs {
@@ -86,8 +86,11 @@ export async function resolve(args: ResolveArgs): Promise<ResolutionDoc> {
     path: archivePath,
   };
   await writeCard(updated);
-  // Remove the original from cards/ (rename old → new path is unsafe across drives, so write+unlink via fs/promises rm).
-  const { rm } = await import('node:fs/promises');
+  // Note: this op writes in the order (1) archive card, (2) remove original,
+  // (3) implemented summary. If step 2 throws, the archive card exists but
+  // the original remains; if step 3 throws, the implemented/ entry is missing.
+  // v1 accepts this — caller can re-run safely on idempotent failure modes,
+  // and shipped→archived is a one-way gate.
   await rm(card.path);
 
   // Write the implemented summary.
@@ -115,6 +118,3 @@ export async function resolve(args: ResolveArgs): Promise<ResolutionDoc> {
 
   return doc;
 }
-
-// Re-export readCard for callers convenience.
-export { readCard };

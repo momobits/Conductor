@@ -82,4 +82,11 @@ describe('resolve op', () => {
     const adapter = new MockAdapter();
     await expect(resolveOp({ repo: tmp, card, adapter, model: 'mock-model' })).rejects.toThrow(/shipped/);
   });
+
+  it('throws when model returns invalid JSON', async () => {
+    const adapter = new MockAdapter();
+    adapter.push({ text: 'not json', inputTokens: 1, outputTokens: 1 });
+    const card = await readCard(cardPath);
+    await expect(resolveOp({ repo: tmp, card, adapter, model: 'mock-model' })).rejects.toThrow(/parse/i);
+  });
 });
