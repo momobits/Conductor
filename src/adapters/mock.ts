@@ -13,6 +13,15 @@ export class MockAdapter implements ModelAdapter {
   public lastRequest: OperationRequest | undefined;
   public allRequests: OperationRequest[] = [];
 
+  /** Optionally pre-populate the queue from an array of text strings. */
+  constructor(texts?: string[]) {
+    if (texts) {
+      for (const text of texts) {
+        this.push({ text });
+      }
+    }
+  }
+
   push(response: Partial<OperationResponse>): void {
     this.queue.push({
       text: response.text ?? '',
