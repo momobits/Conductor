@@ -59,18 +59,30 @@ export async function describeRef(repo: string): Promise<string> {
   try {
     const out = await git(repo).raw(['describe', '--tags', '--always']);
     return out.trim();
-  } catch {
+  } catch (err) {
+    // git describe with --always should normally succeed (returns short SHA
+    // when no tags). Empty/missing-names fall back to ''. Other errors are
+    // swallowed for v1 — log to stderr so they're visible.
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('No names found') || msg.includes('not a git repository')) {
+      return '';
+    }
+    // eslint-disable-next-line no-console
+    console.warn(`[describeRef] unexpected error: ${msg}`);
     return '';
   }
 }
 
 export async function uncommittedFiles(repo: string): Promise<string[]> {
   const status = await git(repo).status();
-  return [
+  const all = [
     ...status.modified,
     ...status.created,
     ...status.deleted,
     ...status.not_added,
+    ...status.staged,
+    ...status.conflicted,
     ...status.renamed.map((r) => r.to),
   ];
+  return [...new Set(all)];
 }
