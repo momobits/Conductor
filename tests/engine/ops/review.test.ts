@@ -114,4 +114,19 @@ describe('review op', () => {
     const card = await readCard(cardPath);
     await expect(review({ card, adapter, model: 'mock-model' })).rejects.toThrow(/parse/i);
   });
+
+  it('throws when model returns an invalid decision value', async () => {
+    const adapter = new MockAdapter();
+    adapter.push({
+      text: JSON.stringify({
+        decision: 'MAYBE',
+        reasoning: 'not sure',
+        changes_required: [],
+      }),
+      inputTokens: 10,
+      outputTokens: 10,
+    });
+    const card = await readCard(cardPath);
+    await expect(review({ card, adapter, model: 'mock-model' })).rejects.toThrow(/Invalid decision/);
+  });
 });

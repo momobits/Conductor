@@ -5,8 +5,10 @@
 // typed Verdict and appends an Adversarial Review section.
 
 import type { ModelAdapter } from '../../adapters/adapter.js';
-import type { Card, Verdict } from '../types.js';
+import type { Card, Verdict, VerdictDecision } from '../types.js';
 import { appendSection } from '../state/card.js';
+
+const VALID_DECISIONS: VerdictDecision[] = ['APPROVED', 'NEEDS-CHANGES', 'NEEDS-INFO'];
 
 export interface ReviewArgs {
   card: Card;
@@ -68,6 +70,11 @@ export async function review(args: ReviewArgs): Promise<Verdict> {
   let verdict: Verdict;
   try {
     const parsed = JSON.parse(resp.text.trim());
+    if (!VALID_DECISIONS.includes(parsed.decision)) {
+      throw new Error(
+        `Invalid decision value "${parsed.decision}" from model; expected one of ${VALID_DECISIONS.join(', ')}.\n--- raw ---\n${resp.text}`,
+      );
+    }
     verdict = {
       decision: parsed.decision,
       reasoning: String(parsed.reasoning ?? ''),
