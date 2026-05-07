@@ -5,10 +5,12 @@
 // hash (#/board, #/card/:id, #/monitor, #/routing).
 
 import { makeClient, type RpcClient } from './api.js';
+import { renderBoard } from './views/board.js';
 
 interface AppContext {
   rpc: RpcClient;
   token: string;
+  boardRefresh?: () => Promise<void>;
 }
 
 function readToken(): string | null {
@@ -51,7 +53,8 @@ async function bootstrap(): Promise<AppContext | null> {
 
 const routes: Record<string, (ctx: AppContext, root: HTMLElement, params: string[]) => void | Promise<void>> = {
   board: async (ctx, root) => {
-    root.innerHTML = '<p>Board view loads in Sub-phase D.</p>';
+    const { refresh } = await renderBoard(ctx.rpc, root);
+    ctx.boardRefresh = refresh;
   },
   card: async (ctx, root, params) => {
     root.innerHTML = `<p>Card detail loads in Sub-phase E. id=${params[0] ?? '?'}</p>`;
