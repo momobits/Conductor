@@ -142,9 +142,10 @@ async function work_next(ctx: MethodContext, raw: unknown) {
   const eligible = all
     .filter((c) => c.frontmatter.column !== 'archived' && (c.frontmatter.blocked_by ?? []).length === 0)
     .sort((a, b) => (a.frontmatter.priority ?? 99) - (b.frontmatter.priority ?? 99));
-  if (eligible.length === 0) return { halted: true as const, reason: 'No eligible cards.' };
-  const result = await work_card(ctx, { id: eligible[0].frontmatter.id });
-  return { id: eligible[0].frontmatter.id, ...result };
+  const [first] = eligible;
+  if (!first) return { halted: true as const, reason: 'No eligible cards.' };
+  const result = await work_card(ctx, { id: first.frontmatter.id });
+  return { id: first.frontmatter.id, ...result };
 }
 
 async function recommend(_ctx: MethodContext, raw: unknown) {
