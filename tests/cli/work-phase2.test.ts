@@ -18,6 +18,11 @@ async function bootstrap(column: string): Promise<void> {
   await g.addConfig('user.name', 'Test');
   await g.addConfig('user.email', 'test@example.com');
   await runInit({ cwd: tmp });
+  await writeFile(
+    join(tmp, '.conductor', 'config.yaml'),
+    'routing:\n  default: claude-sonnet-4-6\nautonomy:\n  transitions:\n    planned_to_approved: auto\n    approved_to_building: auto\n    verifying_to_shipped: auto\n',
+    'utf8',
+  );
   await writeFile(join(tmp, '.conductor', 'cards', `${ID}.md`), [
     '---',
     `id: ${ID}`,

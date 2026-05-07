@@ -89,6 +89,8 @@ describe('runWork — Phase 3 routing precedence', () => {
       '    review: claude-opus-4-7',
       'autonomy:',
       '  default: assist',
+      '  transitions:',
+      '    planned_to_approved: auto',
       'verify_command: npm test',
     ].join('\n') + '\n';
 
@@ -119,6 +121,8 @@ describe('runWork — Phase 3 routing precedence', () => {
       '    review: gemini-2.5-pro',
       'autonomy:',
       '  default: assist',
+      '  transitions:',
+      '    planned_to_approved: auto',
       'verify_command: npm test',
     ].join('\n') + '\n';
 
@@ -144,6 +148,8 @@ describe('runWork — Phase 3 routing precedence', () => {
       '  functions: {}',
       'autonomy:',
       '  default: assist',
+      '  transitions:',
+      '    planned_to_approved: auto',
       'verify_command: npm test',
     ].join('\n') + '\n';
 

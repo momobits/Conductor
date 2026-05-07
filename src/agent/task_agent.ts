@@ -20,6 +20,7 @@ import { resolve as resolveOp } from '../engine/ops/resolve.js';
 import { RoutingAdapter } from '../adapters/routing.js';
 import type { TaskEvent } from './events.js';
 import { RunLogWriter } from './runlog.js';
+import { transitionPolicy, type TransitionPolicy } from '../engine/lifecycle.js';
 
 export interface TaskAgentArgs {
   repo: string;
@@ -88,8 +89,14 @@ export class TaskAgent {
         await planOp({ card: c2, adapter: this.adapter, model: modelFor(c2, 'plan') });
         yield await this.emit({ kind: 'op_complete', cardId: this.cardId, operation: 'plan', durationMs: Date.now() - t1 });
 
-        yield* this.advance(cardPath, 'discovered', 'planned');
-        yield await this.emit({ kind: 'complete', cardId: this.cardId, finalColumn: 'planned' });
+        let halted = false;
+        for await (const { event, halted: h } of this.transitionWithGate(cardPath, 'discovered', 'planned')) {
+          yield event;
+          if (h) halted = true;
+        }
+        if (!halted) {
+          yield await this.emit({ kind: 'complete', cardId: this.cardId, finalColumn: 'planned' });
+        }
         return;
       }
 
@@ -100,8 +107,14 @@ export class TaskAgent {
         const verdict = await review({ card: c, adapter: this.adapter, model: modelFor(c, 'review') });
         yield await this.emit({ kind: 'op_complete', cardId: this.cardId, operation: 'review', durationMs: Date.now() - t });
         if (verdict.decision === 'APPROVED') {
-          yield* this.advance(cardPath, 'planned', 'approved');
-          yield await this.emit({ kind: 'complete', cardId: this.cardId, finalColumn: 'approved' });
+          let halted = false;
+          for await (const { event, halted: h } of this.transitionWithGate(cardPath, 'planned', 'approved')) {
+            yield event;
+            if (h) halted = true;
+          }
+          if (!halted) {
+            yield await this.emit({ kind: 'complete', cardId: this.cardId, finalColumn: 'approved' });
+          }
         } else {
           yield await this.emit({
             kind: 'halt',
@@ -128,8 +141,14 @@ export class TaskAgent {
         const t = Date.now();
         await implement({ repo: this.repo, card: c, adapter: this.adapter, model: modelFor(c, 'implement'), step: this.step });
         yield await this.emit({ kind: 'op_complete', cardId: this.cardId, operation: 'implement', durationMs: Date.now() - t });
-        yield* this.advance(cardPath, 'approved', 'building');
-        yield await this.emit({ kind: 'complete', cardId: this.cardId, finalColumn: 'building' });
+        let halted = false;
+        for await (const { event, halted: h } of this.transitionWithGate(cardPath, 'approved', 'building')) {
+          yield event;
+          if (h) halted = true;
+        }
+        if (!halted) {
+          yield await this.emit({ kind: 'complete', cardId: this.cardId, finalColumn: 'building' });
+        }
         return;
       }
 
@@ -143,8 +162,14 @@ export class TaskAgent {
         });
         yield await this.emit({ kind: 'op_complete', cardId: this.cardId, operation: 'verify', durationMs: Date.now() - t });
         if (report.outcome === 'PASS') {
-          yield* this.advance(cardPath, 'building', 'verifying');
-          yield await this.emit({ kind: 'complete', cardId: this.cardId, finalColumn: 'verifying' });
+          let halted = false;
+          for await (const { event, halted: h } of this.transitionWithGate(cardPath, 'building', 'verifying')) {
+            yield event;
+            if (h) halted = true;
+          }
+          if (!halted) {
+            yield await this.emit({ kind: 'complete', cardId: this.cardId, finalColumn: 'verifying' });
+          }
         } else {
           yield await this.emit({
             kind: 'halt', cardId: this.cardId,
@@ -161,8 +186,14 @@ export class TaskAgent {
         const t = Date.now();
         await notebook({ repo: this.repo, card: c, command: this.config.verify_command });
         yield await this.emit({ kind: 'op_complete', cardId: this.cardId, operation: 'notebook', durationMs: Date.now() - t });
-        yield* this.advance(cardPath, 'verifying', 'shipped');
-        yield await this.emit({ kind: 'complete', cardId: this.cardId, finalColumn: 'shipped' });
+        let halted = false;
+        for await (const { event, halted: h } of this.transitionWithGate(cardPath, 'verifying', 'shipped')) {
+          yield event;
+          if (h) halted = true;
+        }
+        if (!halted) {
+          yield await this.emit({ kind: 'complete', cardId: this.cardId, finalColumn: 'shipped' });
+        }
         return;
       }
 
@@ -197,10 +228,29 @@ export class TaskAgent {
     }
   }
 
-  private async *advance(cardPath: string, from: Column, to: Column): AsyncIterable<TaskEvent> {
-    const updated = await readCard(cardPath);
-    updated.frontmatter.column = to;
-    await writeCard(updated);
-    yield await this.emit({ kind: 'transition', cardId: this.cardId, from, to });
+  private async *transitionWithGate(
+    cardPath: string,
+    from: Column,
+    to: Column,
+  ): AsyncIterable<{ event: TaskEvent; halted: boolean }> {
+    const policy: TransitionPolicy = transitionPolicy(this.config, from, to);
+    if (policy === 'auto') {
+      const updated = await readCard(cardPath);
+      updated.frontmatter.column = to;
+      await writeCard(updated);
+      const e: TaskEvent = { kind: 'transition', cardId: this.cardId, from, to };
+      yield { event: await this.emit(e), halted: false };
+      return;
+    }
+    // manual or assist: surface request, do NOT write the new column
+    const req: TaskEvent = { kind: 'transition_request', cardId: this.cardId, from, to, policy };
+    yield { event: await this.emit(req), halted: false };
+    const halt: TaskEvent = {
+      kind: 'halt',
+      cardId: this.cardId,
+      reason: `Transition ${from} → ${to} requires ${policy} approval.`,
+      finalColumn: from,
+    };
+    yield { event: await this.emit(halt), halted: true };
   }
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm, mkdir, access } from 'node:fs/promises';
+import { mkdtemp, rm, mkdir, access, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, basename } from 'node:path';
 import { simpleGit } from 'simple-git';
@@ -18,6 +18,11 @@ beforeEach(async () => {
   await g.addConfig('user.name', 'Test');
   await g.addConfig('user.email', 'test@example.com');
   await runInit({ cwd: tmp });
+  await writeFile(
+    join(tmp, '.conductor', 'config.yaml'),
+    'routing:\n  default: claude-sonnet-4-6\nautonomy:\n  transitions:\n    planned_to_approved: auto\n    approved_to_building: auto\n    verifying_to_shipped: auto\n',
+    'utf8',
+  );
   await mkdir(join(tmp, 'src'), { recursive: true });
   await g.add('.');
   await g.commit('seed');

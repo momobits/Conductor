@@ -24,6 +24,10 @@ const CONFIG_YAML = [
   '    resolve: gemini-2.5-pro',
   'autonomy:',
   '  default: assist',
+  '  transitions:',
+  '    planned_to_approved: auto',
+  '    approved_to_building: auto',
+  '    verifying_to_shipped: auto',
   'verify_command: npm test',
   '',
 ].join('\n');
