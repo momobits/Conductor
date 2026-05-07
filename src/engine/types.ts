@@ -80,9 +80,12 @@ export interface DiffFile {
   content: string;                    // full file content for create|modify
 }
 
+export const COMMIT_TYPES = ['feat', 'fix', 'test', 'docs', 'refactor', 'chore'] as const;
+export type CommitType = (typeof COMMIT_TYPES)[number];
+
 export interface Diff {
   step: string;                       // e.g. '1.2'
-  commit_type: 'feat' | 'fix' | 'test' | 'docs' | 'refactor' | 'chore';
+  commit_type: CommitType;
   commit_subject: string;             // <70 chars, imperative
   files: DiffFile[];
   notes: string;                      // freeform; mirrors plan's HOW for the step

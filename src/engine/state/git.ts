@@ -6,9 +6,10 @@
 // and CLI invocations can target arbitrary working trees.
 
 import { simpleGit, type SimpleGit } from 'simple-git';
+import type { CommitType } from '../types.js';
 
 export interface CommitStepArgs {
-  type: 'feat' | 'fix' | 'test' | 'docs' | 'refactor' | 'chore';
+  type: CommitType;
   phase: string; // phase ordinal or short name; e.g. '2' or '2a'
   step: string;  // e.g. '5.3'
   subject: string;

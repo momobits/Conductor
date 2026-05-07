@@ -15,14 +15,16 @@ const TEMPLATE_FIRST_LINES = '# Conductor STATE';
 const TEMPLATE_NEXT_ACTION = 'Next action: file the first card with';
 
 const MARKER_RE = {
-  branch: /<!--\s*conductor:branch=([^\s>]+)\s*-->/,
+  branch: /<!--\s*conductor:branch=(.+?)\s*-->/,
   lastCommit: /<!--\s*conductor:last-commit=([0-9a-f]{7,40})\s*-->/i,
-  tag: /<!--\s*conductor:tag=([^\s>]+)\s*-->/,
+  tag: /<!--\s*conductor:tag=(.+?)\s*-->/,
 };
 
 function extractMarker(state: string, re: RegExp): string | null {
   const m = state.match(re);
-  return m && m[1] ? m[1] : null;
+  if (!m || !m[1]) return null;
+  const trimmed = m[1].trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 export async function detectDrift(args: DetectDriftArgs): Promise<Drift[]> {
@@ -52,11 +54,11 @@ export async function detectDrift(args: DetectDriftArgs): Promise<Drift[]> {
   const branchMarker = extractMarker(state, MARKER_RE.branch);
   if (branchMarker) {
     const actual = await currentBranch(repo);
-    if (actual && actual !== branchMarker) {
+    if (actual !== branchMarker) {
       drifts.push({
         kind: 'branch-mismatch',
         expected: branchMarker,
-        actual,
+        actual: actual || '(detached or unknown)',
         detail: 'state.md says we are on a different branch than git reports.',
       });
     }
@@ -65,11 +67,11 @@ export async function detectDrift(args: DetectDriftArgs): Promise<Drift[]> {
   const lastCommitMarker = extractMarker(state, MARKER_RE.lastCommit);
   if (lastCommitMarker) {
     const actual = await lastCommitSha(repo);
-    if (actual && !actual.startsWith(lastCommitMarker.toLowerCase())) {
+    if (!actual || !actual.startsWith(lastCommitMarker.toLowerCase())) {
       drifts.push({
         kind: 'last-commit-mismatch',
         expected: lastCommitMarker,
-        actual,
+        actual: actual || '(no commits)',
         detail: 'state.md last-commit marker disagrees with git HEAD.',
       });
     }
@@ -78,11 +80,11 @@ export async function detectDrift(args: DetectDriftArgs): Promise<Drift[]> {
   const tagMarker = extractMarker(state, MARKER_RE.tag);
   if (tagMarker) {
     const actual = await describeRef(repo);
-    if (actual && !actual.startsWith(tagMarker)) {
+    if (!actual || !actual.startsWith(tagMarker)) {
       drifts.push({
         kind: 'tag-mismatch',
         expected: tagMarker,
-        actual,
+        actual: actual || '(no tags)',
         detail: 'state.md tag marker disagrees with git describe.',
       });
     }

@@ -6,7 +6,7 @@
 import { writeFile, mkdir, rm, access } from 'node:fs/promises';
 import { join, resolve, relative, dirname, isAbsolute } from 'node:path';
 import type { ModelAdapter } from '../../adapters/adapter.js';
-import type { Card, Diff, DiffFile } from '../types.js';
+import { COMMIT_TYPES, type Card, type CommitType, type Diff, type DiffFile } from '../types.js';
 import { appendSection } from '../state/card.js';
 import { commitStep } from '../state/git.js';
 
@@ -51,6 +51,16 @@ function ensureSafePath(repo: string, p: string): string {
   return abs;
 }
 
+async function fileExists(abs: string): Promise<boolean> {
+  try {
+    await access(abs);
+    return true;
+  } catch (e: unknown) {
+    if ((e as NodeJS.ErrnoException)?.code === 'ENOENT') return false;
+    throw e;
+  }
+}
+
 async function applyDiffFile(repo: string, file: DiffFile): Promise<void> {
   const abs = ensureSafePath(repo, file.path);
   if (file.action === 'delete') {
@@ -61,13 +71,11 @@ async function applyDiffFile(repo: string, file: DiffFile): Promise<void> {
     }
     return;
   }
-  if (file.action === 'create') {
-    try {
-      await access(abs);
-      throw new Error(`create requested but file exists: ${file.path}`);
-    } catch (e: unknown) {
-      if ((e as NodeJS.ErrnoException)?.code !== 'ENOENT') throw e;
-    }
+  if (file.action === 'create' && (await fileExists(abs))) {
+    throw new Error(`create requested but file exists: ${file.path}`);
+  }
+  if (file.action === 'modify' && !(await fileExists(abs))) {
+    throw new Error(`modify requested but file does not exist: ${file.path}`);
   }
   await mkdir(dirname(abs), { recursive: true });
   await writeFile(abs, file.content, 'utf8');
@@ -95,9 +103,14 @@ export async function implement(args: ImplementArgs): Promise<Diff> {
   let diff: Diff;
   try {
     const parsed = JSON.parse(resp.text.trim());
+    if (!COMMIT_TYPES.includes(parsed.commit_type)) {
+      throw new Error(
+        `Invalid commit_type "${parsed.commit_type}" from model; expected one of ${COMMIT_TYPES.join(', ')}.`,
+      );
+    }
     diff = {
       step: String(parsed.step ?? step),
-      commit_type: parsed.commit_type,
+      commit_type: parsed.commit_type as CommitType,
       commit_subject: String(parsed.commit_subject ?? ''),
       files: Array.isArray(parsed.files) ? parsed.files : [],
       notes: String(parsed.notes ?? ''),

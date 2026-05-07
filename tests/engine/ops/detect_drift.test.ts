@@ -73,4 +73,42 @@ describe('detect_drift op', () => {
     const drifts = await detectDrift({ repo: tmp });
     expect(drifts.some((d) => d.kind === 'uncommitted-state-mismatch')).toBe(true);
   });
+
+  it('flags branch-mismatch when git reports no current branch (detached HEAD)', async () => {
+    await init();
+    const sha = (await simpleGit(tmp).log({ maxCount: 1 })).latest!.hash;
+    await simpleGit(tmp).checkout(sha);
+    const stateText = `# State\n\n<!-- conductor:branch=main -->\n`;
+    await writeFile(join(tmp, '.conductor', 'state.md'), stateText);
+    const drifts = await detectDrift({ repo: tmp });
+    const branchDrift = drifts.find((d) => d.kind === 'branch-mismatch');
+    expect(branchDrift).toBeDefined();
+    expect(branchDrift?.expected).toBe('main');
+  });
+
+  it('flags tag-mismatch when no tags exist for an asserted tag marker', async () => {
+    await init();
+    const branch = (await simpleGit(tmp).status()).current ?? 'main';
+    const sha = (await simpleGit(tmp).log({ maxCount: 1 })).latest!.hash;
+    const stateText = [
+      '# State',
+      '',
+      `<!-- conductor:branch=${branch} -->`,
+      `<!-- conductor:last-commit=${sha} -->`,
+      '<!-- conductor:tag=phase-1-engine-spine-closed -->',
+      '',
+    ].join('\n');
+    await writeFile(join(tmp, '.conductor', 'state.md'), stateText);
+    const drifts = await detectDrift({ repo: tmp });
+    expect(drifts.some((d) => d.kind === 'tag-mismatch')).toBe(true);
+  });
+
+  it('trims surrounding whitespace and preserves internal whitespace in marker values', async () => {
+    await init();
+    const stateText = `# State\n\n<!-- conductor:tag=  v1.0 release  -->\n`;
+    await writeFile(join(tmp, '.conductor', 'state.md'), stateText);
+    const drifts = await detectDrift({ repo: tmp });
+    const tagDrift = drifts.find((d) => d.kind === 'tag-mismatch');
+    expect(tagDrift?.expected).toBe('v1.0 release');
+  });
 });

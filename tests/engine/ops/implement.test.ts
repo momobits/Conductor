@@ -108,6 +108,24 @@ describe('implement op', () => {
     expect(written).toBe('new\n');
   });
 
+  it('rejects modify when target file does not exist', async () => {
+    const adapter = new MockAdapter();
+    adapter.push({
+      text: JSON.stringify({
+        step: '1.1',
+        commit_type: 'fix',
+        commit_subject: 'modify ghost',
+        files: [{ path: 'src/ghost.ts', action: 'modify', content: 'x\n' }],
+        notes: '',
+      }),
+      inputTokens: 1, outputTokens: 1,
+    });
+    const card = await readCard(cardPath);
+    await expect(
+      implement({ repo: tmp, card, adapter, model: 'mock-model', step: '1.1' }),
+    ).rejects.toThrow(/modify requested but file does not exist/i);
+  });
+
   it('rejects path traversal in file paths', async () => {
     const adapter = new MockAdapter();
     adapter.push({
@@ -133,5 +151,23 @@ describe('implement op', () => {
     await expect(
       implement({ repo: tmp, card, adapter, model: 'mock-model', step: '1.1' }),
     ).rejects.toThrow(/parse/i);
+  });
+
+  it('rejects unknown commit_type values', async () => {
+    const adapter = new MockAdapter();
+    adapter.push({
+      text: JSON.stringify({
+        step: '1.1',
+        commit_type: 'feature', // not in the union
+        commit_subject: 'add file',
+        files: [{ path: 'src/a.ts', action: 'create', content: 'x\n' }],
+        notes: '',
+      }),
+      inputTokens: 1, outputTokens: 1,
+    });
+    const card = await readCard(cardPath);
+    await expect(
+      implement({ repo: tmp, card, adapter, model: 'mock-model', step: '1.1' }),
+    ).rejects.toThrow(/Invalid commit_type/i);
   });
 });
