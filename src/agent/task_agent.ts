@@ -69,10 +69,9 @@ export class TaskAgent {
 
     switch (column) {
       case 'discovered': {
-        const c1 = await readCard(cardPath);
-        yield { kind: 'op_start', cardId: this.cardId, operation: 'analyze', model: modelFor(c1, 'analyze') };
+        yield { kind: 'op_start', cardId: this.cardId, operation: 'analyze', model: modelFor(card, 'analyze') };
         const t0 = Date.now();
-        await analyze({ card: c1, adapter: this.adapter, model: modelFor(c1, 'analyze') });
+        await analyze({ card, adapter: this.adapter, model: modelFor(card, 'analyze') });
         yield { kind: 'op_complete', cardId: this.cardId, operation: 'analyze', durationMs: Date.now() - t0 };
 
         const c2 = await readCard(cardPath);

@@ -89,14 +89,31 @@ describe('TaskAgent', () => {
     }
   });
 
-  it('exposes runId on the agent', async () => {
+  it('exposes runId on the agent (deterministic with injected now)', async () => {
     const { repo, cardId } = setupRepo();
-    const adapter = new MockAdapter([
-      JSON.stringify({ analysis: 'a', risks: [], affected_files: [] }),
-      JSON.stringify({ steps: [{ id: '1.1', what: 'w', how: 'h', verify: 'v', commit_type: 'feat' }], rollback: 'r' }),
-    ]);
+    const adapter = new MockAdapter();
     const config = ProjectConfigSchema.parse({});
-    const agent = new TaskAgent({ repo, cardId, adapter, config });
-    expect(agent.runId).toMatch(/^[0-9]{8}T[0-9]{6}-/);
+    const agent = new TaskAgent({
+      repo, cardId, adapter, config,
+      now: () => new Date('2026-05-07T12:34:56.000Z'),
+    });
+    expect(agent.runId).toBe(`20260507T123456-${cardId}`);
+  });
+
+  it('emits error event when card does not exist', async () => {
+    const config = ProjectConfigSchema.parse({});
+    const agent = new TaskAgent({
+      repo: '/nonexistent-conductor-repo',
+      cardId: 'no-such-card',
+      adapter: new MockAdapter(),
+      config,
+    });
+    const events: TaskEvent[] = [];
+    for await (const e of agent.run()) events.push(e);
+    expect(events).toHaveLength(1);
+    expect(events[0].kind).toBe('error');
+    if (events[0].kind === 'error') {
+      expect(events[0].message).toMatch(/no-such-card/);
+    }
   });
 });
