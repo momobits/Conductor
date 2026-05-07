@@ -62,6 +62,14 @@ export async function renderCardDetail(
     <div class="detail">
       <article class="body">
         ${renderMarkdown(card.body)}
+        <section class="chat">
+          <h3>Chat</h3>
+          <div class="log" id="chat-log"></div>
+          <form id="chat-form">
+            <input id="chat-input" type="text" placeholder="Ask about this card…" autocomplete="off" />
+            <button type="submit">Send</button>
+          </form>
+        </section>
       </article>
       <aside class="side">
         <h3>${escape(String(card.frontmatter['title'] ?? cardId))}</h3>
@@ -76,6 +84,32 @@ export async function renderCardDetail(
 
   const streamEl = root.querySelector<HTMLElement>('#stream')!;
   const workBtn = root.querySelector<HTMLButtonElement>('#work-btn')!;
+
+  const chatLog = root.querySelector<HTMLElement>('#chat-log')!;
+  const chatForm = root.querySelector<HTMLFormElement>('#chat-form')!;
+  const chatInput = root.querySelector<HTMLInputElement>('#chat-input')!;
+
+  function appendMsg(role: 'user' | 'assistant', text: string) {
+    const div = document.createElement('div');
+    div.className = `msg ${role}`;
+    div.textContent = `${role === 'user' ? 'you:' : 'assistant:'} ${text}`;
+    chatLog.appendChild(div);
+    chatLog.scrollTop = chatLog.scrollHeight;
+  }
+
+  chatForm.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const text = chatInput.value.trim();
+    if (!text) return;
+    chatInput.value = '';
+    appendMsg('user', text);
+    try {
+      const r = await rpc.call<{ reply: string }>('chat', { cardId, message: text });
+      appendMsg('assistant', r.reply);
+    } catch (err) {
+      appendMsg('assistant', `[error: ${(err as Error).message}]`);
+    }
+  });
 
   function appendEvent(label: string, klass = '') {
     const el = document.createElement('div');
