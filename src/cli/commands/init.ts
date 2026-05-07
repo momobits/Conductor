@@ -26,11 +26,29 @@ const SUBDIRS = [
 ];
 
 const DEFAULT_CONFIG = `# .conductor/config.yaml — Conductor project configuration
+#
+# Routing precedence (lowest → highest):
+#   1. routing.default                          (this file)
+#   2. routing.functions.<op>                   (this file)
+#   3. card frontmatter model_overrides.<op>    (per-card)
+#
+# Provider is resolved by model id prefix:
+#   claude-*                  → Anthropic
+#   gpt-*, codex*, o1/o3/o4*  → OpenAI
+#   gemini-*                  → Google
+#   local:*, ollama:*, vllm:* → local OpenAI-compat endpoint
 routing:
   default: claude-sonnet-4-6
   functions:
-    analyze: claude-opus-4-7
-    plan: claude-opus-4-7
+    analyze:      claude-opus-4-7        # heavy reasoning
+    plan:         claude-opus-4-7
+    review:       claude-opus-4-7        # adversarial; want best
+    implement:    gpt-5                  # rapid impl
+    verify:       claude-haiku-4-5       # cheap validation
+    scan:         gemini-2.5-pro         # large context
+    discover:     gemini-2.5-pro
+    order:        claude-haiku-4-5
+    detect_drift: local:llama-3.3-70b    # deterministic; regex+git
 autonomy:
   default: assist
   transitions:
