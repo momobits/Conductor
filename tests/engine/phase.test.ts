@@ -76,4 +76,14 @@ describe('closePhase', () => {
     ]);
     await expect(closePhase({ repo: tmp, name: 'phase-2' })).rejects.toThrow(/no cards/i);
   });
+
+  it('throws when phase tag already exists', async () => {
+    await setup([
+      { id: '2026-05-07-a', phase: 'phase-2', column: 'archived' },
+    ]);
+    // first close — should succeed
+    await closePhase({ repo: tmp, name: 'phase-2' });
+    // second close — should throw
+    await expect(closePhase({ repo: tmp, name: 'phase-2' })).rejects.toThrow(/already been closed/);
+  });
 });

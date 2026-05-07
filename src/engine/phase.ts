@@ -5,7 +5,7 @@
 
 import { join } from 'node:path';
 import { listCards } from './state/card.js';
-import { createPhaseTag } from './state/git.js';
+import { createPhaseTag, hasTag } from './state/git.js';
 import { appendJournal } from './state/session.js';
 
 export interface ClosePhaseArgs {
@@ -36,6 +36,14 @@ export async function closePhase(args: ClosePhaseArgs): Promise<ClosePhaseResult
     throw new Error(`Cannot close ${name}: ${unarchived.length} card(s) not archived: ${ids}`);
   }
 
+  if (await hasTag(repo, `${name}-closed`)) {
+    throw new Error(`Phase '${name}' has already been closed (tag '${name}-closed' exists).`);
+  }
+
+  // Tag first: the tag is the authoritative close record. If journal
+  // append fails, the tag still marks the phase closed; the operator can
+  // re-append manually. The hasTag guard above prevents the next attempt
+  // from getting a confusing duplicate-tag error.
   const tag = await createPhaseTag(repo, name);
   await appendJournal(repo, `${name} closed (${inPhase.length} cards archived)`);
 
