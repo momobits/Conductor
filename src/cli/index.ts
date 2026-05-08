@@ -18,6 +18,8 @@ import { attachPhase } from './commands/phase.js';
 import { attachDrift } from './commands/drift.js';
 import { attachImport } from './commands/import.js';
 import { attachDaemon } from './commands/daemon.js';
+import { attachAutonomy } from './commands/autonomy.js';
+import { attachBrain } from './commands/brain.js';
 
 const program = new Command();
 
@@ -38,6 +40,8 @@ attachPhase(program);
 attachDrift(program);
 attachImport(program);
 attachDaemon(program);
+attachAutonomy(program);
+attachBrain(program);
 
 program.parseAsync(process.argv).catch((e: unknown) => {
   // eslint-disable-next-line no-console
