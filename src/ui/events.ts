@@ -12,7 +12,11 @@ export type DaemonEventKind =
   | 'session-end'
   | 'session-operation'
   | 'task-event'
-  | 'config-changed';
+  | 'config-changed'
+  | 'conductor-iteration'
+  | 'conductor-decision'
+  | 'conductor-halt'
+  | 'conductor-status';
 
 export interface DaemonEventEnvelope {
   kind: DaemonEventKind;
