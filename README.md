@@ -172,6 +172,78 @@ Build the UI assets locally with `npm run build:ui`. The daemon resolves
 `dist/ui/` relative to its own module path. `npm test` automatically
 builds the UI first via the `pretest` hook.
 
+## Conductor brain (Phase 6)
+
+The brain is the long-running queue-watcher that picks the next eligible
+card from `ordering.md`, spawns a Task Agent, and resolves `assist`
+autonomy gates without human input. It runs inside the daemon — no extra
+process — and starts/stops via RPC.
+
+### Autonomy modes
+
+Set in `.conductor/config.yaml` under `autonomy.default` (or via
+`conductor autonomy set <mode>`):
+
+| Mode       | Behavior                                                                                 |
+|------------|------------------------------------------------------------------------------------------|
+| `escort`   | Every recommendation goes to the user; the brain decides nothing.                        |
+| `assist`   | Auto-approves recommendations with `confidence >= threshold` AND `blast_radius != high`. |
+| `auto`     | Auto-approves any recommendation that clears the threshold (high blast still allowed).   |
+| `critical` | Like `auto`, but **halts the queue** when confidence drops below threshold.              |
+
+Per-card override in card frontmatter (`autonomy: <mode>`) takes
+precedence over the project default.
+
+### Confidence + cost ceilings
+
+```yaml
+confidence:
+  threshold: 0.7              # default 0.7
+
+cost_ceilings:
+  per_card_dollars: 5.00      # default Infinity (off)
+  per_day_dollars:  50.00     # default Infinity (off)
+  halt_on_breach:   true      # default false (warn-only)
+```
+
+The brain checks cost totals against the ceilings before each card; with
+`halt_on_breach: true`, a breach halts the queue with a `cost-ceiling`
+event.
+
+### CLI
+
+```bash
+conductor autonomy set auto                  # write autonomy.default to config.yaml
+conductor brain start                        # start the brain (daemon must be running)
+conductor brain status                       # running/idle + iteration + halts
+conductor brain stop                         # graceful stop after current card
+```
+
+### MCP / RPC tools
+
+| RPC method                       | MCP tool                       | Description                          |
+|----------------------------------|--------------------------------|--------------------------------------|
+| `conductor.conductor_start`      | `conductor.brain_start`        | Start the brain                      |
+| `conductor.conductor_stop`       | `conductor.brain_stop`         | Stop the brain after current card    |
+| `conductor.conductor_status`     | `conductor.brain_status`       | `{running, currentCard, iteration, halts}` |
+| `conductor.conductor_set_autonomy` | `conductor.set_autonomy`     | Update `autonomy.default`            |
+
+### Live brain events on `/events`
+
+| Event kind             | Payload                                         |
+|------------------------|-------------------------------------------------|
+| `conductor-iteration`  | `{cardId, iteration}` — new card picked up      |
+| `conductor-decision`   | `{cardId, action, reason, optionId}` — `conduct` op result |
+| `conductor-halt`       | `{cardId?, reason}` — queue halt (HALT classifier) |
+| `conductor-status`     | `{running}` — brain start/stop                  |
+
+### Documented divergences from spec
+
+- **`conduct` op is deterministic in v1.** Spec § 9 routes `conduct` to "the strongest reasoning model" (Opus). Phase 6 ships the documented v1 simple-threshold scheme as a pure function. The op signature accepts an optional `adapter`/`model` arg so a v2 LLM-routed implementation drops in without changing call sites.
+- **Single-column-advance loop.** Spec § 9's pseudocode keeps a single agent alive across multiple events; Phase 6 instead treats each TaskAgent run as a single column advance, with the Conductor approving + writing the new column + re-spawning. Externally observable queue progression matches spec.
+- **In-memory cost tracking.** Spec § 5 lists `runtime.sqlite`; Phase 4 deferred SQLite, Phase 6 stays in-memory (consistent with spec § 14's "rebuildable on restart").
+- **Single Task Agent at a time.** `max_concurrent_agents=1` per spec § 14 v1 commitment.
+
 ## Try it
 
 ```bash
