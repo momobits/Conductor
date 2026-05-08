@@ -18,7 +18,7 @@ export type Column = (typeof COLUMNS)[number];
 export const KINDS = ['issue', 'feature', 'exercise-finding', 'imported'] as const;
 export type Kind = (typeof KINDS)[number];
 
-export const AUTONOMY_MODES = ['inherit', 'escort', 'assist', 'auto'] as const;
+export const AUTONOMY_MODES = ['inherit', 'escort', 'assist', 'auto', 'critical'] as const;
 export type Autonomy = (typeof AUTONOMY_MODES)[number];
 
 export type ModelOverrides = Record<string, string>;
