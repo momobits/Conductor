@@ -33,9 +33,11 @@ export interface CardFrontmatter {
   autonomy: Autonomy;
   model_overrides: ModelOverrides;
   created: string; // ISO 8601
-  source: string; // discover | user | linear | exercise:<session>
+  source: string; // discover | user | linear | github | exercise:<session>
   labels: string[];
   blocked_by: string[];
+  tracker_id?: string;
+  tracker_url?: string;
 }
 
 export interface Card {

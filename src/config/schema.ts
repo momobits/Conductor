@@ -30,6 +30,8 @@ export const CardFrontmatterSchema = z
     source: z.string(),
     labels: z.array(z.string()).default([]),
     blocked_by: z.array(z.string()).default([]),
+    tracker_id: z.string().optional(),
+    tracker_url: z.string().optional(),
   })
   .strict();
 
@@ -71,6 +73,31 @@ export const ProjectConfigSchema = z
         threshold: z.number().min(0).max(1).default(0.7),
       })
       .default({}),
+    tracker: z
+      .discriminatedUnion('kind', [
+        z.object({
+          kind: z.literal('none'),
+          poll_interval_ms: z.number().int().nonnegative().default(0),
+        }),
+        z.object({
+          kind: z.literal('linear'),
+          api_key_env: z.string().min(1).default('LINEAR_API_KEY'),
+          endpoint: z.string().url().default('https://api.linear.app/graphql'),
+          project_slug: z.string().min(1),
+          active_states: z.array(z.string()).default(['Todo', 'In Progress']),
+          poll_interval_ms: z.number().int().nonnegative().default(0),
+        }),
+        z.object({
+          kind: z.literal('github'),
+          api_key_env: z.string().min(1).default('GITHUB_TOKEN'),
+          endpoint: z.string().url().default('https://api.github.com'),
+          owner: z.string().min(1),
+          repo: z.string().min(1),
+          active_states: z.array(z.string()).default(['open']),
+          poll_interval_ms: z.number().int().nonnegative().default(0),
+        }),
+      ])
+      .default({ kind: 'none', poll_interval_ms: 0 }),
   })
   .strict();
 
