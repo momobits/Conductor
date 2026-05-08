@@ -21,6 +21,7 @@ import { startWatcher, type WatcherHandle } from './watcher.js';
 import { EventBus } from './event_bus.js';
 import { TrackerPoller } from './tracker_poller.js';
 import { makeTrackerAdapter } from '../trackers/factory.js';
+import { pruneRuns } from '../agent/runlog_store.js';
 
 export interface DaemonHandle {
   url: string;
@@ -46,6 +47,19 @@ export async function startDaemon(args: StartDaemonArgs): Promise<DaemonHandle> 
   }
 
   const config = await loadProjectConfig(join(args.repo, '.conductor', 'config.yaml'));
+
+  // Prune run logs at boot per config.run_log retention. Best-effort:
+  // a failure here must not block daemon startup.
+  try {
+    await pruneRuns(args.repo, {
+      keepLastN: config.run_log.keep_last_n,
+      keepDays: config.run_log.keep_days,
+    });
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error(`runlog prune at boot failed: ${(e as Error).message}`);
+  }
+
   const authToken = await generateAuthToken(args.repo);
   const runtime = new InMemoryRuntime();
   const bus = new EventBus();
