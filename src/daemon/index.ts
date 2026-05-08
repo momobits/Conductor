@@ -48,7 +48,10 @@ export async function startDaemon(args: StartDaemonArgs): Promise<DaemonHandle> 
   const runtime = new InMemoryRuntime();
   const bus = new EventBus();
 
-  const ctx = { repo: args.repo, config, runtime, bus };
+  const ctx = {
+    repo: args.repo, config, runtime, bus,
+    conductor: {} as { instance?: import('../conductor/loop.js').Conductor; runPromise?: Promise<void> },
+  };
   const mcp = attachMcpServer({ ctx, authToken });
 
   // Resolve dist/ui/ relative to this file. When running from source via tsx,
@@ -84,6 +87,10 @@ export async function startDaemon(args: StartDaemonArgs): Promise<DaemonHandle> 
     url: server.url,
     port: server.port,
     shutdown: async () => {
+      if (ctx.conductor.instance && ctx.conductor.instance.status().running) {
+        ctx.conductor.instance.stop();
+        try { await ctx.conductor.runPromise; } catch { /* ignore */ }
+      }
       await watcher.close();
       await server.close();
       bus.close();

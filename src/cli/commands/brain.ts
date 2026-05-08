@@ -17,7 +17,7 @@ async function rpcCall(repo: string, method: string, params: unknown): Promise<u
   const res = await fetch(`${endpoint}/rpc`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: `conductor.${method}`, params }),
   });
   const body = await res.json() as { result?: unknown; error?: { message: string } };
   if (body.error) throw new Error(body.error.message);

@@ -229,3 +229,25 @@ describe('Conductor refreshes ordering after card completes', () => {
     expect(scanOrderCalls).toBe(1);
   });
 });
+
+describe('Daemon shutdown stops the conductor brain', () => {
+  it('startDaemon + conductor_status returns running=false; shutdown is clean', async () => {
+    const { startDaemon } = await import('../../src/daemon/index.js');
+    const repo = setupRepoWithOrdering([]);
+    writeFileSync(join(repo, '.conductor', 'config.yaml'), 'autonomy:\n  default: auto\n', 'utf8');
+    const handle = await startDaemon({ repo, port: 0 });
+    try {
+      const token = (await import('node:fs/promises')).readFile(join(repo, '.conductor', 'auth.token'), 'utf8');
+      const tokenStr = (await token).trim();
+      const res = await fetch(`${handle.url}/rpc`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${tokenStr}` },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'conductor.conductor_status', params: {} }),
+      });
+      const body = await res.json() as { result: { running: boolean } };
+      expect(body.result.running).toBe(false);
+    } finally {
+      await handle.shutdown();
+    }
+  });
+});
