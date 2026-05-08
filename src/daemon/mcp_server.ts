@@ -44,6 +44,7 @@ const TOOLS: readonly ToolDef[] = [
   { name: 'conductor.brain_stop', description: 'Stop the autonomous Conductor brain after the current card finishes.', methodName: 'conductor_stop' },
   { name: 'conductor.brain_status', description: 'Report Conductor brain status: running, currentCard, iteration, halts.', methodName: 'conductor_status' },
   { name: 'conductor.set_autonomy', description: 'Set the project-wide autonomy mode (escort | assist | auto | critical).', methodName: 'conductor_set_autonomy' },
+  { name: 'conductor.tracker_pull', description: 'Pull active issues from the configured tracker (linear|github) and create/update cards.' },
 ];
 
 export function listToolNames(): string[] {

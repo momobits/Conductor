@@ -7,6 +7,8 @@
 import { z } from 'zod';
 import { ColumnSchema, KindSchema, CardFrontmatterSchema, ProjectConfigSchema } from '../config/schema.js';
 
+export const TrackerPullParams = z.object({}).strict();
+
 export const CardNewParams = z.object({
   slug: z.string().min(1),
   title: z.string().min(1),

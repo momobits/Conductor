@@ -16,7 +16,10 @@ import {
   ConfigGetParams, ConfigSetParams, SessionStatusParams,
   ChatParams,
   ConductorStartParams, ConductorStopParams, ConductorStatusParams, ConductorSetAutonomyParams,
+  TrackerPullParams,
 } from './schema.js';
+import { trackerPull } from '../engine/ops/tracker_pull.js';
+import { makeTrackerAdapter } from '../trackers/factory.js';
 import { Conductor, defaultAgentFactory } from '../conductor/loop.js';
 import { dump as yamlDump } from 'js-yaml';
 import { writeFile } from 'node:fs/promises';
@@ -291,6 +294,17 @@ async function conductor_set_autonomy(ctx: MethodContext, raw: unknown) {
   return { ok: true as const, mode: p.mode };
 }
 
+async function tracker_pull(ctx: MethodContext, raw: unknown) {
+  TrackerPullParams.parse(raw);
+  // Re-read config from disk so external edits land before the call.
+  const fresh = await loadProjectConfig(join(ctx.repo, '.conductor', 'config.yaml'));
+  if (fresh.tracker.kind === 'none') return { ok: false as const, reason: 'tracker.kind is none' };
+  const adapter = makeTrackerAdapter(fresh);
+  if (!adapter) return { ok: false as const, reason: 'no tracker adapter' };
+  const result = await trackerPull({ repo: ctx.repo, adapter });
+  return { ok: true as const, created: result.created, updated: result.updated };
+}
+
 export const methods = {
   card_new,
   card_get,
@@ -313,6 +327,7 @@ export const methods = {
   conductor_stop,
   conductor_status,
   conductor_set_autonomy,
+  tracker_pull,
 } satisfies Record<string, Handler<unknown, unknown>>;
 
 export type MethodName = keyof typeof methods;
