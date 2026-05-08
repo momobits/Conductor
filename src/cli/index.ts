@@ -22,6 +22,7 @@ import { attachAutonomy } from './commands/autonomy.js';
 import { attachBrain } from './commands/brain.js';
 import { attachTracker } from './commands/tracker.js';
 import { attachRun } from './commands/run.js';
+import { attachCost } from './commands/cost.js';
 
 const program = new Command();
 
@@ -46,6 +47,7 @@ attachAutonomy(program);
 attachBrain(program);
 attachTracker(program);
 attachRun(program);
+attachCost(program);
 
 program.parseAsync(process.argv).catch((e: unknown) => {
   // eslint-disable-next-line no-console
