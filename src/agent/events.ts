@@ -41,6 +41,7 @@ export interface TransitionRequestEvent {
   from: Column;
   to: Column;
   policy: 'manual' | 'assist';
+  recommendation?: Recommendation;
 }
 
 export interface CompleteEvent {
