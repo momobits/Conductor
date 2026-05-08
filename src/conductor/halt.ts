@@ -26,7 +26,7 @@ export interface HaltEvent {
 const PATTERNS: Array<[RegExp, HaltReason]> = [
   [/\bADR\s+(needed|is required|required)\b/i, 'adr-needed'],
   [/\bnew ADR\b/i, 'adr-needed'],
-  [/\b(DROP\s+TABLE|rm\s+-rf|force[- ]push|TRUNCATE|DELETE\s+FROM)\b/i, 'destructive-action'],
+  [/\b(DROP\s+TABLE|rm\s+-rf|force[- ]push|push\s+--force|TRUNCATE|DELETE\s+FROM)\b/i, 'destructive-action'],
   [/(API_KEY|\bcredential\b|\bauthentication required\b|missing credential)/i, 'auth-needed'],
   [/\b(iteration budget|max iterations)\b/i, 'iteration-budget'],
   [/\b(cost ceiling|per-card cost|per-day cost)\b/i, 'cost-ceiling'],
