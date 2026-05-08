@@ -6,7 +6,7 @@
 // progress.
 
 import { join } from 'node:path';
-import type { Card, Column } from '../engine/types.js';
+import type { BlastRadius, Card, Column, Recommendation } from '../engine/types.js';
 import type { ModelAdapter } from '../adapters/adapter.js';
 import type { ProjectConfig } from '../config/schema.js';
 import { readCard, writeCard } from '../engine/state/card.js';
@@ -21,6 +21,7 @@ import { RoutingAdapter } from '../adapters/routing.js';
 import type { TaskEvent } from './events.js';
 import { RunLogWriter } from './runlog.js';
 import { transitionPolicy, type TransitionPolicy } from '../engine/lifecycle.js';
+import { computeBlastRadius } from '../engine/blast_radius.js';
 
 export interface TaskAgentArgs {
   repo: string;
@@ -116,6 +117,19 @@ export class TaskAgent {
             yield await this.emit({ kind: 'complete', cardId: this.cardId, finalColumn: 'approved' });
           }
         } else {
+          const blast_radius = computeBlastRadius({ card: c, operation: 'review' });
+          const recommendation: Recommendation = {
+            type: 'recommendation',
+            card: this.cardId,
+            operation: 'review',
+            blast_radius,
+            options: [
+              { id: 're_plan', confidence: verdict.decision === 'NEEDS-CHANGES' ? 0.7 : 0.4, rationale: verdict.reasoning || 'Re-run plan with required changes.' },
+              { id: 'reject', confidence: 0.2, rationale: 'Hold the card; do not advance.' },
+            ],
+            recommended: 're_plan',
+          };
+          yield await this.emit({ kind: 'recommendation', cardId: this.cardId, recommendation });
           yield await this.emit({
             kind: 'halt',
             cardId: this.cardId,
@@ -243,7 +257,24 @@ export class TaskAgent {
       return;
     }
     // manual or assist: surface request, do NOT write the new column
-    const req: TaskEvent = { kind: 'transition_request', cardId: this.cardId, from, to, policy };
+    const card = await readCard(cardPath);
+    const ops = operationsBetween(from, to);
+    // Use the riskiest constituent op as the blast_radius signal; falls back
+    // to the synthetic transition op name if there are none mapped.
+    const opForBlast = pickRiskiestOp(ops) ?? `transition:${from}->${to}`;
+    const blast_radius = computeBlastRadius({ card, operation: opForBlast });
+    const recommendation: Recommendation = {
+      type: 'recommendation',
+      card: this.cardId,
+      operation: `transition:${from}->${to}`,
+      blast_radius,
+      options: [
+        { id: 'approve', confidence: confidenceForTransition(blast_radius.level), rationale: `Lifecycle advance ${from} → ${to} after ${ops.join(', ')}.` },
+        { id: 'reject', confidence: 1 - confidenceForTransition(blast_radius.level), rationale: `Hold at ${from}; require human review.` },
+      ],
+      recommended: 'approve',
+    };
+    const req: TaskEvent = { kind: 'transition_request', cardId: this.cardId, from, to, policy, recommendation };
     yield { event: await this.emit(req), halted: false };
     const halt: TaskEvent = {
       kind: 'halt',
@@ -253,4 +284,35 @@ export class TaskAgent {
     };
     yield { event: await this.emit(halt), halted: true };
   }
+}
+
+function confidenceForTransition(level: BlastRadius['level']): number {
+  // Deterministic baseline: forward transitions after a successful op are
+  // high-confidence unless blast_radius bumps them down. Tunable in v2.
+  const base = 0.9;
+  if (level === 'high') return Math.max(0, base - 0.4);
+  if (level === 'medium') return Math.max(0, base - 0.15);
+  return base;
+}
+
+function operationsBetween(from: Column, to: Column): string[] {
+  const map: Record<string, string[]> = {
+    'discovered->planned': ['analyze', 'plan'],
+    'planned->approved': ['review'],
+    'approved->building': ['implement'],
+    'building->verifying': ['verify'],
+    'verifying->shipped': ['notebook'],
+    'shipped->archived': ['resolve'],
+  };
+  return map[`${from}->${to}`] ?? [];
+}
+
+const OP_RANK: Record<string, number> = {
+  resolve: 3, 'implement-migration': 3,
+  implement: 2, verify: 2, notebook: 2,
+  analyze: 1, plan: 1, review: 1, order: 1, scan: 1, discover: 1, chat: 1,
+};
+function pickRiskiestOp(ops: string[]): string | undefined {
+  if (ops.length === 0) return undefined;
+  return [...ops].sort((a, b) => (OP_RANK[b] ?? 0) - (OP_RANK[a] ?? 0))[0];
 }
