@@ -59,6 +59,18 @@ export const ProjectConfigSchema = z
       })
       .default({}),
     verify_command: z.string().default('npm test'),
+    cost_ceilings: z
+      .object({
+        per_card_dollars: z.number().positive().default(Number.POSITIVE_INFINITY),
+        per_day_dollars: z.number().positive().default(Number.POSITIVE_INFINITY),
+        halt_on_breach: z.boolean().default(false),
+      })
+      .default({}),
+    confidence: z
+      .object({
+        threshold: z.number().min(0).max(1).default(0.7),
+      })
+      .default({}),
   })
   .strict();
 

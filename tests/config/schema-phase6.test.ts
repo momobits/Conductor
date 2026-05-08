@@ -16,3 +16,36 @@ describe('Phase 6 autonomy modes', () => {
     expect(cfg.autonomy.default).toBe('critical');
   });
 });
+
+describe('Phase 6 cost_ceilings + confidence', () => {
+  it('parses cost_ceilings with all three fields', () => {
+    const cfg = ProjectConfigSchema.parse({
+      cost_ceilings: { per_card_dollars: 5, per_day_dollars: 50, halt_on_breach: true },
+    });
+    expect(cfg.cost_ceilings.per_card_dollars).toBe(5);
+    expect(cfg.cost_ceilings.per_day_dollars).toBe(50);
+    expect(cfg.cost_ceilings.halt_on_breach).toBe(true);
+  });
+
+  it('cost_ceilings defaults to permissive (no halt)', () => {
+    const cfg = ProjectConfigSchema.parse({});
+    expect(cfg.cost_ceilings.per_card_dollars).toBe(Number.POSITIVE_INFINITY);
+    expect(cfg.cost_ceilings.per_day_dollars).toBe(Number.POSITIVE_INFINITY);
+    expect(cfg.cost_ceilings.halt_on_breach).toBe(false);
+  });
+
+  it('parses confidence with threshold', () => {
+    const cfg = ProjectConfigSchema.parse({ confidence: { threshold: 0.8 } });
+    expect(cfg.confidence.threshold).toBe(0.8);
+  });
+
+  it('confidence.threshold defaults to 0.7', () => {
+    const cfg = ProjectConfigSchema.parse({});
+    expect(cfg.confidence.threshold).toBe(0.7);
+  });
+
+  it('rejects threshold outside 0..1', () => {
+    expect(() => ProjectConfigSchema.parse({ confidence: { threshold: 1.5 } })).toThrow();
+    expect(() => ProjectConfigSchema.parse({ confidence: { threshold: -0.1 } })).toThrow();
+  });
+});
