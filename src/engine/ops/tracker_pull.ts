@@ -8,6 +8,8 @@
 
 import { join } from 'node:path';
 import { readFile, writeFile, access } from 'node:fs/promises';
+import yaml from 'js-yaml';
+import { CardFrontmatterSchema } from '../../config/schema.js';
 import type { TrackerAdapter, TrackerIssue } from '../../trackers/tracker.js';
 import type { Column } from '../types.js';
 
@@ -38,45 +40,6 @@ function cardId(issue: TrackerIssue): string {
   return `${prefix}-${slugify(issue.title)}`;
 }
 
-interface PulledFrontmatter {
-  id: string;
-  title: string;
-  kind: 'issue';
-  column: Column;
-  phase: string;
-  priority: number;
-  autonomy: 'inherit';
-  created: string;
-  source: string;
-  tracker_id: string;
-  tracker_url: string;
-  labels: string[];
-}
-
-function frontmatterYaml(fm: PulledFrontmatter): string {
-  const labelsBlock =
-    fm.labels.length > 0 ? `labels:\n${fm.labels.map((l) => `  - ${l}`).join('\n')}\n` : 'labels: []\n';
-  return [
-    '---',
-    `id: ${fm.id}`,
-    `title: ${fm.title}`,
-    `kind: ${fm.kind}`,
-    `column: ${fm.column}`,
-    `phase: ${fm.phase}`,
-    `priority: ${fm.priority}`,
-    `autonomy: ${fm.autonomy}`,
-    'model_overrides: {}',
-    `created: ${fm.created}`,
-    `source: ${fm.source}`,
-    `tracker_id: ${fm.tracker_id}`,
-    `tracker_url: ${fm.tracker_url}`,
-    labelsBlock.trimEnd(),
-    'blocked_by: []',
-    '---',
-    '',
-  ].join('\n');
-}
-
 export async function trackerPull(args: TrackerPullArgs): Promise<TrackerPullResult> {
   const { repo, adapter } = args;
   const issues = await adapter.listActiveIssues();
@@ -91,7 +54,9 @@ export async function trackerPull(args: TrackerPullArgs): Promise<TrackerPullRes
       const m = /^column:\s*(\S+)/m.exec(old);
       if (m && m[1]) column = m[1] as Column;
     }
-    const fm: PulledFrontmatter = {
+    // Build frontmatter through the schema so unknown-key strictness and
+    // type coercion stay consistent with cards created via createCard().
+    const frontmatter = CardFrontmatterSchema.parse({
       id,
       title: issue.title,
       kind: 'issue',
@@ -99,13 +64,18 @@ export async function trackerPull(args: TrackerPullArgs): Promise<TrackerPullRes
       phase: 'unassigned',
       priority: 1,
       autonomy: 'inherit',
+      model_overrides: {},
       created: issue.created_at,
       source: issue.tracker,
       tracker_id: issue.tracker_id,
       tracker_url: issue.url,
       labels: issue.labels,
-    };
-    const body = `${frontmatterYaml(fm)}\n# ${issue.title}\n\n${issue.body}\n`;
+      blocked_by: [],
+    });
+    // yaml.dump quotes strings that look like dates/numbers, so strict
+    // round-trip parsing works against CardFrontmatterSchema.
+    const head = yaml.dump(frontmatter, { lineWidth: 0, noRefs: true });
+    const body = `---\n${head}---\n\n# ${issue.title}\n\n${issue.body}\n`;
     await writeFile(path, body, 'utf8');
     if (exists) result.updated.push(id);
     else result.created.push(id);
