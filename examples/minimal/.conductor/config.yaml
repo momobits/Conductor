@@ -1,0 +1,39 @@
+# Minimal Conductor config — single Claude family, no tracker, default
+# autonomy with reasonable cost ceilings. Suitable for single-developer
+# dogfood on a small repo.
+
+routing:
+  default: claude-sonnet-4-6
+  functions:
+    analyze: claude-opus-4-7
+    plan: claude-opus-4-7
+    review: claude-opus-4-7
+    verify: claude-haiku-4-5
+
+autonomy:
+  default: assist
+  transitions:
+    discovered_to_planned: auto
+    planned_to_approved: assist
+    approved_to_building: manual
+    building_to_verifying: auto
+    verifying_to_shipped: assist
+    shipped_to_archived: manual
+
+verify_command: npm test
+
+confidence:
+  threshold: 0.7
+
+cost_ceilings:
+  per_card_dollars: 5.0
+  per_day_dollars: 50.0
+  halt_on_breach: true
+
+run_log:
+  keep_last_n: 200
+  keep_days: 30
+
+tracker:
+  kind: none
+  poll_interval_ms: 0

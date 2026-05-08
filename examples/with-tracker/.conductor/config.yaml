@@ -1,0 +1,39 @@
+# Tracker-driven config — Linear feeds the queue, autonomous brain runs
+# under cost limits. Replace <team-id> before use.
+#
+# To launch:
+#   export LINEAR_API_KEY=lin_...
+#   conductor daemon start
+#   conductor brain start
+
+routing:
+  default: claude-sonnet-4-6
+  functions:
+    conduct: claude-opus-4-7
+
+autonomy:
+  default: auto
+
+verify_command: npm test
+
+confidence:
+  threshold: 0.75
+
+cost_ceilings:
+  per_card_dollars: 10.0
+  per_day_dollars: 100.0
+  halt_on_breach: true
+
+run_log:
+  keep_last_n: 500
+  keep_days: 60
+
+tracker:
+  kind: linear
+  api_key_env: LINEAR_API_KEY
+  endpoint: https://api.linear.app/graphql
+  project_slug: <team-id>
+  active_states:
+    - Todo
+    - In Progress
+  poll_interval_ms: 300000          # 5 minutes
