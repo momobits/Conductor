@@ -148,7 +148,16 @@ async function work_card(ctx: MethodContext, raw: unknown) {
   if (ctx.runtime.getActiveSession(p.id)) {
     throw new Error(`already-running: ${p.id}`);
   }
-  const agent = new TaskAgent({ repo: ctx.repo, cardId: p.id, config: ctx.config, step: p.step });
+  const agent = new TaskAgent({
+    repo: ctx.repo,
+    cardId: p.id,
+    config: ctx.config,
+    step: p.step,
+    adapter: ctx.adapter,
+    onAdapterUsage: ({ inputTokens, outputTokens, dollars }) => {
+      ctx.runtime.addCost(p.id, { inputTokens, outputTokens, dollars });
+    },
+  });
   ctx.runtime.startSession({ cardId: p.id, runId: agent.runId, operation: 'work' });
   ctx.bus?.publish({ kind: 'session-start', cardId: p.id, runId: agent.runId });
   try {

@@ -31,6 +31,10 @@ export interface TaskAgentArgs {
   step?: string;
   runner?: Runner;
   now?: () => Date;
+  /** Called after each adapter invoke() with usage + cost so callers (RPC)
+   *  can persist into the runtime store. Optional; CLI in-process callers
+   *  may skip if they don't track cost. */
+  onAdapterUsage?: (usage: { model: string; inputTokens: number; outputTokens: number; dollars: number }) => void;
 }
 
 export class TaskAgent {
@@ -46,7 +50,8 @@ export class TaskAgent {
   constructor(args: TaskAgentArgs) {
     this.repo = args.repo;
     this.cardId = args.cardId;
-    this.adapter = args.adapter ?? new RoutingAdapter();
+    const inner = args.adapter ?? new RoutingAdapter();
+    this.adapter = args.onAdapterUsage ? wrapWithUsage(inner, args.onAdapterUsage) : inner;
     this.config = args.config;
     this.step = args.step;
     this.runner = args.runner ?? defaultRunner;
@@ -284,6 +289,27 @@ export class TaskAgent {
     };
     yield { event: await this.emit(halt), halted: true };
   }
+}
+
+function wrapWithUsage(
+  inner: ModelAdapter,
+  onUsage: NonNullable<TaskAgentArgs['onAdapterUsage']>,
+): ModelAdapter {
+  return {
+    invoke: async (req) => {
+      const resp = await inner.invoke(req);
+      const cost = inner.estimateCost(req);
+      onUsage({
+        model: resp.model,
+        inputTokens: resp.inputTokens,
+        outputTokens: resp.outputTokens,
+        dollars: cost.dollars,
+      });
+      return resp;
+    },
+    capabilities: () => inner.capabilities(),
+    estimateCost: (req) => inner.estimateCost(req),
+  };
 }
 
 function confidenceForTransition(level: BlastRadius['level']): number {
