@@ -296,6 +296,7 @@ function wrapWithUsage(
   onUsage: NonNullable<TaskAgentArgs['onAdapterUsage']>,
 ): ModelAdapter {
   return {
+    id: `${inner.id}+usage`,
     invoke: async (req) => {
       const resp = await inner.invoke(req);
       const cost = inner.estimateCost(req);
