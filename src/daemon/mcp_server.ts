@@ -14,7 +14,15 @@ import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { methods, type MethodContext, type MethodName } from '../rpc/methods.js';
 
-const TOOLS = [
+interface ToolDef {
+  name: string;
+  description: string;
+  /** When the tool name does not match `conductor.<methodName>` after
+   *  stripping the namespace, set this to the actual RPC method name. */
+  methodName?: MethodName;
+}
+
+const TOOLS: readonly ToolDef[] = [
   { name: 'conductor.card_new', description: 'Create a card' },
   { name: 'conductor.card_get', description: 'Fetch a card by id' },
   { name: 'conductor.card_list', description: 'List cards' },
@@ -32,7 +40,15 @@ const TOOLS = [
   { name: 'conductor.config_set', description: 'Write and validate the project config' },
   { name: 'conductor.session_status', description: 'Query active TaskAgent sessions' },
   { name: 'conductor.chat', description: 'Chat with the model about a specific card' },
-] as const;
+  { name: 'conductor.brain_start', description: 'Start the autonomous Conductor brain. Walks the queue per ordering.md.', methodName: 'conductor_start' },
+  { name: 'conductor.brain_stop', description: 'Stop the autonomous Conductor brain after the current card finishes.', methodName: 'conductor_stop' },
+  { name: 'conductor.brain_status', description: 'Report Conductor brain status: running, currentCard, iteration, halts.', methodName: 'conductor_status' },
+  { name: 'conductor.set_autonomy', description: 'Set the project-wide autonomy mode (escort | assist | auto | critical).', methodName: 'conductor_set_autonomy' },
+];
+
+export function listToolNames(): string[] {
+  return TOOLS.map((t) => t.name);
+}
 
 export interface McpAttachArgs {
   ctx: MethodContext;
@@ -68,7 +84,7 @@ export function attachMcpServer(args: McpAttachArgs): McpAttachment {
         isError: true,
       };
     }
-    const methodName = req.params.name.replace('conductor.', '') as MethodName;
+    const methodName = (tool.methodName ?? req.params.name.replace('conductor.', '')) as MethodName;
     const handler = methods[methodName];
     try {
       const result = await handler(args.ctx, req.params.arguments ?? {});
