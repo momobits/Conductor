@@ -21,6 +21,7 @@ import { attachDaemon } from './commands/daemon.js';
 import { attachAutonomy } from './commands/autonomy.js';
 import { attachBrain } from './commands/brain.js';
 import { attachTracker } from './commands/tracker.js';
+import { attachRun } from './commands/run.js';
 
 const program = new Command();
 
@@ -44,6 +45,7 @@ attachDaemon(program);
 attachAutonomy(program);
 attachBrain(program);
 attachTracker(program);
+attachRun(program);
 
 program.parseAsync(process.argv).catch((e: unknown) => {
   // eslint-disable-next-line no-console

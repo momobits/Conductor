@@ -9,6 +9,15 @@ import { ColumnSchema, KindSchema, CardFrontmatterSchema, ProjectConfigSchema } 
 
 export const TrackerPullParams = z.object({}).strict();
 
+export const RunListParams = z.object({}).strict();
+export const RunReplayParams = z.object({ runId: z.string().min(1) }).strict();
+export const RunPruneParams = z
+  .object({
+    keepLastN: z.number().int().nonnegative().optional(),
+    keepDays: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+
 export const CardNewParams = z.object({
   slug: z.string().min(1),
   title: z.string().min(1),

@@ -45,6 +45,9 @@ const TOOLS: readonly ToolDef[] = [
   { name: 'conductor.brain_status', description: 'Report Conductor brain status: running, currentCard, iteration, halts.', methodName: 'conductor_status' },
   { name: 'conductor.set_autonomy', description: 'Set the project-wide autonomy mode (escort | assist | auto | critical).', methodName: 'conductor_set_autonomy' },
   { name: 'conductor.tracker_pull', description: 'Pull active issues from the configured tracker (linear|github) and create/update cards.' },
+  { name: 'conductor.run_list', description: 'List Task Agent run logs newest-first.' },
+  { name: 'conductor.run_replay', description: 'Replay a Task Agent run by id (returns the JSONL events).' },
+  { name: 'conductor.run_prune', description: 'Prune run logs per run_log retention policy.' },
 ];
 
 export function listToolNames(): string[] {

@@ -27,4 +27,24 @@ describe('Phase 7 RPC methods', () => {
     expect(result.ok).toBe(false);
     expect(result.reason).toMatch(/none/);
   });
+
+  it('run_list returns empty when no runs', async () => {
+    const repo = setupRepo(`routing:\n  default: mock\n`);
+    const config = ProjectConfigSchema.parse({ routing: { default: 'mock' } });
+    const result = (await methods.run_list(
+      { repo, config, runtime: new InMemoryRuntime(), bus: new EventBus() },
+      {},
+    )) as { runs: unknown[] };
+    expect(result.runs).toEqual([]);
+  });
+
+  it('run_prune uses run_log defaults when params omitted', async () => {
+    const repo = setupRepo(`routing:\n  default: mock\nrun_log:\n  keep_last_n: 1\n  keep_days: 0\n`);
+    const config = ProjectConfigSchema.parse({ routing: { default: 'mock' } });
+    const result = (await methods.run_prune(
+      { repo, config, runtime: new InMemoryRuntime(), bus: new EventBus() },
+      {},
+    )) as { removed: string[] };
+    expect(result.removed).toEqual([]);
+  });
 });

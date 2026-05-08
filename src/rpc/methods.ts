@@ -17,9 +17,11 @@ import {
   ChatParams,
   ConductorStartParams, ConductorStopParams, ConductorStatusParams, ConductorSetAutonomyParams,
   TrackerPullParams,
+  RunListParams, RunReplayParams, RunPruneParams,
 } from './schema.js';
 import { trackerPull } from '../engine/ops/tracker_pull.js';
 import { makeTrackerAdapter } from '../trackers/factory.js';
+import { listRuns, pruneRuns, replayRun } from '../agent/runlog_store.js';
 import { Conductor, defaultAgentFactory } from '../conductor/loop.js';
 import { dump as yamlDump } from 'js-yaml';
 import { writeFile } from 'node:fs/promises';
@@ -305,6 +307,29 @@ async function tracker_pull(ctx: MethodContext, raw: unknown) {
   return { ok: true as const, created: result.created, updated: result.updated };
 }
 
+async function run_list(ctx: MethodContext, raw: unknown) {
+  RunListParams.parse(raw);
+  const runs = await listRuns(ctx.repo);
+  return { runs: runs.map((r) => ({ runId: r.runId, events: r.events, mtime: r.mtime.toISOString() })) };
+}
+
+async function run_replay(ctx: MethodContext, raw: unknown) {
+  const p = RunReplayParams.parse(raw);
+  const events: Array<unknown> = [];
+  for await (const ev of replayRun(ctx.repo, p.runId)) events.push(ev);
+  return { events };
+}
+
+async function run_prune(ctx: MethodContext, raw: unknown) {
+  const p = RunPruneParams.parse(raw);
+  const fresh = await loadProjectConfig(join(ctx.repo, '.conductor', 'config.yaml'));
+  const removed = await pruneRuns(ctx.repo, {
+    keepLastN: p.keepLastN ?? fresh.run_log.keep_last_n,
+    keepDays: p.keepDays ?? fresh.run_log.keep_days,
+  });
+  return { removed };
+}
+
 export const methods = {
   card_new,
   card_get,
@@ -328,6 +353,9 @@ export const methods = {
   conductor_status,
   conductor_set_autonomy,
   tracker_pull,
+  run_list,
+  run_replay,
+  run_prune,
 } satisfies Record<string, Handler<unknown, unknown>>;
 
 export type MethodName = keyof typeof methods;
