@@ -14,7 +14,11 @@ export type DaemonEvent =
   | { kind: 'session-end'; cardId: string; runId: string }
   | { kind: 'session-operation'; cardId: string; runId: string; operation: string }
   | { kind: 'task-event'; cardId: string; runId: string; event: TaskEvent }
-  | { kind: 'config-changed' };
+  | { kind: 'config-changed' }
+  | { kind: 'conductor-iteration'; cardId: string; iteration: number }
+  | { kind: 'conductor-decision'; cardId: string; action: 'approve' | 'escalate' | 'halt'; reason: string; optionId: string }
+  | { kind: 'conductor-halt'; reason: string; cardId?: string }
+  | { kind: 'conductor-status'; running: boolean };
 
 export type Listener = (e: DaemonEvent) => void;
 
