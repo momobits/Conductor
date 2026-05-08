@@ -18,10 +18,12 @@ import {
   ConductorStartParams, ConductorStopParams, ConductorStatusParams, ConductorSetAutonomyParams,
   TrackerPullParams,
   RunListParams, RunReplayParams, RunPruneParams,
+  CostShowParams,
 } from './schema.js';
 import { trackerPull } from '../engine/ops/tracker_pull.js';
 import { makeTrackerAdapter } from '../trackers/factory.js';
 import { listRuns, pruneRuns, replayRun } from '../agent/runlog_store.js';
+import { getCostSummary } from '../daemon/cost_summary.js';
 import { Conductor, defaultAgentFactory } from '../conductor/loop.js';
 import { dump as yamlDump } from 'js-yaml';
 import { writeFile } from 'node:fs/promises';
@@ -330,6 +332,11 @@ async function run_prune(ctx: MethodContext, raw: unknown) {
   return { removed };
 }
 
+async function cost_show(ctx: MethodContext, raw: unknown) {
+  CostShowParams.parse(raw);
+  return getCostSummary({ runtime: ctx.runtime, config: ctx.config });
+}
+
 export const methods = {
   card_new,
   card_get,
@@ -356,6 +363,7 @@ export const methods = {
   run_list,
   run_replay,
   run_prune,
+  cost_show,
 } satisfies Record<string, Handler<unknown, unknown>>;
 
 export type MethodName = keyof typeof methods;

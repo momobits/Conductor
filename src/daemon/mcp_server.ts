@@ -48,6 +48,7 @@ const TOOLS: readonly ToolDef[] = [
   { name: 'conductor.run_list', description: 'List Task Agent run logs newest-first.' },
   { name: 'conductor.run_replay', description: 'Replay a Task Agent run by id (returns the JSONL events).' },
   { name: 'conductor.run_prune', description: 'Prune run logs per run_log retention policy.' },
+  { name: 'conductor.cost_show', description: "Today's spend, per-card spend on active sessions, and configured ceilings." },
 ];
 
 export function listToolNames(): string[] {

@@ -18,6 +18,8 @@ export const RunPruneParams = z
   })
   .strict();
 
+export const CostShowParams = z.object({}).strict();
+
 export const CardNewParams = z.object({
   slug: z.string().min(1),
   title: z.string().min(1),
