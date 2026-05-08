@@ -75,9 +75,20 @@ function yamlToConfig(yaml: string): ProjectConfigShape {
 export async function renderRouting(rpc: RpcClient, root: HTMLElement): Promise<void> {
   const result = await rpc.call<{ config: ProjectConfigShape }>('config_get');
   const yaml = configToYaml(result.config);
+  const currentMode = result.config.autonomy.default;
   root.innerHTML = `
     <div class="routing">
       <h2>Routing</h2>
+      <div class="autonomy-picker" style="margin-bottom:1rem; padding:0.5rem; border:1px solid #d0d7de; border-radius:6px;">
+        <label for="autonomy-select"><strong>Autonomy mode:</strong></label>
+        <select id="autonomy-select" style="margin-left:0.5rem;">
+          <option value="escort">escort — every decision to user</option>
+          <option value="assist">assist — auto-approve high-confidence + low-blast</option>
+          <option value="auto">auto — auto-approve any high-confidence decision</option>
+          <option value="critical">critical — auto, but halt queue if confidence drops</option>
+        </select>
+        <span id="autonomy-status" style="margin-left:0.5rem; color:#1a7f37;" hidden>Saved.</span>
+      </div>
       <p>Edit <code>.conductor/config.yaml</code>. Saves are validated server-side.</p>
       <textarea id="yaml">${escape(yaml)}</textarea>
       <div class="actions" style="margin-top:0.5rem;">
@@ -87,6 +98,26 @@ export async function renderRouting(rpc: RpcClient, root: HTMLElement): Promise<
       <div class="err" id="err" hidden></div>
     </div>
   `;
+
+  const autonomySelect = root.querySelector<HTMLSelectElement>('#autonomy-select')!;
+  const autonomyStatus = root.querySelector<HTMLElement>('#autonomy-status')!;
+  autonomySelect.value = currentMode;
+  autonomySelect.addEventListener('change', async () => {
+    autonomyStatus.hidden = true;
+    try {
+      await rpc.call('conductor_set_autonomy', { mode: autonomySelect.value });
+      autonomyStatus.textContent = 'Saved.';
+      autonomyStatus.style.color = '#1a7f37';
+      autonomyStatus.hidden = false;
+      // Refresh the YAML view so it reflects the change.
+      const r = await rpc.call<{ config: ProjectConfigShape }>('config_get');
+      ta.value = configToYaml(r.config);
+    } catch (err) {
+      autonomyStatus.textContent = `Failed: ${(err as Error).message}`;
+      autonomyStatus.style.color = '#cf222e';
+      autonomyStatus.hidden = false;
+    }
+  });
 
   const ta = root.querySelector<HTMLTextAreaElement>('#yaml')!;
   const errEl = root.querySelector<HTMLElement>('#err')!;
