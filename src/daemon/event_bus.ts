@@ -18,7 +18,8 @@ export type DaemonEvent =
   | { kind: 'conductor-iteration'; cardId: string; iteration: number }
   | { kind: 'conductor-decision'; cardId: string; action: 'approve' | 'escalate' | 'halt'; reason: string; optionId: string }
   | { kind: 'conductor-halt'; reason: string; cardId?: string }
-  | { kind: 'conductor-status'; running: boolean };
+  | { kind: 'conductor-status'; running: boolean }
+  | { kind: 'tracker-poll'; created: string[]; updated: string[]; error?: string };
 
 export type Listener = (e: DaemonEvent) => void;
 

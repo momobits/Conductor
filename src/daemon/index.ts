@@ -19,6 +19,8 @@ import { InMemoryRuntime } from './runtime.js';
 import { attachMcpServer } from './mcp_server.js';
 import { startWatcher, type WatcherHandle } from './watcher.js';
 import { EventBus } from './event_bus.js';
+import { TrackerPoller } from './tracker_poller.js';
+import { makeTrackerAdapter } from '../trackers/factory.js';
 
 export interface DaemonHandle {
   url: string;
@@ -83,6 +85,27 @@ export async function startDaemon(args: StartDaemonArgs): Promise<DaemonHandle> 
     bus,
   });
 
+  // Optional tracker poller — opt-in via tracker.poll_interval_ms > 0.
+  let trackerPoller: TrackerPoller | undefined;
+  if (config.tracker.kind !== 'none' && config.tracker.poll_interval_ms > 0) {
+    try {
+      const adapter = makeTrackerAdapter(config);
+      if (adapter) {
+        trackerPoller = new TrackerPoller({
+          repo: args.repo,
+          intervalMs: config.tracker.poll_interval_ms,
+          adapter,
+          bus,
+        });
+        await trackerPoller.start();
+      }
+    } catch (e) {
+      // Surface the error but don't fail the daemon boot — tracker is optional.
+      // eslint-disable-next-line no-console
+      console.error(`tracker poller boot failed: ${(e as Error).message}`);
+    }
+  }
+
   return {
     url: server.url,
     port: server.port,
@@ -91,6 +114,7 @@ export async function startDaemon(args: StartDaemonArgs): Promise<DaemonHandle> 
         ctx.conductor.instance.stop();
         try { await ctx.conductor.runPromise; } catch { /* ignore */ }
       }
+      if (trackerPoller) await trackerPoller.stop();
       await watcher.close();
       await server.close();
       bus.close();
