@@ -73,6 +73,12 @@ export const ProjectConfigSchema = z
         threshold: z.number().min(0).max(1).default(0.7),
       })
       .default({}),
+    run_log: z
+      .object({
+        keep_days: z.number().int().nonnegative().default(30),
+        keep_last_n: z.number().int().positive().default(200),
+      })
+      .default({}),
     tracker: z
       .discriminatedUnion('kind', [
         z.object({
