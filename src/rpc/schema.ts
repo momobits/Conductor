@@ -98,3 +98,10 @@ export const ChatParams = z.object({
   cardId: z.string().min(1),
   message: z.string().min(1),
 });
+
+export const ConductorStartParams = z.object({});
+export const ConductorStopParams = z.object({});
+export const ConductorStatusParams = z.object({});
+export const ConductorSetAutonomyParams = z.object({
+  mode: z.enum(['escort', 'assist', 'auto', 'critical']),
+});

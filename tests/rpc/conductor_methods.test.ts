@@ -52,3 +52,44 @@ describe('work_card RPC: cost accumulation', () => {
     expect(totals.outputTokens).toBe(125);
   });
 });
+
+import { EventBus } from '../../src/daemon/event_bus.js';
+import { writeFileSync } from 'node:fs';
+
+describe('conductor RPC methods', () => {
+  it('conductor_status returns running=false when no conductor handle', async () => {
+    const r = await methods.conductor_status(
+      { repo: '/tmp', config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() },
+      {},
+    );
+    expect(r.running).toBe(false);
+  });
+
+  it('conductor_start instantiates and starts the conductor', async () => {
+    const { repo } = setupRepo();
+    writeFileSync(join(repo, '.conductor', 'ordering.md'), '# Ordering\n\n', 'utf8');
+    const config = ProjectConfigSchema.parse({ autonomy: { default: 'auto' } });
+    const runtime = new InMemoryRuntime();
+    const bus = new EventBus();
+    const ctx = { repo, config, runtime, bus };
+    const result = await methods.conductor_start(ctx, {});
+    expect(result.started).toBe(true);
+    const stopped = await methods.conductor_stop(ctx, {});
+    expect(stopped.stopped).toBe(true);
+  });
+
+  it('conductor_set_autonomy mutates config and emits config-changed', async () => {
+    const { repo } = setupRepo();
+    writeFileSync(join(repo, '.conductor', 'config.yaml'), 'autonomy:\n  default: assist\n', 'utf8');
+    const config = ProjectConfigSchema.parse({ autonomy: { default: 'assist' } });
+    const runtime = new InMemoryRuntime();
+    const bus = new EventBus();
+    const events: unknown[] = [];
+    bus.subscribe((e) => events.push(e));
+    const ctx = { repo, config, runtime, bus };
+    const result = await methods.conductor_set_autonomy(ctx, { mode: 'auto' });
+    expect(result.ok).toBe(true);
+    expect(ctx.config.autonomy.default).toBe('auto');
+    expect(events.some((e) => (e as { kind: string }).kind === 'config-changed')).toBe(true);
+  });
+});

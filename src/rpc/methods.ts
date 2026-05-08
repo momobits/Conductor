@@ -15,7 +15,9 @@ import {
   WorkCardParams, WorkNextParams, RecommendParams,
   ConfigGetParams, ConfigSetParams, SessionStatusParams,
   ChatParams,
+  ConductorStartParams, ConductorStopParams, ConductorStatusParams, ConductorSetAutonomyParams,
 } from './schema.js';
+import { Conductor, defaultAgentFactory } from '../conductor/loop.js';
 import { dump as yamlDump } from 'js-yaml';
 import { writeFile } from 'node:fs/promises';
 import { loadProjectConfig } from '../config/load.js';
@@ -39,6 +41,8 @@ export interface MethodContext {
   /** Optional adapter injection. When provided (e.g. in tests), the order
    *  handler uses it instead of constructing a new RoutingAdapter. */
   adapter?: ModelAdapter;
+  /** Conductor brain handle. Created by daemon on first conductor_start. */
+  conductor?: { instance?: Conductor; runPromise?: Promise<void> };
 }
 
 type Handler<P, R> = (ctx: MethodContext, params: P) => Promise<R>;
@@ -240,6 +244,53 @@ async function chat(ctx: MethodContext, raw: unknown) {
   return { reply: result.reply };
 }
 
+async function conductor_start(ctx: MethodContext, raw: unknown) {
+  ConductorStartParams.parse(raw);
+  if (!ctx.conductor) ctx.conductor = {};
+  if (ctx.conductor.instance && ctx.conductor.instance.status().running) {
+    return { started: false, reason: 'already-running' };
+  }
+  if (!ctx.bus) {
+    return { started: false, reason: 'no-bus' };
+  }
+  const factory = defaultAgentFactory({
+    repo: ctx.repo, config: ctx.config, runtime: ctx.runtime, adapter: ctx.adapter,
+  });
+  const onCardComplete = async () => {
+    try { await methods.order(ctx, {}); } catch { /* best-effort */ }
+  };
+  const conductor = new Conductor({
+    repo: ctx.repo, config: ctx.config, runtime: ctx.runtime,
+    bus: ctx.bus, agentFactory: factory, onCardComplete,
+  });
+  ctx.conductor.instance = conductor;
+  ctx.conductor.runPromise = conductor.start();
+  return { started: true as const };
+}
+
+async function conductor_stop(ctx: MethodContext, raw: unknown) {
+  ConductorStopParams.parse(raw);
+  const inst = ctx.conductor?.instance;
+  if (!inst) return { stopped: false, reason: 'not-running' };
+  inst.stop();
+  await ctx.conductor?.runPromise;
+  return { stopped: true as const };
+}
+
+async function conductor_status(ctx: MethodContext, raw: unknown) {
+  ConductorStatusParams.parse(raw);
+  const inst = ctx.conductor?.instance;
+  if (!inst) return { running: false, iteration: 0, halts: 0 };
+  return inst.status();
+}
+
+async function conductor_set_autonomy(ctx: MethodContext, raw: unknown) {
+  const p = ConductorSetAutonomyParams.parse(raw);
+  const next = { ...ctx.config, autonomy: { ...ctx.config.autonomy, default: p.mode } };
+  await methods.config_set(ctx, { config: next });
+  return { ok: true as const, mode: p.mode };
+}
+
 export const methods = {
   card_new,
   card_get,
@@ -258,6 +309,10 @@ export const methods = {
   config_set,
   session_status,
   chat,
+  conductor_start,
+  conductor_stop,
+  conductor_status,
+  conductor_set_autonomy,
 } satisfies Record<string, Handler<unknown, unknown>>;
 
 export type MethodName = keyof typeof methods;
