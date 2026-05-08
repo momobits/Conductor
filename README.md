@@ -6,13 +6,18 @@ audit), and Symphony (autonomous orchestration).
 
 ## Status
 
-**Phase 3** (Multi-model adapters + routing). Operations route to
-different model providers (Claude, OpenAI, Gemini, Local) per project
-config and per-card overrides. The full Relay+Control pipeline still
-runs end-to-end; phase 2 invariants (commit-per-step, tag-per-phase,
-drift detection, importer) are unchanged. See
-`docs/superpowers/specs/2026-05-06-conductor-design1.md` and
-`docs/superpowers/plans/2026-05-07-phase-3-multi-model.md`.
+**Phase 7** — production-ready for trusted-environment dogfood.
+Phase 6 added the autonomous Conductor brain (queue-watcher +
+confidence-driven `assist` resolution). Phase 7 adds tracker
+integration (Linear / GitHub), run-log retention + replay, cost
+telemetry surfaces, an adversarial autonomy test pack, and dogfood
+bootstrap scripts. The full Relay+Control pipeline still runs
+end-to-end; Phase 2 invariants (commit-per-step, tag-per-phase,
+drift detection, importer) are unchanged.
+
+See `docs/superpowers/specs/2026-05-06-conductor-design1.md` for the
+design and `docs/superpowers/plans/2026-05-08-phase-7-hardening.md`
+for the implementation plan of this phase.
 
 ## Capabilities
 
@@ -243,6 +248,114 @@ conductor brain stop                         # graceful stop after current card
 - **Single-column-advance loop.** Spec § 9's pseudocode keeps a single agent alive across multiple events; Phase 6 instead treats each TaskAgent run as a single column advance, with the Conductor approving + writing the new column + re-spawning. Externally observable queue progression matches spec.
 - **In-memory cost tracking.** Spec § 5 lists `runtime.sqlite`; Phase 4 deferred SQLite, Phase 6 stays in-memory (consistent with spec § 14's "rebuildable on restart").
 - **Single Task Agent at a time.** `max_concurrent_agents=1` per spec § 14 v1 commitment.
+
+## Trackers (Phase 7)
+
+Conductor optionally pulls active issues from Linear or GitHub and
+materializes them as cards under `.conductor/cards/`. Setup is read-only:
+v1 does NOT write back to the tracker.
+
+### Configure
+
+In `.conductor/config.yaml`:
+
+```yaml
+tracker:
+  kind: linear              # or 'github' or 'none'
+  api_key_env: LINEAR_API_KEY
+  endpoint: https://api.linear.app/graphql
+  project_slug: <team-id>
+  active_states:
+    - Todo
+    - In Progress
+  poll_interval_ms: 0       # 0 = pull on-demand only; >0 enables daemon poller
+```
+
+For GitHub:
+
+```yaml
+tracker:
+  kind: github
+  api_key_env: GITHUB_TOKEN
+  endpoint: https://api.github.com
+  owner: acme
+  repo: widgets
+  active_states:
+    - open
+  poll_interval_ms: 0
+```
+
+### Pull issues
+
+```bash
+LINEAR_API_KEY=lin_... conductor tracker pull
+# or with a daemon running, the same MCP/RPC method is conductor.tracker_pull
+```
+
+Created cards have IDs like `linear-abc-123-<slug>` or `gh-456-<slug>`,
+preserving the source for round-trip identity. Re-pulling refreshes the
+title/body/labels but preserves the column.
+
+### Optional polling
+
+Set `tracker.poll_interval_ms` to a positive integer (e.g. `300000` for
+5 min). The daemon's `TrackerPoller` calls `tracker pull` on that
+cadence and emits `tracker-poll` SSE events.
+
+See [docs/trackers.md](docs/trackers.md) for full setup and operational
+notes.
+
+## Run logs (Phase 7)
+
+Each Task Agent run writes `.conductor/runs/<run-id>/events.jsonl`
+(JSONL events per spec § 14). Phase 7 adds management:
+
+```bash
+conductor run list                         # list runs newest-first
+conductor run replay <run-id>              # stream events to stdout
+conductor run prune --keep-last 200 --keep-days 30
+```
+
+The daemon runs `prune` once at boot using `run_log:` config:
+
+```yaml
+run_log:
+  keep_last_n: 200
+  keep_days: 30
+```
+
+Retention policy: keep last N OR runs newer than `keep_days`, whichever
+is more permissive (so a busy day isn't silently truncated by the count
+cap, and a quiet month doesn't lose its only history just because the
+files are old).
+
+## Cost telemetry (Phase 7)
+
+```bash
+conductor cost show
+# → today: $0.0237 (in: 12000, out: 4500)
+#   ceilings: per-card $5.00, per-day $50.00, halt-on-breach: true
+#   active sessions:
+#     2026-05-08-auth-token: $0.0123
+```
+
+Same data via `conductor.cost_show` RPC method and MCP tool. Live token
+deltas continue to flow on the existing SSE stream
+(`session-operation` events from each TaskAgent).
+
+## Phase 7 — extra documented divergences
+
+- **Tracker poller is opt-in.** `tracker.poll_interval_ms` defaults to
+  `0` (disabled). One-shot `tracker pull` covers the dogfood case;
+  the poller exists for teams with high tracker churn.
+- **No tracker write-back in v1.** Conductor reads tracker state but
+  does not push transitions, comments, or PR metadata back. Spec § 3
+  excludes tracker write-back from v1 scope.
+- **Run log retention is lazy.** Pruning runs on `conductor run prune`
+  invocation and once at daemon boot; there is no periodic timer.
+- **Adversarial tests are pure-function and simulated-loop only.** No
+  live LLM calls in the red-team pack. Tests inject hostile event
+  streams to verify the Conductor halts cleanly.
 
 ## Try it
 
