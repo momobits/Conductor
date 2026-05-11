@@ -1,0 +1,49 @@
+# OpenRouter-only config — uses OpenRouter's unified gateway to mix model
+# families behind a single API key. Useful when you want Sonnet-quality
+# without a direct Anthropic account, or when you want to route different
+# ops to different vendors via OpenRouter's pricing/availability.
+#
+# To launch:
+#   $env:OPENROUTER_API_KEY = "sk-or-..."
+#   conductor daemon start
+#
+# Optional dashboard attribution headers:
+#   $env:CONDUCTOR_OPENROUTER_REFERER = "https://your-project.example"
+#   $env:CONDUCTOR_OPENROUTER_TITLE   = "Conductor"
+
+routing:
+  default: openrouter:anthropic/claude-3.5-sonnet
+  functions:
+    analyze: openrouter:anthropic/claude-3.5-sonnet
+    plan: openrouter:anthropic/claude-3.5-sonnet
+    review: openrouter:openai/gpt-5
+    verify: openrouter:anthropic/claude-3.5-haiku
+    discover: openrouter:meta-llama/llama-3.3-70b-instruct
+
+autonomy:
+  default: assist
+  transitions:
+    discovered_to_planned: auto
+    planned_to_approved: assist
+    approved_to_building: manual
+    building_to_verifying: auto
+    verifying_to_shipped: assist
+    shipped_to_archived: manual
+
+verify_command: npm test
+
+confidence:
+  threshold: 0.7
+
+cost_ceilings:
+  per_card_dollars: 5.0
+  per_day_dollars: 50.0
+  halt_on_breach: true
+
+run_log:
+  keep_last_n: 200
+  keep_days: 30
+
+tracker:
+  kind: none
+  poll_interval_ms: 0

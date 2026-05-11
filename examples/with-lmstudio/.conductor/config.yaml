@@ -1,0 +1,49 @@
+# LM Studio config — routes everything through a local LM Studio server.
+# Free, private, offline-capable. Tool-calling support depends on the
+# model you load (most current local models have weak tool use).
+#
+# Prerequisites:
+#   1. Install LM Studio: https://lmstudio.ai
+#   2. Download a model (recommended: llama-3.3-70b-instruct or similar)
+#   3. Start the local server (default: http://localhost:1234/v1)
+#
+# To launch:
+#   $env:CONDUCTOR_LOCAL_BASE_URL = "http://localhost:1234/v1"
+#   $env:CONDUCTOR_LOCAL_API_KEY  = "lm-studio"
+#   conductor daemon start
+
+routing:
+  default: lmstudio:llama-3.3-70b-instruct
+  functions:
+    analyze: lmstudio:llama-3.3-70b-instruct
+    plan: lmstudio:llama-3.3-70b-instruct
+    verify: lmstudio:phi-4
+    discover: lmstudio:phi-4
+
+autonomy:
+  default: assist
+  transitions:
+    discovered_to_planned: auto
+    planned_to_approved: assist
+    approved_to_building: manual
+    building_to_verifying: auto
+    verifying_to_shipped: assist
+    shipped_to_archived: manual
+
+verify_command: npm test
+
+confidence:
+  threshold: 0.6
+
+cost_ceilings:
+  per_card_dollars: 0
+  per_day_dollars: 0
+  halt_on_breach: false
+
+run_log:
+  keep_last_n: 200
+  keep_days: 30
+
+tracker:
+  kind: none
+  poll_interval_ms: 0

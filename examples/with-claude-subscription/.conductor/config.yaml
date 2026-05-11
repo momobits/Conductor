@@ -1,0 +1,56 @@
+# Claude-subscription-only config — routes every op through your locally
+# installed `claude` CLI (Claude Code). Uses your Pro/Max OAuth session;
+# no API key required; flat-rate billing.
+#
+# Prerequisites:
+#   1. Install Claude Code: https://claude.com/claude-code
+#   2. Run `claude login` interactively once
+#   3. Confirm with `claude -p hello --output-format json` returns JSON
+#
+# To launch:
+#   conductor daemon start
+#
+# Caveats:
+#   - Tool-calling ops are not supported via the subscription adapter in v1
+#     (see ClaudeSubscriptionAdapter source). Route those to the API
+#     adapter (claude-*) if you need them.
+#   - Cost ceilings have no effect — subscription is flat-rate. Keep them
+#     set anyway as a safety net for future migrations.
+
+routing:
+  default: claude-sub:sonnet
+  functions:
+    analyze: claude-sub:opus
+    plan: claude-sub:opus
+    review: claude-sub:opus
+    implement: claude-sub:sonnet
+    verify: claude-sub:haiku
+    discover: claude-sub:haiku
+
+autonomy:
+  default: assist
+  transitions:
+    discovered_to_planned: auto
+    planned_to_approved: assist
+    approved_to_building: manual
+    building_to_verifying: auto
+    verifying_to_shipped: assist
+    shipped_to_archived: manual
+
+verify_command: npm test
+
+confidence:
+  threshold: 0.7
+
+cost_ceilings:
+  per_card_dollars: 0
+  per_day_dollars: 0
+  halt_on_breach: false
+
+run_log:
+  keep_last_n: 200
+  keep_days: 30
+
+tracker:
+  kind: none
+  poll_interval_ms: 0
