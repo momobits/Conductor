@@ -3,17 +3,18 @@ import { ClaudeSubscriptionAdapter, type CliRunner } from '../../src/adapters/cl
 
 interface Capture {
   args: string[];
+  stdin: string | undefined;
 }
 
 function fakeCli(capture: Capture[], stdout: string, exitCode = 0, stderr = ''): CliRunner {
-  return async (args) => {
-    capture.push({ args });
+  return async (args, stdin) => {
+    capture.push({ args, stdin });
     return { stdout, stderr, exitCode };
   };
 }
 
 describe('ClaudeSubscriptionAdapter', () => {
-  it('invokes the claude CLI with -p, --output-format json, and --system-prompt', async () => {
+  it('passes the prompt via stdin and config flags via argv', async () => {
     const captures: Capture[] = [];
     const stdout = JSON.stringify({
       result: 'subscription response',
@@ -38,14 +39,36 @@ describe('ClaudeSubscriptionAdapter', () => {
     expect(resp.model).toBe('claude-sonnet-4-6');
 
     const args = captures[0]?.args ?? [];
+    // Flags go via argv...
     expect(args).toContain('-p');
-    expect(args).toContain('do the thing');
     expect(args).toContain('--output-format');
     expect(args).toContain('json');
     expect(args).toContain('--system-prompt');
     expect(args).toContain('be terse');
     expect(args).toContain('--model');
     expect(args).toContain('sonnet');
+    // ...but the user prompt goes via stdin so it can contain leading dashes.
+    expect(args).not.toContain('do the thing');
+    expect(captures[0]?.stdin).toBe('do the thing');
+  });
+
+  it('passes prompts with leading -- via stdin without triggering argv flag parsing', async () => {
+    const captures: Capture[] = [];
+    const stdout = JSON.stringify({ result: 'ok', usage: { input_tokens: 1, output_tokens: 1 } });
+    const adapter = new ClaudeSubscriptionAdapter({ runCli: fakeCli(captures, stdout) });
+    const trickyPrompt = '--- TODO / FIXME comments ---\n--flag-looking line';
+    await adapter.invoke({
+      operation: 'op',
+      model: 'claude-sub:haiku',
+      system: '',
+      user: trickyPrompt,
+    });
+    // The prompt is in stdin, NOT in argv — protects against the CLI's
+    // argv parser treating section dividers as unknown flags.
+    expect(captures[0]?.stdin).toBe(trickyPrompt);
+    for (const a of captures[0]?.args ?? []) {
+      expect(a).not.toContain('--- TODO');
+    }
   });
 
   it('omits --model flag when model is "claude-sub:default"', async () => {

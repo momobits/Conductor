@@ -14,12 +14,20 @@
 // Model id format: claude-sub:<variant> where variant ∈
 // {sonnet, opus, haiku, default}. "default" omits --model and lets the
 // CLI use its own default.
+//
+// The user prompt is piped via stdin rather than passed as an argv
+// element. The `claude` CLI re-parses positional args looking for flag
+// patterns, so any prompt line starting with `--` (e.g. a markdown
+// section divider) would otherwise be rejected as an unknown option.
 
-import { execFile } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import type { ModelAdapter, AdapterCapabilities } from './adapter.js';
 import type { OperationRequest, OperationResponse } from '../engine/operation.js';
 
-export type CliRunner = (args: string[]) => Promise<{
+export type CliRunner = (
+  args: string[],
+  stdin?: string,
+) => Promise<{
   stdout: string;
   stderr: string;
   exitCode: number;
@@ -28,7 +36,7 @@ export type CliRunner = (args: string[]) => Promise<{
 export interface ClaudeSubscriptionAdapterOptions {
   /** Path to the claude CLI binary. Default: env CONDUCTOR_CLAUDE_CLI or 'claude'. */
   cliPath?: string;
-  /** Injectable CLI runner for tests. Default: execFile-based. */
+  /** Injectable CLI runner for tests. Default: spawn-based. */
   runCli?: CliRunner;
 }
 
@@ -39,21 +47,25 @@ function stripSubPrefix(modelId: string): string {
 }
 
 function defaultRunner(cliPath: string): CliRunner {
-  return (args) =>
-    new Promise((resolve) => {
-      execFile(cliPath, args, { maxBuffer: 50 * 1024 * 1024 }, (err, stdout, stderr) => {
-        const code =
-          err && typeof (err as { code?: unknown }).code === 'number'
-            ? (err as { code: number }).code
-            : err
-              ? 1
-              : 0;
+  return (args, stdin) =>
+    new Promise((resolve, reject) => {
+      const child = spawn(cliPath, args, { stdio: ['pipe', 'pipe', 'pipe'] });
+      const stdoutChunks: Buffer[] = [];
+      const stderrChunks: Buffer[] = [];
+      child.stdout.on('data', (c: Buffer) => stdoutChunks.push(c));
+      child.stderr.on('data', (c: Buffer) => stderrChunks.push(c));
+      child.on('error', reject);
+      child.on('close', (code) => {
         resolve({
-          stdout,
-          stderr,
-          exitCode: code,
+          stdout: Buffer.concat(stdoutChunks).toString('utf-8'),
+          stderr: Buffer.concat(stderrChunks).toString('utf-8'),
+          exitCode: code ?? 1,
         });
       });
+      if (stdin !== undefined && stdin.length > 0) {
+        child.stdin.write(stdin, 'utf-8');
+      }
+      child.stdin.end();
     });
 }
 
@@ -87,7 +99,7 @@ export class ClaudeSubscriptionAdapter implements ModelAdapter {
     }
 
     const variant = stripSubPrefix(req.model).toLowerCase();
-    const args: string[] = ['-p', req.user, '--output-format', 'json'];
+    const args: string[] = ['-p', '--output-format', 'json'];
     if (req.system && req.system.length > 0) {
       args.push('--system-prompt', req.system);
     }
@@ -95,7 +107,7 @@ export class ClaudeSubscriptionAdapter implements ModelAdapter {
       args.push('--model', variant);
     }
 
-    const { stdout, stderr, exitCode } = await this.runCli(args);
+    const { stdout, stderr, exitCode } = await this.runCli(args, req.user);
     if (exitCode !== 0) {
       throw new Error(`claude CLI exited ${exitCode}: ${stderr || stdout || '(no output)'}`);
     }
