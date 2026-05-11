@@ -1,14 +1,19 @@
 // src/cli/commands/init.ts
 //
-// `conductor init` — scaffold .conductor/ in the current repo.
+// `conductor init [--provider <name>]` — scaffold .conductor/ in the current repo.
 //
 // Creates the three-tier memory layout (Tier 1: state.md / ordering.md /
 // journal.md; Tier 2: cards/ archive/ decisions/ phases/ exercise/;
 // Tier 3 SQLite + transports are created lazily by the daemon, not here).
 // Idempotent: re-runnable safely; never overwrites existing config.
+//
+// --provider <name> picks the example config to install. Without it,
+// installs an embedded multi-provider default that routes to claude/openai/
+// gemini/local. With it, copies examples/with-<name>/.conductor/config.yaml.
 
-import { mkdir, writeFile, access } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, writeFile, access, readFile } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { Command } from 'commander';
 
 const SUBDIRS = [
@@ -33,10 +38,12 @@ const DEFAULT_CONFIG = `# .conductor/config.yaml — Conductor project configura
 #   3. card frontmatter model_overrides.<op>    (per-card)
 #
 # Provider is resolved by model id prefix:
-#   claude-*                  → Anthropic
+#   claude-*                  → Anthropic API (ANTHROPIC_API_KEY)
+#   claude-sub:*              → Claude Code subscription (claude login)
 #   gpt-*, codex*, o1/o3/o4*  → OpenAI
 #   gemini-*                  → Google
-#   local:*, ollama:*, vllm:* → local OpenAI-compat endpoint
+#   openrouter:*              → OpenRouter
+#   local:*, ollama:*, vllm:*, lmstudio:* → OpenAI-compat local endpoint
 routing:
   default: claude-sonnet-4-6
   functions:
@@ -58,6 +65,7 @@ autonomy:
     building_to_verifying:    auto
     verifying_to_shipped:     assist
     shipped_to_archived:      manual
+verify_command: npm test
 `;
 
 const DEFAULT_STATE = `# Conductor STATE
@@ -78,39 +86,157 @@ const DEFAULT_JOURNAL = `# Journal
 (One line per session, appended at session end.)
 `;
 
-export interface InitArgs {
-  cwd: string;
+export const KNOWN_PROVIDERS = [
+  'minimal',
+  'subscription',
+  'openrouter',
+  'lmstudio',
+  'tracker',
+] as const;
+export type KnownProvider = (typeof KNOWN_PROVIDERS)[number];
+
+// Maps the user-facing --provider name to the examples/ directory slug.
+const PROVIDER_DIR: Record<KnownProvider, string> = {
+  minimal: 'minimal',
+  subscription: 'with-claude-subscription',
+  openrouter: 'with-openrouter',
+  lmstudio: 'with-lmstudio',
+  tracker: 'with-tracker',
+};
+
+function packageRoot(): string {
+  // dist/cli/commands/init.js → package root (3 levels up)
+  return resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 }
 
-export async function runInit(args: InitArgs): Promise<void> {
+async function readExampleConfig(provider: KnownProvider): Promise<string> {
+  const path = join(packageRoot(), 'examples', PROVIDER_DIR[provider], '.conductor', 'config.yaml');
+  return readFile(path, 'utf8');
+}
+
+/** Detect a sensible verify_command from project files in cwd. Returns the
+ *  detected command, or null if nothing matched. Order matters: more
+ *  specific markers first. */
+export async function detectVerifyCommand(cwd: string): Promise<string | null> {
+  const markers: Array<[string, string]> = [
+    ['package.json', 'npm test'],
+    ['pyproject.toml', 'pytest'],
+    ['setup.py', 'pytest'],
+    ['Cargo.toml', 'cargo test'],
+    ['go.mod', 'go test ./...'],
+    ['Makefile', 'make test'],
+  ];
+  for (const [marker, cmd] of markers) {
+    try {
+      await access(join(cwd, marker));
+      return cmd;
+    } catch {
+      /* not present, try next */
+    }
+  }
+  return null;
+}
+
+function applyVerifyCommand(config: string, command: string): string {
+  // Match the verify_command line at the top level of the YAML. The example
+  // configs all have it on its own line; this regex is anchored to BOL.
+  if (/^verify_command:/m.test(config)) {
+    return config.replace(/^verify_command:.*$/m, `verify_command: ${command}`);
+  }
+  // No existing line — append at end with a leading newline if needed.
+  return `${config}${config.endsWith('\n') ? '' : '\n'}verify_command: ${command}\n`;
+}
+
+export interface InitArgs {
+  cwd: string;
+  /** When set, install the matching examples/with-<name>/ config. */
+  provider?: KnownProvider;
+  /** When false, skip the project-type sniff for verify_command. Default true. */
+  detectVerify?: boolean;
+}
+
+export interface InitResult {
+  configWritten: boolean;
+  configSource: 'embedded-default' | KnownProvider;
+  verifyCommand: string | null;
+}
+
+export async function runInit(args: InitArgs): Promise<InitResult> {
   const root = join(args.cwd, '.conductor');
   await mkdir(root, { recursive: true });
   for (const sub of SUBDIRS) {
     await mkdir(join(root, sub), { recursive: true });
   }
-  await writeIfMissing(join(root, 'config.yaml'), DEFAULT_CONFIG);
+
+  const detectVerify = args.detectVerify !== false;
+  const verifyCmd = detectVerify ? await detectVerifyCommand(args.cwd) : null;
+
+  let config: string;
+  let source: 'embedded-default' | KnownProvider;
+  if (args.provider) {
+    config = await readExampleConfig(args.provider);
+    source = args.provider;
+  } else {
+    config = DEFAULT_CONFIG;
+    source = 'embedded-default';
+  }
+  if (verifyCmd) {
+    config = applyVerifyCommand(config, verifyCmd);
+  }
+
+  const configPath = join(root, 'config.yaml');
+  const configWritten = await writeIfMissing(configPath, config);
+
   await writeIfMissing(join(root, 'state.md'), DEFAULT_STATE);
   await writeIfMissing(join(root, 'ordering.md'), DEFAULT_ORDERING);
   await writeIfMissing(join(root, 'journal.md'), DEFAULT_JOURNAL);
+
+  return { configWritten, configSource: source, verifyCommand: verifyCmd };
 }
 
-async function writeIfMissing(path: string, content: string): Promise<void> {
+async function writeIfMissing(path: string, content: string): Promise<boolean> {
   try {
     await access(path);
-    return;
+    return false;
   } catch {
     /* not present — write it */
   }
   await writeFile(path, content, 'utf8');
+  return true;
 }
 
 export function attachInit(program: Command): void {
   program
     .command('init')
     .description('Initialize Conductor in the current repo (.conductor/ layout + defaults)')
-    .action(async () => {
-      await runInit({ cwd: process.cwd() });
+    .option(
+      '--provider <name>',
+      `install an example config instead of the embedded default. Recognized: ${KNOWN_PROVIDERS.join(', ')}`,
+    )
+    .option('--no-detect-verify', 'skip the project-type sniff for verify_command (keep the example default)')
+    .action(async (opts: { provider?: string; detectVerify?: boolean }) => {
+      let provider: KnownProvider | undefined;
+      if (opts.provider) {
+        if (!(KNOWN_PROVIDERS as readonly string[]).includes(opts.provider)) {
+          // eslint-disable-next-line no-console
+          console.error(
+            `Unknown --provider "${opts.provider}". Recognized: ${KNOWN_PROVIDERS.join(', ')}`,
+          );
+          process.exitCode = 1;
+          return;
+        }
+        provider = opts.provider as KnownProvider;
+      }
+      const result = await runInit({
+        cwd: process.cwd(),
+        provider,
+        detectVerify: opts.detectVerify,
+      });
       // eslint-disable-next-line no-console
-      console.log('Conductor initialized. .conductor/ scaffold ready.');
+      console.log(
+        result.configWritten
+          ? `Conductor initialized. .conductor/ scaffold ready (config source: ${result.configSource}${result.verifyCommand ? `, verify_command: ${result.verifyCommand}` : ''}).`
+          : `Conductor scaffold present; .conductor/config.yaml left untouched.`,
+      );
     });
 }

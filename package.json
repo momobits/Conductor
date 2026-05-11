@@ -7,7 +7,7 @@
     "conductor": "./dist/cli/index.js"
   },
   "main": "./dist/engine/index.js",
-  "files": ["dist", "README.md", "LICENSE"],
+  "files": ["dist", "examples", "docs", "README.md", "LICENSE"],
   "scripts": {
     "build": "tsc -p tsconfig.json && npm run build:ui",
     "build:ui": "tsc -p tsconfig.ui.json && node scripts/build-ui.mjs",
