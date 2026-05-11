@@ -42,9 +42,13 @@ verify_command: npm test
 confidence:
   threshold: 0.7
 
+# Cost ceilings are inert for subscription billing (the adapter reports
+# $0 per call), but the schema requires positive values. These act as a
+# safety net only if you later route a card to an API-billed model via
+# per-card model_overrides.
 cost_ceilings:
-  per_card_dollars: 0
-  per_day_dollars: 0
+  per_card_dollars: 5.0
+  per_day_dollars: 50.0
   halt_on_breach: false
 
 run_log:
