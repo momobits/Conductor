@@ -61,7 +61,7 @@ export function resolveProvider(modelId: string): Provider {
  *  to an OpenAI-compat endpoint (e.g. "local:llama-3.3-70b" → "llama-3.3-70b").
  *  Unknown prefixes pass through unchanged. */
 export function stripLocalPrefix(modelId: string): string {
-  for (const p of ['local:', 'local-', 'ollama:', 'vllm:']) {
+  for (const p of ['local:', 'local-', 'ollama:', 'vllm:', 'lmstudio:']) {
     if (modelId.toLowerCase().startsWith(p)) return modelId.slice(p.length);
   }
   return modelId;

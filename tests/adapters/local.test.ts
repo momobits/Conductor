@@ -95,6 +95,31 @@ describe('LocalAdapter', () => {
     expect(JSON.parse(captures[0]?.init.body ?? '{}').model).toBe('mistral-7b');
   });
 
+  it('strips lmstudio: prefix and uses LMSTUDIO_BASE_URL when set', async () => {
+    const captures: Capture[] = [];
+    const f = fakeFetch(
+      captures,
+      JSON.stringify({
+        choices: [{ message: { content: 'lm studio response' } }],
+        usage: { prompt_tokens: 5, completion_tokens: 2 },
+        model: 'phi-4',
+      }),
+    );
+    const adapter = new LocalAdapter({
+      baseUrl: 'http://localhost:1234/v1',
+      apiKey: 'lm-studio',
+      fetch: f,
+    });
+    await adapter.invoke({
+      operation: 'op',
+      model: 'lmstudio:phi-4',
+      system: '',
+      user: 'hi',
+    });
+    expect(JSON.parse(captures[0]?.init.body ?? '{}').model).toBe('phi-4');
+    expect(captures[0]?.url).toBe('http://localhost:1234/v1/chat/completions');
+  });
+
   it('passes through model ids that have no known local prefix', async () => {
     const captures: Capture[] = [];
     const f = fakeFetch(

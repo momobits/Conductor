@@ -74,3 +74,12 @@ describe('stripLocalPrefix', () => {
     expect(stripLocalPrefix(input)).toBe(expected);
   });
 });
+
+describe('stripLocalPrefix — lmstudio', () => {
+  it.each([
+    ['lmstudio:phi-4', 'phi-4'],
+    ['lmstudio:llama-3.3-70b', 'llama-3.3-70b'],
+  ] as const)('%s → %s', (input, expected) => {
+    expect(stripLocalPrefix(input)).toBe(expected);
+  });
+});
