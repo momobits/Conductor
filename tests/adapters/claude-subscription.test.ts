@@ -152,4 +152,45 @@ describe('ClaudeSubscriptionAdapter', () => {
     expect(caps.tools).toBe(false);
     expect(caps.costTier).toBe('free');
   });
+
+  it('extracts resolved model id from modelUsage key when top-level model is absent', async () => {
+    const stdout = JSON.stringify({
+      result: 'pong',
+      usage: { input_tokens: 10, output_tokens: 6 },
+      modelUsage: {
+        'claude-haiku-4-5-20251001': {
+          inputTokens: 10,
+          outputTokens: 6,
+          costUSD: 0.04,
+        },
+      },
+    });
+    const adapter = new ClaudeSubscriptionAdapter({
+      runCli: async () => ({ stdout, stderr: '', exitCode: 0 }),
+    });
+    const resp = await adapter.invoke({
+      operation: 'op',
+      model: 'claude-sub:haiku',
+      system: '',
+      user: 'ping',
+    });
+    expect(resp.model).toBe('claude-haiku-4-5-20251001');
+  });
+
+  it('falls back to req.model when neither model nor modelUsage are present', async () => {
+    const stdout = JSON.stringify({
+      result: '',
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
+    const adapter = new ClaudeSubscriptionAdapter({
+      runCli: async () => ({ stdout, stderr: '', exitCode: 0 }),
+    });
+    const resp = await adapter.invoke({
+      operation: 'op',
+      model: 'claude-sub:opus',
+      system: '',
+      user: 'x',
+    });
+    expect(resp.model).toBe('claude-sub:opus');
+  });
 });

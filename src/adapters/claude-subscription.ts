@@ -61,6 +61,11 @@ interface CliJsonShape {
   result?: string;
   usage?: { input_tokens?: number; output_tokens?: number };
   model?: string;
+  // Claude Code's --output-format json does not emit a top-level `model`
+  // field; the resolved Anthropic model id is the KEY of `modelUsage`
+  // (e.g. "claude-haiku-4-5-20251001"). We use the first key as the
+  // resolved model when `model` is absent.
+  modelUsage?: Record<string, unknown>;
 }
 
 export class ClaudeSubscriptionAdapter implements ModelAdapter {
@@ -106,6 +111,8 @@ export class ClaudeSubscriptionAdapter implements ModelAdapter {
 
     const inputTokens = parsed.usage?.input_tokens ?? 0;
     const outputTokens = parsed.usage?.output_tokens ?? 0;
+    const resolvedModel =
+      parsed.model ?? Object.keys(parsed.modelUsage ?? {})[0] ?? req.model;
 
     return {
       text: parsed.result ?? '',
@@ -113,7 +120,7 @@ export class ClaudeSubscriptionAdapter implements ModelAdapter {
       inputTokens,
       outputTokens,
       totalTokens: inputTokens + outputTokens,
-      model: parsed.model ?? req.model,
+      model: resolvedModel,
       raw: parsed,
     };
   }
