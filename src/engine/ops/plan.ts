@@ -31,7 +31,15 @@ MUST include all six fields:
   ROLLBACK — how to undo if it doesn't
 
 Steps must be small, sequential, and independently verifiable. Number them
-1.1, 1.2, etc. Output Markdown only — no preamble.`.trim();
+1.1, 1.2, etc. Output Markdown only — no preamble.
+
+Grounding: only reference commands, file paths, flags, APIs, and tools
+that are cited in the analysis or can be inferred from concrete file
+paths it mentions. Do NOT invent CLI subcommands, helper scripts,
+config keys, or HTTP endpoints to fit a step. If a step's HOW or
+VERIFY needs something the analysis hasn't established exists, write
+"[verify: <thing>]" or "[need: <fact to confirm>]" instead — leaving
+the gap visible is better than inventing surface that doesn't exist.`.trim();
 
 export async function plan(args: PlanArgs): Promise<PlanResult> {
   const { card, adapter, model } = args;

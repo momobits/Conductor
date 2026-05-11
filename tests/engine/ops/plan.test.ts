@@ -62,4 +62,16 @@ describe('plan', () => {
       /no Analysis section/,
     );
   });
+
+  it('system prompt instructs the model not to invent CLI surface', async () => {
+    const adapter = new MockAdapter();
+    adapter.push({ text: 'plan', inputTokens: 1, outputTokens: 1 });
+
+    const card = await readCard(cardPath);
+    await plan({ card, adapter, model: 'claude-opus-4-7' });
+
+    const sys = adapter.lastRequest?.system ?? '';
+    expect(sys).toMatch(/grounding/i);
+    expect(sys).toMatch(/do NOT invent|do not invent/i);
+  });
 });
