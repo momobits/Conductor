@@ -33,9 +33,16 @@ export class RoutingAdapter implements ModelAdapter {
   private cache: Map<Provider, ModelAdapter> = new Map();
 
   constructor(opts: RoutingAdapterOptions = {}) {
+    const notImplemented = (name: string): AdapterFactory =>
+      () => {
+        throw new Error(`${name} adapter is not yet implemented.`);
+      };
     this.factories = {
       claude: opts.factories?.claude ?? (() => new ClaudeAdapter()),
+      'claude-subscription':
+        opts.factories?.['claude-subscription'] ?? notImplemented('claude-subscription'),
       openai: opts.factories?.openai ?? (() => new OpenAIAdapter()),
+      openrouter: opts.factories?.openrouter ?? notImplemented('openrouter'),
       gemini: opts.factories?.gemini ?? (() => new GeminiAdapter()),
       local: opts.factories?.local ?? (() => new LocalAdapter()),
       mock: opts.factories?.mock ?? (() => new MockAdapter()),

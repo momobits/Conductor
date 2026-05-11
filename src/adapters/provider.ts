@@ -5,17 +5,30 @@
 // v1 is prefix-based; v2 may add capability tags (e.g. "reasoning-strong",
 // "large-context") that resolve via the same module.
 
-export const PROVIDERS = ['claude', 'openai', 'gemini', 'local', 'mock'] as const;
+export const PROVIDERS = [
+  'claude',
+  'claude-subscription',
+  'openai',
+  'openrouter',
+  'gemini',
+  'local',
+  'mock',
+] as const;
 export type Provider = (typeof PROVIDERS)[number];
 
 /** Resolve a model id (e.g. "claude-sonnet-4-6", "gpt-5", "gemini-2.5-pro",
- *  "local:llama-3.3-70b", "ollama:qwen2.5") to its provider family.
+ *  "local:llama-3.3-70b", "ollama:qwen2.5", "openrouter:anthropic/claude-3.5-sonnet",
+ *  "claude-sub:opus", "lmstudio:phi-4") to its provider family.
  *  Throws on unrecognized prefixes — callers always reach here with a
  *  resolved model id (config default ensures a non-null value upstream).
  *  The match is case-insensitive. */
 export function resolveProvider(modelId: string): Provider {
   const id = modelId.trim().toLowerCase();
+  if (id.startsWith('claude-sub:') || id.startsWith('claude-sub-')) {
+    return 'claude-subscription';
+  }
   if (id.startsWith('claude-') || id.startsWith('claude:')) return 'claude';
+  if (id.startsWith('openrouter:') || id.startsWith('openrouter-')) return 'openrouter';
   if (
     id.startsWith('gpt-') ||
     id.startsWith('codex') ||
@@ -30,14 +43,16 @@ export function resolveProvider(modelId: string): Provider {
     id.startsWith('local:') ||
     id.startsWith('local-') ||
     id.startsWith('ollama:') ||
-    id.startsWith('vllm:')
+    id.startsWith('vllm:') ||
+    id.startsWith('lmstudio:')
   ) {
     return 'local';
   }
   if (id === 'mock' || id.startsWith('mock-')) return 'mock';
   throw new Error(
     `Unknown provider for model id "${modelId}". Recognized prefixes: ` +
-      `claude-, gpt-, codex, o1/o3/o4, gemini-, local:, local-, ollama:, vllm:, mock.`,
+      `claude-, claude-sub:, gpt-, codex, o1/o3/o4, gemini-, openrouter:, ` +
+      `local:, local-, ollama:, vllm:, lmstudio:, mock.`,
   );
 }
 
