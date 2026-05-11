@@ -24,11 +24,12 @@ export type Provider = (typeof PROVIDERS)[number];
  *  The match is case-insensitive. */
 export function resolveProvider(modelId: string): Provider {
   const id = modelId.trim().toLowerCase();
-  if (id.startsWith('claude-sub:') || id.startsWith('claude-sub-')) {
+  // Must come before the claude- rule: "claude-sub:" starts with "claude-".
+  if (id.startsWith('claude-sub:')) {
     return 'claude-subscription';
   }
   if (id.startsWith('claude-') || id.startsWith('claude:')) return 'claude';
-  if (id.startsWith('openrouter:') || id.startsWith('openrouter-')) return 'openrouter';
+  if (id.startsWith('openrouter:')) return 'openrouter';
   if (
     id.startsWith('gpt-') ||
     id.startsWith('codex') ||
