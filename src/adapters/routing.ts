@@ -10,10 +10,12 @@ import type { ModelAdapter, AdapterCapabilities } from './adapter.js';
 import type { OperationRequest, OperationResponse } from '../engine/operation.js';
 import { resolveProvider, type Provider } from './provider.js';
 import { ClaudeAdapter } from './claude.js';
-import { OpenAIAdapter } from './openai.js';
+import { ClaudeSubscriptionAdapter } from './claude-subscription.js';
 import { GeminiAdapter } from './gemini.js';
 import { LocalAdapter } from './local.js';
 import { MockAdapter } from './mock.js';
+import { OpenAIAdapter } from './openai.js';
+import { OpenRouterAdapter } from './openrouter.js';
 
 export type AdapterFactory = () => ModelAdapter;
 
@@ -33,16 +35,12 @@ export class RoutingAdapter implements ModelAdapter {
   private cache: Map<Provider, ModelAdapter> = new Map();
 
   constructor(opts: RoutingAdapterOptions = {}) {
-    const notImplemented = (name: string): AdapterFactory =>
-      () => {
-        throw new Error(`${name} adapter is not yet implemented.`);
-      };
     this.factories = {
       claude: opts.factories?.claude ?? (() => new ClaudeAdapter()),
       'claude-subscription':
-        opts.factories?.['claude-subscription'] ?? notImplemented('claude-subscription'),
+        opts.factories?.['claude-subscription'] ?? (() => new ClaudeSubscriptionAdapter()),
       openai: opts.factories?.openai ?? (() => new OpenAIAdapter()),
-      openrouter: opts.factories?.openrouter ?? notImplemented('openrouter'),
+      openrouter: opts.factories?.openrouter ?? (() => new OpenRouterAdapter()),
       gemini: opts.factories?.gemini ?? (() => new GeminiAdapter()),
       local: opts.factories?.local ?? (() => new LocalAdapter()),
       mock: opts.factories?.mock ?? (() => new MockAdapter()),

@@ -103,4 +103,84 @@ describe('RoutingAdapter', () => {
     expect(caps.streaming).toBe(true);
     expect(caps.contextWindowTokens).toBeGreaterThan(0);
   });
+
+  it('routes openrouter:* models to the openrouter adapter', async () => {
+    let seen = '';
+    const stub: ModelAdapter = {
+      id: 'openrouter-stub',
+      async invoke(req) {
+        seen = req.model;
+        return {
+          text: 'or',
+          toolCalls: [],
+          inputTokens: 1,
+          outputTokens: 1,
+          totalTokens: 2,
+          model: req.model,
+        };
+      },
+      capabilities() {
+        return {
+          tools: true,
+          contextWindowTokens: 1,
+          streaming: false,
+          costTier: 'standard',
+          supportsExtendedThinking: false,
+          supportsPromptCaching: false,
+        };
+      },
+      estimateCost() {
+        return { tokens: 0, dollars: 0 };
+      },
+    };
+    const routing = new RoutingAdapter({ adapters: { openrouter: stub } });
+    const resp = await routing.invoke({
+      operation: 'op',
+      model: 'openrouter:anthropic/claude-3.5-sonnet',
+      system: '',
+      user: 'go',
+    });
+    expect(seen).toBe('openrouter:anthropic/claude-3.5-sonnet');
+    expect(resp.text).toBe('or');
+  });
+
+  it('routes claude-sub:* models to the claude-subscription adapter', async () => {
+    let seen = '';
+    const stub: ModelAdapter = {
+      id: 'claude-sub-stub',
+      async invoke(req) {
+        seen = req.model;
+        return {
+          text: 'sub',
+          toolCalls: [],
+          inputTokens: 1,
+          outputTokens: 1,
+          totalTokens: 2,
+          model: req.model,
+        };
+      },
+      capabilities() {
+        return {
+          tools: false,
+          contextWindowTokens: 1,
+          streaming: false,
+          costTier: 'free',
+          supportsExtendedThinking: false,
+          supportsPromptCaching: false,
+        };
+      },
+      estimateCost() {
+        return { tokens: 0, dollars: 0 };
+      },
+    };
+    const routing = new RoutingAdapter({ adapters: { 'claude-subscription': stub } });
+    const resp = await routing.invoke({
+      operation: 'op',
+      model: 'claude-sub:opus',
+      system: '',
+      user: 'go',
+    });
+    expect(seen).toBe('claude-sub:opus');
+    expect(resp.text).toBe('sub');
+  });
 });
