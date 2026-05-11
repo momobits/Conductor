@@ -6,18 +6,21 @@ audit), and Symphony (autonomous orchestration).
 
 ## Status
 
-**Phase 7** — production-ready for trusted-environment dogfood.
+**Phase 8** — provider expansion, production-ready for trusted-environment dogfood.
 Phase 6 added the autonomous Conductor brain (queue-watcher +
 confidence-driven `assist` resolution). Phase 7 adds tracker
 integration (Linear / GitHub), run-log retention + replay, cost
 telemetry surfaces, an adversarial autonomy test pack, and dogfood
-bootstrap scripts. The full Relay+Control pipeline still runs
-end-to-end; Phase 2 invariants (commit-per-step, tag-per-phase,
-drift detection, importer) are unchanged.
+bootstrap scripts. Phase 8 adds OpenRouter, LM Studio, and Claude
+subscription adapters, plus full provider reference documentation.
+The full Relay+Control pipeline still runs end-to-end; Phase 2
+invariants (commit-per-step, tag-per-phase, drift detection, importer)
+are unchanged.
 
 See `docs/superpowers/specs/2026-05-06-conductor-design1.md` for the
 design and `docs/superpowers/plans/2026-05-08-phase-7-hardening.md`
-for the implementation plan of this phase.
+for the implementation plan of Phase 7. See [docs/providers.md](docs/providers.md)
+for the Phase 8 provider reference.
 
 ## Capabilities
 
@@ -91,12 +94,16 @@ model_overrides:
 Each provider adapter reads its credentials lazily on first use, so a
 project that never routes to a given provider doesn't need its key.
 
-| Provider | Env var |
-|---|---|
-| Claude | `ANTHROPIC_API_KEY` |
-| OpenAI | `OPENAI_API_KEY` |
-| Gemini | `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) |
-| Local | `CONDUCTOR_LOCAL_BASE_URL` (default `http://localhost:11434/v1`), `CONDUCTOR_LOCAL_API_KEY` (default `ollama`) |
+| Provider | Env var | Model id prefix |
+|---|---|---|
+| Claude API | `ANTHROPIC_API_KEY` | `claude-` |
+| Claude subscription | (run `claude login`) | `claude-sub:` |
+| OpenAI | `OPENAI_API_KEY` | `gpt-`, `o1`, `o3`, `o4`, `codex` |
+| Gemini | `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) | `gemini-` |
+| OpenRouter | `OPENROUTER_API_KEY` (optional: `CONDUCTOR_OPENROUTER_REFERER`, `CONDUCTOR_OPENROUTER_TITLE`) | `openrouter:` |
+| Local (Ollama / vLLM / llama.cpp / LM Studio) | `CONDUCTOR_LOCAL_BASE_URL` (default Ollama), `CONDUCTOR_LOCAL_API_KEY` | `local:`, `ollama:`, `vllm:`, `lmstudio:` |
+
+See [docs/providers.md](docs/providers.md) for full setup per provider.
 
 ## Daemon, MCP, and HTTP/JSON-RPC (Phase 4)
 
