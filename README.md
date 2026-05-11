@@ -364,18 +364,39 @@ deltas continue to flow on the existing SSE stream
   live LLM calls in the red-team pack. Tests inject hostile event
   streams to verify the Conductor halts cleanly.
 
-## Try it
+## Install
+
+One-time, from inside this repo:
 
 ```bash
 npm install
 npm run build
-node dist/cli/index.js init
-node dist/cli/index.js card new auth-token-expiry --title "Auth token expires silently"
-ANTHROPIC_API_KEY=sk-... \
-OPENAI_API_KEY=sk-... \
-GEMINI_API_KEY=... \
-node dist/cli/index.js work 2026-05-07-auth-token-expiry
+npm link    # registers `conductor` on PATH globally
 ```
+
+After this, the `conductor` command is available from any directory.
+To uninstall: `npm unlink -g conductor-workflow` from anywhere.
+
+## Try it
+
+```bash
+cd <your-project>
+conductor init --provider subscription   # uses your `claude` CLI session
+# or: conductor init --provider openrouter (needs OPENROUTER_API_KEY)
+# or: conductor init --provider lmstudio  (needs LM Studio running on :1234)
+# or: conductor init                       (multi-provider default; needs ANTHROPIC_API_KEY etc.)
+conductor card new auth-token-expiry --title "Auth token expires silently"
+# edit .conductor/cards/<date>-auth-token-expiry.md with real detail
+conductor work <date>-auth-token-expiry
+```
+
+`init` auto-detects `verify_command` from project files (`package.json` →
+`npm test`, `pyproject.toml`/`setup.py` → `pytest`, `Cargo.toml` →
+`cargo test`, `go.mod` → `go test ./...`, `Makefile` → `make test`).
+Pass `--no-detect-verify` to opt out.
+
+See [docs/quickstart.md](docs/quickstart.md) for the full first-run
+walkthrough including the web UI and autonomous brain.
 
 ## Development
 
