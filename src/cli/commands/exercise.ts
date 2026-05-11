@@ -7,7 +7,7 @@ import type { Command } from 'commander';
 import { exerciseMap, exerciseRun, exerciseAuto } from '../../engine/ops/exercise.js';
 import { writeCard } from '../../engine/state/card.js';
 import { loadProjectConfig } from '../../config/load.js';
-import { ClaudeAdapter } from '../../adapters/claude.js';
+import { RoutingAdapter } from '../../adapters/routing.js';
 import type { ModelAdapter } from '../../adapters/adapter.js';
 import type { ExerciseSession } from '../../engine/types.js';
 
@@ -19,7 +19,7 @@ interface SharedArgs {
 
 async function resolveAdapterAndModel(args: SharedArgs, op: string): Promise<{ adapter: ModelAdapter; model: string }> {
   const config = await loadProjectConfig(join(args.cwd, '.conductor', 'config.yaml'));
-  const adapter = args.adapter ?? new ClaudeAdapter();
+  const adapter = args.adapter ?? new RoutingAdapter();
   const model = args.model ?? config.routing.functions[op] ?? config.routing.default;
   return { adapter, model };
 }

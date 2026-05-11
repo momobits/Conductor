@@ -7,7 +7,7 @@ import type { Command } from 'commander';
 import { scan } from '../../engine/ops/scan.js';
 import { order } from '../../engine/ops/order.js';
 import { loadProjectConfig } from '../../config/load.js';
-import { ClaudeAdapter } from '../../adapters/claude.js';
+import { RoutingAdapter } from '../../adapters/routing.js';
 import type { ModelAdapter } from '../../adapters/adapter.js';
 import type { Ordering } from '../../engine/types.js';
 
@@ -19,7 +19,7 @@ export interface OrderCliArgs {
 
 export async function runOrder(args: OrderCliArgs): Promise<Ordering> {
   const config = await loadProjectConfig(join(args.cwd, '.conductor', 'config.yaml'));
-  const adapter = args.adapter ?? new ClaudeAdapter();
+  const adapter = args.adapter ?? new RoutingAdapter();
   const model = args.model ?? config.routing.functions.order ?? config.routing.default;
   const status = await scan({ repo: args.cwd });
   return order({ repo: args.cwd, status, adapter, model });

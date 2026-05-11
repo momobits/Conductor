@@ -8,7 +8,7 @@ import type { Command } from 'commander';
 import { discover } from '../../engine/ops/discover.js';
 import { writeCard } from '../../engine/state/card.js';
 import { loadProjectConfig } from '../../config/load.js';
-import { ClaudeAdapter } from '../../adapters/claude.js';
+import { RoutingAdapter } from '../../adapters/routing.js';
 import type { ModelAdapter } from '../../adapters/adapter.js';
 
 export interface DiscoverCliArgs {
@@ -20,7 +20,7 @@ export interface DiscoverCliArgs {
 
 export async function runDiscover(args: DiscoverCliArgs): Promise<string[]> {
   const config = await loadProjectConfig(join(args.cwd, '.conductor', 'config.yaml'));
-  const adapter = args.adapter ?? new ClaudeAdapter();
+  const adapter = args.adapter ?? new RoutingAdapter();
   const model = args.model ?? config.routing.functions.discover ?? config.routing.default;
   const now = args.now ?? new Date();
 
