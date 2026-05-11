@@ -143,6 +143,41 @@ describe('Conductor loop', () => {
     expect(decisions.length).toBe(1);
   });
 
+  it('idle detection: breaks loop when same card halts twice with no progress', async () => {
+    const repo = setupRepoWithOrdering(['card-1']);
+    const runtime = new InMemoryRuntime();
+    const bus = new EventBus();
+    const config = ProjectConfigSchema.parse({ autonomy: { default: 'auto' } });
+
+    let factoryCalls = 0;
+    const agentFactory = (cardId: string): AsyncIterable<TaskEvent> => {
+      factoryCalls += 1;
+      return (async function* () {
+        // Halts with no transition_request and no complete. Causes
+        // runOneCard to return { advanced: false }. Without idle
+        // detection the brain would spin re-picking this card forever.
+        yield { kind: 'halt', cardId, reason: 'wedged', finalColumn: 'discovered' };
+      })();
+    };
+
+    const events: DaemonEvent[] = [];
+    bus.subscribe((e) => events.push(e));
+
+    // High iterationLimit so the test depends on idle detection, not the cap.
+    const conductor = new Conductor({ repo, config, runtime, bus, agentFactory, iterationLimit: 10_000 });
+    await conductor.start();
+
+    // First iteration runs the agent; second pick detects idle and aborts
+    // BEFORE invoking the agent factory again.
+    expect(factoryCalls).toBe(1);
+
+    const halts = events.filter((e) => e.kind === 'conductor-halt');
+    const idleHalt = halts.find(
+      (h) => h.kind === 'conductor-halt' && /idle.*wedged/i.test(h.reason),
+    );
+    expect(idleHalt).toBeDefined();
+  });
+
   it('cost-ceiling breach halts before spawning agent', async () => {
     const repo = setupRepoWithOrdering(['card-1']);
     const runtime = new InMemoryRuntime();

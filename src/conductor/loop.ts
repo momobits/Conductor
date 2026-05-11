@@ -60,6 +60,12 @@ export class Conductor {
   private currentCard: string | undefined;
   private iteration = 0;
   private haltCount = 0;
+  // Idle detection: if pickEligibleCard returns the same card we just
+  // processed AND that previous iteration made no progress, the queue is
+  // wedged and re-running will not unwedge it. Break the loop to avoid
+  // a CPU-bound spin at ~50k iter/sec.
+  private lastIterationCard: string | undefined;
+  private lastIterationAdvanced = false;
 
   constructor(args: ConductorArgs) {
     this.repo = args.repo;
@@ -84,6 +90,15 @@ export class Conductor {
       while (!this.stopRequested && this.iteration < this.iterationLimit) {
         const cardId = await this.pickEligibleCard();
         if (!cardId) break;
+        if (cardId === this.lastIterationCard && !this.lastIterationAdvanced) {
+          this.haltCount += 1;
+          this.bus.publish({
+            kind: 'conductor-halt',
+            reason: `idle: ${cardId} halted twice in a row with no progress; queue wedged`,
+            cardId,
+          });
+          break;
+        }
         const breach = checkCostCeilings({
           runtime: this.runtime, config: this.config,
           cardId, day: this.now().toISOString().slice(0, 10),
@@ -96,7 +111,9 @@ export class Conductor {
         this.iteration += 1;
         this.currentCard = cardId;
         this.bus.publish({ kind: 'conductor-iteration', cardId, iteration: this.iteration });
-        const queueHalted = await this.runOneCard(cardId);
+        const { queueHalted, advanced } = await this.runOneCard(cardId);
+        this.lastIterationCard = cardId;
+        this.lastIterationAdvanced = advanced;
         if (queueHalted) break;
       }
     } finally {
@@ -110,7 +127,7 @@ export class Conductor {
     this.stopRequested = true;
   }
 
-  private async runOneCard(cardId: string): Promise<boolean> {
+  private async runOneCard(cardId: string): Promise<{ queueHalted: boolean; advanced: boolean }> {
     const cardPath = join(this.repo, '.conductor', 'cards', `${cardId}.md`);
     let advancedTo: Column | undefined;
     let escalated = false;
@@ -130,7 +147,7 @@ export class Conductor {
         if (decision.action === 'halt') {
           this.haltCount += 1;
           this.bus.publish({ kind: 'conductor-halt', reason: decision.reason, cardId });
-          return true;
+          return { queueHalted: true, advanced: false };
         }
         if (decision.action === 'escalate') {
           escalated = true;
@@ -161,13 +178,13 @@ export class Conductor {
       const reason = classifyHalt(haltReason);
       this.haltCount += 1;
       this.bus.publish({ kind: 'conductor-halt', reason: `${reason}: ${haltReason}`, cardId });
-      return false;
+      return { queueHalted: false, advanced: false };
     }
-    if (escalated) return false;
+    if (escalated) return { queueHalted: false, advanced: advancedTo !== undefined };
     if (advancedTo === 'archived' && this.onCardComplete) {
       try { await this.onCardComplete(cardId); } catch { /* best-effort */ }
     }
-    return false;
+    return { queueHalted: false, advanced: advancedTo !== undefined };
   }
 
   private effectiveMode(_cardId: string): ConductMode {
