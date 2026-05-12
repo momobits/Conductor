@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm, mkdir } from 'node:fs/promises';
+import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { simpleGit } from 'simple-git';
@@ -25,5 +25,19 @@ describe('conductor drift', () => {
     const block = formatDrift(drifts);
     expect(block).toContain('[control:drift]');
     expect(block).toContain('state-md-missing');
+  });
+
+  it('runDrift threads --verbose through to detectDrift', async () => {
+    // detectDrift early-returns when state.md is missing, so write a
+    // minimal state.md to reach the uncommitted block.
+    await writeFile(join(tmp, '.conductor', 'state.md'), '# State\n');
+    for (let i = 0; i < 12; i++) await writeFile(join(tmp, `g${i.toString().padStart(2, '0')}.txt`), 'x');
+    const driftsNonVerbose = await runDrift({ cwd: tmp });
+    const dNon = driftsNonVerbose.find((x) => x.kind === 'uncommitted-state-mismatch');
+    expect(dNon?.detail).toMatch(/\(… 2 more\)/);
+    const driftsVerbose = await runDrift({ cwd: tmp, verbose: true });
+    const dVerbose = driftsVerbose.find((x) => x.kind === 'uncommitted-state-mismatch');
+    expect(dVerbose?.detail).not.toMatch(/more\)/);
+    expect(dVerbose?.detail).toMatch(/g11\.txt/);
   });
 });

@@ -4,10 +4,13 @@ import type { Drift } from '../../engine/types.js';
 
 export interface DriftCliArgs {
   cwd: string;
+  /** When true, lift the per-bucket truncation in the
+   *  `uncommitted-state-mismatch` drift entry's `detail`. */
+  verbose?: boolean;
 }
 
 export async function runDrift(args: DriftCliArgs): Promise<Drift[]> {
-  return detectDrift({ repo: args.cwd });
+  return detectDrift({ repo: args.cwd, verbose: args.verbose });
 }
 
 export function formatDrift(drifts: Drift[]): string {
@@ -25,8 +28,9 @@ export function attachDrift(program: Command): void {
   program
     .command('drift')
     .description('Print drift between .conductor/state.md and git')
-    .action(async () => {
-      const drifts = await runDrift({ cwd: process.cwd() });
+    .option('--verbose', 'Show the full uncommitted file list (no per-bucket truncation)', false)
+    .action(async (opts: { verbose?: boolean }) => {
+      const drifts = await runDrift({ cwd: process.cwd(), verbose: opts.verbose });
       // eslint-disable-next-line no-console
       console.log(formatDrift(drifts));
       if (drifts.length > 0) process.exitCode = 1;

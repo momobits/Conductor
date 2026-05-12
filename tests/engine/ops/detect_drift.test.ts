@@ -145,4 +145,37 @@ describe('detect_drift op', () => {
     const tagDrift = drifts.find((d) => d.kind === 'tag-mismatch');
     expect(tagDrift?.expected).toBe('v1.0 release');
   });
+
+  it('detail prefixes each bucket and quantifies per-bucket truncation', async () => {
+    await init('# State\n');
+    for (let i = 0; i < 12; i++) await writeFile(join(tmp, `f${i.toString().padStart(2, '0')}.txt`), 'x');
+    const drifts = await detectDrift({ repo: tmp });
+    const d = drifts.find((x) => x.kind === 'uncommitted-state-mismatch');
+    expect(d?.detail).toMatch(/^unstaged: /);
+    expect(d?.detail).toMatch(/\(… 2 more\)/);
+    // anchor to start-of-string or `| ` separator so `unstaged: ` doesn't
+    // produce a false positive on the `staged: ` substring match.
+    expect(d?.detail).not.toMatch(/(?:^|\| )staged: /);
+    expect(d?.detail).not.toMatch(/(?:^|\| )conflicted: /);
+  });
+
+  it('detail labels each non-empty bucket separately, joined by `|`', async () => {
+    await init('# State\n');
+    await writeFile(join(tmp, 'staged.txt'), 's');
+    await writeFile(join(tmp, 'wip.txt'), 'w');
+    await simpleGit(tmp).add(['staged.txt']);
+    const drifts = await detectDrift({ repo: tmp });
+    const d = drifts.find((x) => x.kind === 'uncommitted-state-mismatch');
+    expect(d?.detail).toBe('staged: staged.txt | unstaged: wip.txt');
+  });
+
+  it('verbose=true lifts the per-bucket truncation cap', async () => {
+    await init('# State\n');
+    for (let i = 0; i < 15; i++) await writeFile(join(tmp, `f${i.toString().padStart(2, '0')}.txt`), 'x');
+    const drifts = await detectDrift({ repo: tmp, verbose: true });
+    const d = drifts.find((x) => x.kind === 'uncommitted-state-mismatch');
+    expect(d?.detail).not.toMatch(/more\)/);
+    expect(d?.detail).toMatch(/f00\.txt/);
+    expect(d?.detail).toMatch(/f14\.txt/);
+  });
 });

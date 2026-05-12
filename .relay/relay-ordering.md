@@ -51,14 +51,16 @@ Ship as two independent PRs or one combined cleanup PR.
 
 ---
 
-## Phase 3 — Drift command refactor (cluster)
+## Phase 3 — Drift command refactor (cluster) — COMPLETE
+
+**Resolved:** 2026-05-12
 
 **Bundle T5-4 and T5-5 into one PR.** Both touch `src/engine/ops/detect_drift.ts` and `src/engine/state/git.ts`. The snapshot refactor (T5-4) introduces `uncommittedSnapshot()` which T5-5's mtime-sorted preview can build on.
 
 | # | Item | File | Complexity | Depends on |
 |---|---|---|---|---|
 | 6 | ~~`uncommittedSnapshot()` returns `{staged, unstaged, conflicted}` separately~~ ✓ [implemented](implemented/drift-doesnt-distinguish-staged-vs-unstaged.md) (2026-05-12) | ~~[drift-doesnt-distinguish-staged-vs-unstaged.md](issues/drift-doesnt-distinguish-staged-vs-unstaged.md)~~ → [archive](archive/issues/drift-doesnt-distinguish-staged-vs-unstaged.md) | M | — |
-| 7 | Drift quantifies truncation (`… N more`); `conductor drift --verbose` shows full list | [drift-truncates-file-list-at-10.md](issues/drift-truncates-file-list-at-10.md) | S | #6 (uses snapshot) ✓ available |
+| 7 | ~~Drift quantifies truncation (`… N more`); `conductor drift --verbose` shows full list~~ ✓ [implemented](implemented/drift-truncates-file-list-at-10.md) (2026-05-12) | ~~[drift-truncates-file-list-at-10.md](issues/drift-truncates-file-list-at-10.md)~~ → [archive](archive/issues/drift-truncates-file-list-at-10.md) | S | #6 (uses snapshot) ✓ available |
 
 ---
 

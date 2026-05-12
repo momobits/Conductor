@@ -9,6 +9,11 @@ import { currentBranch, lastCommitSha, describeRef, uncommittedSnapshot } from '
 
 export interface DetectDriftArgs {
   repo: string;
+  /** When true, lift the per-bucket preview truncation in the
+   *  `uncommitted-state-mismatch` drift entry's `detail`. The CLI's
+   *  `--verbose` flag threads through to this. Default behavior
+   *  (false) caps each bucket at 10 with a `(… N more)` suffix. */
+  verbose?: boolean;
 }
 
 const TEMPLATE_FIRST_LINES = '# Conductor STATE';
@@ -104,11 +109,30 @@ export async function detectDrift(args: DetectDriftArgs): Promise<Drift[]> {
   const all = [...new Set([...staged, ...unstaged, ...conflicted])];
   if (all.length > 0) {
     const conflictedClause = conflicted.length > 0 ? `, ${conflicted.length} conflicted` : '';
+    // 11.2: render per-bucket preview with quantified truncation. Each
+    // non-empty bucket is labeled and capped at LIMIT files, with a
+    // `(… N more)` suffix when more are hidden. `verbose` lifts the cap
+    // entirely. Empty buckets are omitted (no `staged:` prefix when
+    // staged is empty).
+    const LIMIT = 10;
+    const verbose = args.verbose ?? false;
+    const formatBucket = (label: string, files: string[]): string | null => {
+      if (files.length === 0) return null;
+      const shown = verbose ? files : files.slice(0, LIMIT);
+      const hidden = files.length - shown.length;
+      const suffix = hidden > 0 ? ` (… ${hidden} more)` : '';
+      return `${label}: ${shown.join(', ')}${suffix}`;
+    };
+    const detailParts = [
+      formatBucket('staged', staged),
+      formatBucket('unstaged', unstaged),
+      formatBucket('conflicted', conflicted),
+    ].filter((s): s is string => s !== null);
     drifts.push({
       kind: 'uncommitted-state-mismatch',
       expected: 'clean working tree',
       actual: `${all.length} uncommitted file(s) (${staged.length} staged, ${unstaged.length} unstaged${conflictedClause})`,
-      detail: all.slice(0, 10).join(', ') + (all.length > 10 ? ', …' : ''),
+      detail: detailParts.join(' | '),
     });
   }
 
