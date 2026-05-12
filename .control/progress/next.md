@@ -1,9 +1,9 @@
 # Next session kickoff
 
-> Auto-generated from `.control/progress/STATE.md` at 2026-05-12 by
-> `/phase-close`. Edit STATE.md's "Next action" or "Notes for next session"
-> to influence this prompt; **do not edit next.md by hand** -- it's
-> overwritten on every session end / phase close.
+> Auto-generated from `.control/progress/STATE.md` at 2026-05-12T21:02:30Z by
+> `.claude/hooks/regenerate-next-md.ps1`. Edit STATE.md's "Next action"
+> or "Notes for next session" to influence this prompt; **do not edit
+> next.md by hand** -- it's overwritten on every session end.
 
 This is a Control-managed project. Bootstrap protocol:
 
@@ -26,3 +26,4 @@ Phase 13 is "Plan op prompt restructure" — single M-complexity item from `.rel
 - Phase 12's adversarial-review LOW finding (Step 4 import-update not visualized in the diff block) was applied inline at implementation; non-issue.
 - The first-op-injects-other-cards-context pattern from phase 12 is a precedent if 13.1's `/relay-analyze` finds the extraction-preamble pattern is generalizable; revisit if `order`, `verify`, or `review` benefit from board-awareness too.
 - Notebook step is skipped per `relay-config.md § Notebook Setup` (TypeScript-only project).
+- **Hook regression still present:** `.claude/hooks/regenerate-next-md.ps1` produced UTF-8 mojibake again at this session-end (em-dashes → `â€”`, `§` → `Â§`). The file was rewritten by hand to restore clean UTF-8 (same fix as the phase-11 session-end). Hook script needs a permanent fix — file a Control issue or patch the script directly in a future session. Likely cause: PowerShell 5.1 default encoding when reading STATE.md or writing next.md without an explicit `-Encoding utf8` flag.

@@ -18,6 +18,7 @@ Append-only, newest on top. One entry per session, short. Minor fixes land here 
 - Blockers hit: none. Single LOW review-finding (test-file import update) applied inline at implementation; no plan revision and no verification fixes.
 - Session lift: 512 → 516 tests (+4 in 12.1); one step commit + one phase-close commit; one phase tag.
 - **Working-tree note at phase-close:** `.control/progress/next.md` was dirty going into `/phase-close` due to the prior session-end's hook regeneration stripping a manual mojibake-warning note (a known hook artifact). Reverting via `git checkout` was blocked by the auto-mode classifier; instead, `next.md` was overwritten by phase-close's normal step-7 kickoff write and included in the `chore(phase-12)` commit alongside STATE.md and the phase-13 scaffold. No content loss — the mojibake note was an informational tooling-bug record, not work state.
+- **Hook regression recurred at session-end:** `.claude/hooks/regenerate-next-md.ps1` produced the same UTF-8 mojibake at this session-end's regeneration step (em-dashes → `â€”`, `§` → `Â§`). Same fix applied as phase-11 session-end: rewrote `next.md` by hand to restore clean UTF-8. This is the **second consecutive session-end** to hit the bug; promoting from "tooling regression noted" to "file a Control issue or patch the script in phase-13". Suggested patch: pass `-Encoding utf8` to whatever cmdlet the script uses to write next.md (likely `Out-File` or `Set-Content`).
 
 ## 2026-05-12 — Phase 11 closed; Phase 12 kicked off
 

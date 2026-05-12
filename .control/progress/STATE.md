@@ -3,7 +3,7 @@
 > Single source of truth. Read this first every session. Updated at every
 > `/session-end` and by the `PreCompact` hook. Every field has a purpose -- fill each.
 
-**Last updated:** 2026-05-12 by /phase-close (phase-12 closed, phase-13 kickoff)
+**Last updated:** 2026-05-12 by /session-end (session sid-2026-05-12-phase12-close-phase13-kickoff)
 **Current phase:** phase-13-plan-prompt-restructure
 **Current step:** 13.1 — `conductor plan` SYSTEM_PROMPT emits a "Resolved decisions from analysis" preamble before atomic steps; `[need:]` only for items not in the preamble
 **Status:** ready
@@ -24,8 +24,8 @@ Run `/relay-analyze .relay/issues/plan-op-leaves-need-placeholders-resolved-in-a
 
 ## Git state
 - **Branch:** main
-- **Last commit:** `d90cb0b` — feat(12.1): discover passes existing-cards summary into prompt; SYSTEM_PROMPT instructs no-overlap. The phase-close commit will follow this session-end as the standard `chore(phase-12): close phase 12, kick off phase 13` shape.
-- **Uncommitted changes:** the `.control/progress/next.md` regeneration plus the phase-13 scaffold + STATE.md update are about to land as the phase-close commit.
+- **Last commit:** `1fd9457` — chore(phase-12): close phase 12, kick off phase 13. The most recent step commit is `d90cb0b` (feat(12.1)), where the phase tag lives.
+- **Uncommitted changes:** none (will be one `docs(state)` commit after `/session-end` finishes — the standard session-end self-reference shape).
 - **Last phase tag:** `phase-12-discover-dedup-closed` (created at `d90cb0b` during this session's `/phase-close`).
 
 ---
@@ -58,11 +58,11 @@ Run `/relay-analyze .relay/issues/plan-op-leaves-need-placeholders-resolved-in-a
 ---
 
 ## Recently completed (last 5 steps)
+- 1fd9457 — chore(phase-12): close phase 12, kick off phase 13 — 2026-05-12
 - d90cb0b — feat(12.1): discover passes existing-cards summary into prompt; SYSTEM_PROMPT instructs no-overlap — 2026-05-12
 - 1d39edd — feat(11.2): drift quantifies truncation; --verbose lifts the cap — 2026-05-12
 - d833cc0 — feat(11.1): uncommittedSnapshot() distinguishes staged / unstaged / conflicted — 2026-05-12
 - 01a44ea — chore(phase-10): close phase 10, kick off phase 11 — 2026-05-12
-- 0e33726 — fix(10.2): `cost show` exits 1 with stderr-routed diagnostic when daemon is down — 2026-05-12
 
 Phase 12 closed (tag: `phase-12-discover-dedup-closed`, commit: `d90cb0b`); Phase 13 kicked off.
 
