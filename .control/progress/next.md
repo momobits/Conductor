@@ -1,9 +1,9 @@
 # Next session kickoff
 
-> Auto-generated from `.control/progress/STATE.md` at 2026-05-12 by `/phase-close`.
-> Edit STATE.md's "Next action" or "Notes for next session" to influence
-> this prompt; **do not edit next.md by hand** -- it's overwritten on every
-> session end.
+> Auto-generated from `.control/progress/STATE.md` at 2026-05-12T16:43:30Z by
+> `.claude/hooks/regenerate-next-md.sh`. Edit STATE.md's "Next action"
+> or "Notes for next session" to influence this prompt; **do not edit
+> next.md by hand** -- it's overwritten on every session end.
 
 This is a Control-managed project. Bootstrap protocol:
 

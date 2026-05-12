@@ -3,7 +3,7 @@
 > Single source of truth. Read this first every session. Updated at every
 > `/session-end` and by the `PreCompact` hook. Every field has a purpose -- fill each.
 
-**Last updated:** 2026-05-12 by /phase-close (closing phase-9, kicking off phase-10)
+**Last updated:** 2026-05-12 by /session-end (session sid-2026-05-12-phase9-steps92-93-close-phase10-kickoff)
 **Current phase:** phase-10-quick-wins
 **Current step:** 10.1 — Promote `# Original Issue` → `## Original Issue` across discover + createCard + docstring
 **Status:** ready
@@ -24,9 +24,9 @@ Run `/relay-analyze .relay/issues/discover-original-issue-uses-h1-not-h2.md` to 
 
 ## Git state
 - **Branch:** main
-- **Last commit:** will be the `chore(phase-9): close phase 9, kick off phase 10` commit landing immediately after this STATE.md write. The most recent step commit is `159387d` (fix(9.3)).
-- **Uncommitted changes:** the phase-close bundle (this STATE.md update, phase-10 scaffold, regenerated next.md) lands in one `chore(phase-9):` commit.
-- **Last phase tag:** `phase-9-malformed-yaml-error-surface-closed` (created at `159387d` during this `/phase-close`).
+- **Last commit:** 82ec2ca — chore(phase-9): close phase 9, kick off phase 10. The most recent step commit (before the phase-close bookkeeping) is `159387d` (fix(9.3)).
+- **Uncommitted changes:** none (will be one `docs(state)` commit after `/session-end` finishes — the standard session-end self-reference shape).
+- **Last phase tag:** `phase-9-malformed-yaml-error-surface-closed` (created at `159387d` during this session's `/phase-close`).
 
 ---
 
@@ -57,11 +57,11 @@ Run `/relay-analyze .relay/issues/discover-original-issue-uses-h1-not-h2.md` to 
 ---
 
 ## Recently completed (last 5 steps)
+- 82ec2ca — chore(phase-9): close phase 9, kick off phase 10 — 2026-05-12
 - 159387d — fix(9.3): work validates card before creating run dir — 2026-05-12
 - a374f8a — fix(9.2): scan continues on per-card YAML failure — 2026-05-12
 - 1fb8561 — fix(9.1): differentiate ENOENT from parse-failure in readCard callers — 2026-05-12
 - 485944d — chore(9.0): bootstrap Control phase-9 scaffold — 2026-05-12
-- 7df08b1 — chore(install): install Control framework v2.2.3 — pre-Control
 
 ---
 
