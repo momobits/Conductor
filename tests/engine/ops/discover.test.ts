@@ -66,4 +66,25 @@ describe('discover op', () => {
     const items = await discover({ repo: tmp, adapter, model: 'mock-model' });
     expect(items).toEqual([]);
   });
+
+  it('parses model output wrapped in a markdown code fence (T2-1 regression)', async () => {
+    await init();
+    const adapter = new MockAdapter();
+    // Simulate haiku's actual behavior — fenced JSON with a leading prose line.
+    const fenced = '```json\n' + JSON.stringify({
+      items: [
+        {
+          slug: 'fenced-card',
+          title: 'A card parsed from fenced JSON',
+          kind: 'issue',
+          rationale: 'Test fixture for fence-tolerant parser.',
+          source_evidence: 'src/a.ts:1',
+        },
+      ],
+    }) + '\n```';
+    adapter.push({ text: fenced, inputTokens: 1, outputTokens: 1 });
+    const items = await discover({ repo: tmp, adapter, model: 'mock-model' });
+    expect(items).toHaveLength(1);
+    expect(items[0]?.slug).toBe('fenced-card');
+  });
 });

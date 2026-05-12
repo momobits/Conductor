@@ -7,6 +7,7 @@ import { writeFile, appendFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ModelAdapter } from '../../adapters/adapter.js';
 import type { Card, ExerciseSession, ExerciseFinding } from '../types.js';
+import { parseJsonResponse } from '../util/parse_json_response.js';
 
 const MAP_PROMPT = `You are designing exercise scenarios that exercise the
 user's stated goal. Produce 3-7 specific scenarios that, if walked end-to-end,
@@ -54,7 +55,7 @@ export async function exerciseMap(args: ExerciseMapArgs): Promise<ExerciseSessio
   });
   let scenarios: string[];
   try {
-    const raw = JSON.parse(resp.text.trim());
+    const raw = parseJsonResponse<Record<string, unknown>>(resp.text, { op: 'exercise' });
     scenarios = Array.isArray(raw.scenarios) ? raw.scenarios.map(String) : [];
   } catch (e) {
     throw new Error(`Failed to parse exercise_map JSON: ${(e as Error).message}\n${resp.text}`);
@@ -109,7 +110,7 @@ export async function exerciseRun(args: ExerciseRunArgs): Promise<ExerciseFindin
   });
   let findings: ExerciseFinding[];
   try {
-    const raw = JSON.parse(resp.text.trim());
+    const raw = parseJsonResponse<Record<string, unknown>>(resp.text, { op: 'exercise' });
     findings = Array.isArray(raw.findings) ? raw.findings.map((f: unknown) => {
       const o = f as Record<string, unknown>;
       return {

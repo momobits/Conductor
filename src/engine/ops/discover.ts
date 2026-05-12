@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { simpleGit } from 'simple-git';
 import type { ModelAdapter } from '../../adapters/adapter.js';
 import type { DiscoveredItem } from '../types.js';
+import { parseJsonResponse } from '../util/parse_json_response.js';
 
 export interface DiscoverArgs {
   repo: string;
@@ -105,7 +106,7 @@ export async function discover(args: DiscoverArgs): Promise<DiscoveredItem[]> {
 
   let items: DiscoveredItem[];
   try {
-    const raw = JSON.parse(resp.text.trim());
+    const raw = parseJsonResponse<{ items?: unknown[] }>(resp.text, { op: 'discover' });
     items = Array.isArray(raw.items) ? raw.items.map((i: unknown) => {
       const o = i as Record<string, unknown>;
       return {

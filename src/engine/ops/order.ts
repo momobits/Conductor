@@ -7,6 +7,7 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ModelAdapter } from '../../adapters/adapter.js';
 import type { Ordering, OrderingEntry, Status } from '../types.js';
+import { parseJsonResponse } from '../util/parse_json_response.js';
 
 export interface OrderArgs {
   repo: string;
@@ -46,7 +47,7 @@ export async function order(args: OrderArgs): Promise<Ordering> {
 
   let entries: OrderingEntry[];
   try {
-    const raw = JSON.parse(resp.text.trim());
+    const raw = parseJsonResponse<{ entries?: unknown[] }>(resp.text, { op: 'order' });
     entries = Array.isArray(raw.entries) ? raw.entries.map((e: unknown) => {
       const o = e as Record<string, unknown>;
       return {

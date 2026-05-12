@@ -7,6 +7,7 @@
 import type { ModelAdapter } from '../../adapters/adapter.js';
 import type { Card, Verdict, VerdictDecision } from '../types.js';
 import { appendSection, extractSection } from '../state/card.js';
+import { parseJsonResponse } from '../util/parse_json_response.js';
 
 const VALID_DECISIONS: VerdictDecision[] = ['APPROVED', 'NEEDS-CHANGES', 'NEEDS-INFO'];
 
@@ -59,14 +60,14 @@ export async function review(args: ReviewArgs): Promise<Verdict> {
 
   let verdict: Verdict;
   try {
-    const parsed = JSON.parse(resp.text.trim());
-    if (!VALID_DECISIONS.includes(parsed.decision)) {
+    const parsed = parseJsonResponse<{ decision: string; reasoning?: string; changes_required?: unknown[] }>(resp.text, { op: 'review' });
+    if (!(VALID_DECISIONS as readonly string[]).includes(parsed.decision)) {
       throw new Error(
         `Invalid decision value "${parsed.decision}" from model; expected one of ${VALID_DECISIONS.join(', ')}.\n--- raw ---\n${resp.text}`,
       );
     }
     verdict = {
-      decision: parsed.decision,
+      decision: parsed.decision as VerdictDecision,
       reasoning: String(parsed.reasoning ?? ''),
       changes_required: Array.isArray(parsed.changes_required)
         ? parsed.changes_required.map(String)

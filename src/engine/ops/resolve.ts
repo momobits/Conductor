@@ -10,6 +10,7 @@ import type { ModelAdapter } from '../../adapters/adapter.js';
 import type { Card, ResolutionDoc } from '../types.js';
 import { writeCard } from '../state/card.js';
 import { lastCommitSha } from '../state/git.js';
+import { parseJsonResponse } from '../util/parse_json_response.js';
 
 export interface ResolveArgs {
   repo: string;
@@ -55,7 +56,7 @@ export async function resolve(args: ResolveArgs): Promise<ResolutionDoc> {
 
   let parsed: { summary: string; files_changed: string[] };
   try {
-    const raw = JSON.parse(resp.text.trim());
+    const raw = parseJsonResponse<{ summary?: string; files_changed?: unknown[] }>(resp.text, { op: 'resolve' });
     parsed = {
       summary: String(raw.summary ?? ''),
       files_changed: Array.isArray(raw.files_changed) ? raw.files_changed.map(String) : [],

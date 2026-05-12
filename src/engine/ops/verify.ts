@@ -6,6 +6,7 @@
 import type { ModelAdapter } from '../../adapters/adapter.js';
 import type { Card, VerifyReport, VerifyOutcome } from '../types.js';
 import { appendSection } from '../state/card.js';
+import { parseJsonResponse } from '../util/parse_json_response.js';
 
 export interface RunnerResult {
   stdout: string;
@@ -71,14 +72,14 @@ export async function verify(args: VerifyArgs): Promise<VerifyReport> {
 
   let parsed: { outcome: VerifyReport['outcome']; summary: string; failures: string[] };
   try {
-    const raw = JSON.parse(resp.text.trim());
-    if (!VALID_OUTCOMES.includes(raw.outcome)) {
+    const raw = parseJsonResponse<{ outcome: string; summary?: string; failures?: unknown[] }>(resp.text, { op: 'verify' });
+    if (!(VALID_OUTCOMES as readonly string[]).includes(raw.outcome)) {
       throw new Error(
         `Invalid outcome "${raw.outcome}" from model; expected one of ${VALID_OUTCOMES.join(', ')}.\n--- raw ---\n${resp.text}`,
       );
     }
     parsed = {
-      outcome: raw.outcome,
+      outcome: raw.outcome as VerifyOutcome,
       summary: String(raw.summary ?? ''),
       failures: Array.isArray(raw.failures) ? raw.failures.map(String) : [],
     };
