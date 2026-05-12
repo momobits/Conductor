@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import type { BlastRadius, Card, Column, Recommendation } from '../engine/types.js';
 import type { ModelAdapter } from '../adapters/adapter.js';
 import type { ProjectConfig } from '../config/schema.js';
-import { readCard, writeCard } from '../engine/state/card.js';
+import { readCard, writeCard, messageForReadCardError } from '../engine/state/card.js';
 import { analyze } from '../engine/ops/analyze.js';
 import { plan as planOp } from '../engine/ops/plan.js';
 import { review } from '../engine/ops/review.js';
@@ -71,8 +71,9 @@ export class TaskAgent {
     let card: Card;
     try {
       card = await readCard(cardPath);
-    } catch {
-      yield await this.emit({ kind: 'error', cardId: this.cardId, message: `Card not found: ${this.cardId} (looked at ${cardPath})` });
+    } catch (e: unknown) {
+      const message = messageForReadCardError(e, this.cardId, cardPath);
+      yield await this.emit({ kind: 'error', cardId: this.cardId, message });
       return;
     }
 

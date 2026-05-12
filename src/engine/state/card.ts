@@ -15,8 +15,56 @@ import { readFile, writeFile, readdir, mkdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import matter from 'gray-matter';
 import yaml from 'js-yaml';
+import { ZodError } from 'zod';
 import { CardFrontmatterSchema } from '../../config/schema.js';
 import type { Card, CardFrontmatter, Kind } from '../types.js';
+
+const MAX_CAUSE_MSG = 500;
+function truncate(s: string, max = MAX_CAUSE_MSG): string {
+  if (typeof s !== 'string') return String(s);
+  return s.length <= max ? s : `${s.slice(0, max)}… [truncated ${s.length - max} chars]`;
+}
+
+/** Thrown by `readCard` when the underlying file is missing (ENOENT). */
+export class CardNotFoundError extends Error {
+  readonly code = 'CARD_NOT_FOUND' as const;
+  constructor(public readonly path: string) {
+    super(`Card file not found: ${path}`);
+    this.name = 'CardNotFoundError';
+  }
+}
+
+/** Thrown by `readCard` when the file exists but its YAML or schema fails to
+ *  parse. `reason` discriminates between gray-matter/js-yaml syntax errors and
+ *  Zod schema-validation errors. */
+export class CardParseError extends Error {
+  readonly code = 'CARD_PARSE_FAILED' as const;
+  constructor(
+    public readonly path: string,
+    public readonly reason: 'yaml' | 'schema',
+    public readonly cause: unknown,
+  ) {
+    const innerMsg = truncate(cause instanceof Error ? cause.message : String(cause));
+    super(`Failed to parse card at ${path} (${reason}): ${innerMsg}`, { cause });
+    this.name = 'CardParseError';
+  }
+}
+
+/** Compose the user-facing message for a `readCard` throw. Single source of
+ *  truth for the message contract — consumed by CLI `transition`, the
+ *  TaskAgent error path, and (downstream) lenient `listCards` (step 9.2) and
+ *  the work pre-validation path (step 9.3). */
+export function messageForReadCardError(err: unknown, cardId: string, cardPath: string): string {
+  if (err instanceof CardNotFoundError) {
+    return `Card not found: ${cardId} (looked at ${cardPath})`;
+  }
+  if (err instanceof CardParseError) {
+    const innerMsg = err.cause instanceof Error ? truncate(err.cause.message) : String(err.cause);
+    return `Failed to parse card: ${cardId} (${cardPath}, ${err.reason}): ${innerMsg}`;
+  }
+  const desc = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+  return `Failed to read card: ${cardId} (${cardPath}): ${desc}`;
+}
 
 export function buildCardPath(cardsDir: string, id: string): string {
   return join(cardsDir, `${id}.md`);
@@ -33,14 +81,23 @@ function normalizeDates(data: Record<string, unknown>): Record<string, unknown> 
 }
 
 export async function readCard(path: string): Promise<Card> {
-  const text = await readFile(path, 'utf8');
-  const parsed = matter(text);
-  const frontmatter = CardFrontmatterSchema.parse(normalizeDates(parsed.data));
-  return {
-    frontmatter,
-    body: parsed.content,
-    path,
-  };
+  let text: string;
+  try {
+    text = await readFile(path, 'utf8');
+  } catch (e: unknown) {
+    if ((e as NodeJS.ErrnoException)?.code === 'ENOENT') {
+      throw new CardNotFoundError(path);
+    }
+    throw e;
+  }
+  try {
+    const parsed = matter(text);
+    const frontmatter = CardFrontmatterSchema.parse(normalizeDates(parsed.data));
+    return { frontmatter, body: parsed.content, path };
+  } catch (e: unknown) {
+    const reason: 'yaml' | 'schema' = e instanceof ZodError ? 'schema' : 'yaml';
+    throw new CardParseError(path, reason, e);
+  }
 }
 
 export async function writeCard(card: Card): Promise<void> {

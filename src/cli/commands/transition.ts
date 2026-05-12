@@ -7,7 +7,7 @@
 
 import { join } from 'node:path';
 import type { Command } from 'commander';
-import { readCard, writeCard } from '../../engine/state/card.js';
+import { readCard, writeCard, messageForReadCardError } from '../../engine/state/card.js';
 import { canTransition } from '../../engine/lifecycle.js';
 import type { Column } from '../../engine/types.js';
 import { COLUMNS } from '../../engine/types.js';
@@ -24,8 +24,8 @@ export async function runTransition(args: TransitionArgs): Promise<void> {
   let card;
   try {
     card = await readCard(cardPath);
-  } catch {
-    throw new Error(`Card not found: ${args.cardId} (looked at ${cardPath})`);
+  } catch (e: unknown) {
+    throw new Error(messageForReadCardError(e, args.cardId, cardPath));
   }
 
   if (!canTransition(card.frontmatter.column, args.target)) {

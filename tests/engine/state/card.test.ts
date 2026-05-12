@@ -9,6 +9,9 @@ import {
   listCards,
   appendSection,
   buildCardPath,
+  CardNotFoundError,
+  CardParseError,
+  messageForReadCardError,
 } from '../../../src/engine/state/card.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -37,10 +40,87 @@ describe('readCard', () => {
     expect(card.body).toContain('When a user');
   });
 
-  it('rejects malformed frontmatter', async () => {
+  it('rejects malformed frontmatter with CardParseError', async () => {
     const bad = join(tmp, 'bad.md');
     await writeFile(bad, '---\nnot: valid frontmatter\n---\n\nbody\n');
-    await expect(readCard(bad)).rejects.toThrow();
+    await expect(readCard(bad)).rejects.toBeInstanceOf(CardParseError);
+    await expect(readCard(bad)).rejects.toThrow(/parse/i);
+    await expect(readCard(bad)).rejects.not.toBeInstanceOf(CardNotFoundError);
+  });
+
+  it('throws CardNotFoundError when file does not exist', async () => {
+    const missing = join(tmp, 'does-not-exist.md');
+    await expect(readCard(missing)).rejects.toBeInstanceOf(CardNotFoundError);
+    await expect(readCard(missing)).rejects.toThrow(/not found/i);
+    await expect(readCard(missing)).rejects.not.toBeInstanceOf(CardParseError);
+  });
+
+  it('throws CardParseError with reason=yaml when YAML syntax is broken', async () => {
+    const bad = join(tmp, 'yaml-syntax.md');
+    await writeFile(bad, '---\ntitle: "unterminated\nkind: issue\n---\n\nbody\n');
+    let err: unknown;
+    try { await readCard(bad); } catch (e) { err = e; }
+    expect(err).toBeInstanceOf(CardParseError);
+    expect((err as CardParseError).reason).toBe('yaml');
+    expect((err as CardParseError).code).toBe('CARD_PARSE_FAILED');
+  });
+
+  it('caps CardParseError message length to prevent log-bloat', async () => {
+    const huge = 'x'.repeat(10_000);
+    const bad = join(tmp, 'huge.md');
+    await writeFile(bad, `---\n!!!: ${huge}\n---\n`);
+    let err: unknown;
+    try { await readCard(bad); } catch (e) { err = e; }
+    expect(err).toBeInstanceOf(CardParseError);
+    expect((err as Error).message.length).toBeLessThan(1500);
+  });
+
+  it('rethrows non-ENOENT fs errors verbatim (does not misclassify EISDIR as parse)', async () => {
+    let err: unknown;
+    try { await readCard(tmp); } catch (e) { err = e; }
+    expect(err).not.toBeInstanceOf(CardNotFoundError);
+    expect(err).not.toBeInstanceOf(CardParseError);
+  });
+});
+
+describe('readCard schema-violation boundary cases', () => {
+  it.each([
+    { label: 'empty file', contents: '' },
+    { label: 'empty frontmatter block', contents: '---\n---\n\nbody\n' },
+    {
+      label: 'priority is a string',
+      contents: '---\nid: ok-1\ntitle: T\nkind: issue\ncolumn: discovered\nphase: unassigned\npriority: high\nautonomy: inherit\nmodel_overrides: {}\ncreated: 2026-05-12T00:00:00Z\nsource: user\nlabels: []\nblocked_by: []\n---\n\nbody\n',
+    },
+    {
+      label: 'extra unknown field (strict rejects)',
+      contents: '---\nid: ok-2\ntitle: T\nkind: issue\ncolumn: discovered\nphase: unassigned\npriority: 1\nautonomy: inherit\nmodel_overrides: {}\ncreated: 2026-05-12T00:00:00Z\nsource: user\nlabels: []\nblocked_by: []\nbogus: yes\n---\n\nbody\n',
+    },
+  ])('throws CardParseError with reason=schema for $label', async ({ contents }) => {
+    const bad = join(tmp, 'boundary.md');
+    await writeFile(bad, contents);
+    let err: unknown;
+    try { await readCard(bad); } catch (e) { err = e; }
+    expect(err).toBeInstanceOf(CardParseError);
+    expect((err as CardParseError).reason).toBe('schema');
+  });
+});
+
+describe('messageForReadCardError', () => {
+  it('returns "not found" wording for CardNotFoundError', () => {
+    const err = new CardNotFoundError('/tmp/p.md');
+    expect(messageForReadCardError(err, 'card-1', '/tmp/p.md')).toMatch(/not found/);
+    expect(messageForReadCardError(err, 'card-1', '/tmp/p.md')).not.toMatch(/parse/i);
+  });
+  it('returns "parse" wording with reason for CardParseError', () => {
+    const err = new CardParseError('/tmp/p.md', 'schema', new Error('priority: Expected number, received string'));
+    expect(messageForReadCardError(err, 'card-1', '/tmp/p.md')).toMatch(/parse/i);
+    expect(messageForReadCardError(err, 'card-1', '/tmp/p.md')).toMatch(/schema/);
+    expect(messageForReadCardError(err, 'card-1', '/tmp/p.md')).not.toMatch(/not found/);
+  });
+  it('surfaces unknown errors honestly (no "not found" lie)', () => {
+    const err = new Error('EACCES: permission denied');
+    expect(messageForReadCardError(err, 'card-1', '/tmp/p.md')).not.toMatch(/not found/);
+    expect(messageForReadCardError(err, 'card-1', '/tmp/p.md')).toMatch(/EACCES/);
   });
 });
 

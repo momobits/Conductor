@@ -135,3 +135,26 @@ run is genuinely underway, not for "card doesn't exist."
   message to the user.
 - `tests/agent/task_agent.test.ts` — regression coverage (no phantom dir).
 - `tests/cli/work.test.ts` — end-to-end coverage.
+
+## Note from step 9.1 (resolved 2026-05-12)
+
+Step 9.1 ([implemented](../implemented/misleading-card-not-found-for-malformed-yaml.md)) refactored `task_agent.ts:72-77` from a bare-catch into a 3-line shape that 9.3 can transform in one line:
+
+```ts
+// Current shape after 9.1:
+try {
+  card = await readCard(cardPath);
+} catch (e: unknown) {
+  const message = messageForReadCardError(e, this.cardId, cardPath);
+  yield await this.emit({ kind: 'error', cardId: this.cardId, message });
+  return;
+}
+```
+
+To prevent the phantom run-dir, 9.3 should:
+1. Change `yield await this.emit({...})` → `throw new Error(message)` (or for `CardNotFoundError` specifically, `throw new CardNotFoundError(cardPath)`). This stops `RunLogWriter.write()` from firing the lazy `mkdir`.
+2. Hoist the entire `try { readCard } catch { throw }` block to fire BEFORE `this.log = new RunLogWriter(...)` is constructed in the constructor — OR keep the lazy log creation but ensure `emit()` is not called on the validation failure path.
+
+The existing test `emits parse-aware error event when card YAML is malformed` (added by 9.1) and the new test 9.3 will add must both be updated to assert NO directory exists under `.conductor/runs/` after the call (per the issue's verification §1.2).
+
+Imports already needed by 9.1 are now available from `src/engine/state/card.js`: `CardNotFoundError`, `CardParseError`, `messageForReadCardError`.

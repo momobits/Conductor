@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, basename } from 'node:path';
 import { runInit } from '../../src/cli/commands/init.js';
@@ -49,5 +49,15 @@ describe('runTransition', () => {
     await expect(
       runTransition({ cwd: tmp, cardId: 'no-such', target: 'approved' }),
     ).rejects.toThrow(/not found/);
+  });
+
+  it('throws a parse-aware message for malformed YAML (not "not found")', async () => {
+    await writeFile(cardPath, '---\npriority: high\n---\n\nbody\n', 'utf8');
+    await expect(
+      runTransition({ cwd: tmp, cardId: id, target: 'approved' }),
+    ).rejects.toThrow(/parse/i);
+    await expect(
+      runTransition({ cwd: tmp, cardId: id, target: 'approved' }),
+    ).rejects.not.toThrow(/not found/i);
   });
 });

@@ -136,3 +136,30 @@ and exits 0."*
   consumers.
 - `tests/engine/state/card.test.ts`, `tests/cli/scan.test.ts`,
   `tests/engine/ops/scan.test.ts` — regression coverage.
+
+## Note from step 9.1 (resolved 2026-05-12)
+
+Step 9.1 ([implemented](../implemented/misleading-card-not-found-for-malformed-yaml.md)) landed the typed-error pattern in `src/engine/state/card.ts`:
+
+- `CardNotFoundError` (`code: 'CARD_NOT_FOUND'`) — wraps ENOENT.
+- `CardParseError` (`code: 'CARD_PARSE_FAILED'`, `reason: 'yaml' | 'schema'`) — wraps gray-matter `YAMLException` and Zod `ZodError`.
+- `messageForReadCardError(err, cardId, cardPath)` — exported helper that returns the user-facing message string.
+
+This step's lenient-`listCards` variant should `import { CardParseError } from '../state/card.js'` and use `instanceof CardParseError` to discriminate per-file parse failures from unknown errors that should rethrow:
+
+```ts
+for (const name of mdFiles) {
+  const fullPath = join(cardsDir, name);
+  try {
+    cards.push(await readCard(fullPath));
+  } catch (e) {
+    if (e instanceof CardParseError) {
+      errors.push({ path: fullPath, message: e.message });
+    } else {
+      throw e;  // ENOENT (race), permission errors, etc. propagate
+    }
+  }
+}
+```
+
+Non-ENOENT I/O errors (EACCES, EISDIR) propagate raw from `readCard` and should NOT be silenced by lenient `listCards` — they indicate filesystem-level problems that warrant surfacing.

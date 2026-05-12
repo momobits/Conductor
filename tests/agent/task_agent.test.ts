@@ -116,4 +116,43 @@ describe('TaskAgent', () => {
       expect(events[0].message).toMatch(/no-such-card/);
     }
   });
+
+  it('emits parse-aware error event when card YAML is malformed', async () => {
+    const repo = mkdtempSync(join(tmpdir(), 'conductor-agent-bad-'));
+    const cardsDir = join(repo, '.conductor', 'cards');
+    mkdirSync(cardsDir, { recursive: true });
+    const cardId = '2026-05-12-broken-card';
+    writeFileSync(
+      join(cardsDir, `${cardId}.md`),
+      `---
+id: ${cardId}
+title: Broken
+kind: feature
+column: discovered
+phase: unassigned
+priority: high
+autonomy: inherit
+model_overrides: {}
+created: 2026-05-12T00:00:00Z
+source: user
+labels: []
+blocked_by: []
+---
+
+# Original Issue
+`,
+      'utf8',
+    );
+    const config = ProjectConfigSchema.parse({});
+    const agent = new TaskAgent({ repo, cardId, adapter: new MockAdapter(), config });
+    const events: TaskEvent[] = [];
+    for await (const e of agent.run()) events.push(e);
+    expect(events).toHaveLength(1);
+    expect(events[0].kind).toBe('error');
+    if (events[0].kind === 'error') {
+      expect(events[0].message).toMatch(/parse/i);
+      expect(events[0].message).not.toMatch(/not found/i);
+      expect(events[0].message).toContain(cardId);
+    }
+  });
 });
