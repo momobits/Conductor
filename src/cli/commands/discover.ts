@@ -54,7 +54,7 @@ export async function runDiscover(args: DiscoverCliArgs): Promise<string[]> {
         blocked_by: [],
       },
       body: [
-        '# Original Issue',
+        '## Original Issue',
         '',
         item.rationale,
         '',

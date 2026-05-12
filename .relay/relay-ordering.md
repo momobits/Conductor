@@ -42,7 +42,7 @@ Ship as two independent PRs or one combined cleanup PR.
 
 | # | Item | File | Complexity | Depends on |
 |---|---|---|---|---|
-| 4 | Promote `# Original Issue` → `## Original Issue` across discover + createCard + docstring | [discover-original-issue-uses-h1-not-h2.md](issues/discover-original-issue-uses-h1-not-h2.md) | XS | — |
+| 4 | ~~Promote `# Original Issue` → `## Original Issue` across discover + createCard + docstring~~ ✓ [implemented](implemented/discover-original-issue-uses-h1-not-h2.md) (2026-05-12) | ~~[discover-original-issue-uses-h1-not-h2.md](issues/discover-original-issue-uses-h1-not-h2.md)~~ → [archive](archive/issues/discover-original-issue-uses-h1-not-h2.md) | XS | — |
 | 5 | `cost show` exits 1 (or via `--strict`) when daemon is down | [cost-show-exits-zero-when-daemon-down.md](issues/cost-show-exits-zero-when-daemon-down.md) | XS | — |
 
 **Why now:** trivial diffs, no risk, immediate consistency improvements. Clears the board before larger refactors.

@@ -3,7 +3,7 @@
 // Card persistence: read, write, list, and append-section.
 // Cards are markdown files with YAML frontmatter at .conductor/cards/<id>.md.
 // Body sections accrete over the lifecycle (Relay-style):
-//   # Original Issue
+//   ## Original Issue
 //   ---
 //   ## Analysis
 //   ---
@@ -208,7 +208,7 @@ export async function createCard(
     blocked_by: [],
   });
   const head = yaml.dump(frontmatter, { lineWidth: 0, noRefs: true });
-  const body = args.body ?? '# Original Issue\n\n';
+  const body = args.body ?? '## Original Issue\n\n';
   const out = `---\n${head}---\n\n${body}`;
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, out, 'utf8');

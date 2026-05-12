@@ -49,6 +49,8 @@ describe('conductor discover CLI', () => {
     const card = await readFile(join(tmp, '.conductor', 'cards', '2026-05-07-fix-x.md'), 'utf8');
     expect(card).toContain('Fix x');
     expect(card).toContain('source: discover');
+    expect(card).toContain('## Original Issue');
+    expect(card).not.toMatch(/^# Original Issue/m);
   });
 
   it('skips items whose card id already exists', async () => {

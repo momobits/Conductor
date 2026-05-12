@@ -3,7 +3,7 @@
 > One branch, two short commits. Each step closes with `<type>(10.<N>): <subject>`
 > and flips its checkbox in the same commit.
 
-- [ ] 10.1 — Promote `# Original Issue` → `## Original Issue` across discover + createCard + docstring
+- [x] 10.1 — Promote `# Original Issue` → `## Original Issue` across discover + createCard + docstring
 - [ ] 10.2 — `cost show` exits 1 (or via `--strict`) when daemon is down
 
 ## Step detail

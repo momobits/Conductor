@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm, copyFile, writeFile, mkdir } from 'node:fs/promises';
+import { mkdtemp, rm, copyFile, writeFile, mkdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,6 +10,7 @@ import {
   listCardsLenient,
   appendSection,
   buildCardPath,
+  createCard,
   CardNotFoundError,
   CardParseError,
   messageForReadCardError,
@@ -232,5 +233,14 @@ describe('buildCardPath', () => {
     // Cross-platform: path.join uses platform separator. Just check the
     // result ends with the expected filename.
     expect(p.endsWith('abc-123.md')).toBe(true);
+  });
+});
+
+describe('createCard', () => {
+  it('default body starts with `## Original Issue` (H2 to match lifecycle section convention)', async () => {
+    const id = await createCard(tmp, { slug: 'h2-default', title: 'H2 default', kind: 'issue' });
+    const written = await readFile(join(cardsDir, `${id}.md`), 'utf8');
+    expect(written).toMatch(/\n\n## Original Issue\n\n/);
+    expect(written).not.toMatch(/\n\n# Original Issue\n\n/);
   });
 });
