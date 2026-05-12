@@ -87,4 +87,41 @@ describe('conductor discover CLI', () => {
     });
     expect(filed).toEqual([]);
   });
+
+  it('surfaces existing cards to the LLM via runDiscover', async () => {
+    await writeFile(join(tmp, '.conductor', 'cards', '2026-05-07-pre-existing.md'), [
+      '---',
+      'id: 2026-05-07-pre-existing',
+      'title: A Pre-Existing Card',
+      'kind: issue',
+      'column: planned',
+      'phase: unassigned',
+      'priority: 1',
+      'autonomy: inherit',
+      'model_overrides: {}',
+      "created: '2026-05-07T00:00:00Z'",
+      'source: user',
+      'labels: []',
+      'blocked_by: []',
+      '---',
+      '',
+      'body',
+    ].join('\n'));
+    const adapter = new MockAdapter();
+    adapter.push({
+      text: JSON.stringify({
+        items: [
+          { slug: 'unrelated-thing', title: 'Unrelated', kind: 'issue', rationale: 'r', source_evidence: 'e' },
+        ],
+      }),
+      inputTokens: 1, outputTokens: 1,
+    });
+    await runDiscover({
+      cwd: tmp, adapter, model: 'mock-model',
+      now: new Date('2026-05-07T00:00:00Z'),
+    });
+    const req = adapter.lastRequest!;
+    expect(req.user).toContain('--- Existing cards (DO NOT duplicate) ---');
+    expect(req.user).toContain('2026-05-07-pre-existing  [planned]  A Pre-Existing Card');
+  });
 });

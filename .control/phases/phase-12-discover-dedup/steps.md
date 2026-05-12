@@ -3,7 +3,7 @@
 > Single item, M-complexity. Ships as one or two sequential commits in one branch.
 > The step closes with `<type>(12.1): <subject>` and flips its checkbox in the same commit.
 
-- [ ] 12.1 — `conductor discover` passes existing-card summary into the LLM user prompt; SYSTEM_PROMPT instructs no-overlap
+- [x] 12.1 — `conductor discover` passes existing-card summary into the LLM user prompt; SYSTEM_PROMPT instructs no-overlap
 
 ## Step detail
 

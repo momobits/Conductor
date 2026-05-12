@@ -10,6 +10,7 @@ import { simpleGit } from 'simple-git';
 import type { ModelAdapter } from '../../adapters/adapter.js';
 import type { DiscoveredItem } from '../types.js';
 import { parseJsonResponse } from '../util/parse_json_response.js';
+import { listCards } from '../state/card.js';
 
 export interface DiscoverArgs {
   repo: string;
@@ -21,6 +22,11 @@ const SYSTEM_PROMPT = `You are scanning a software project for candidate
 issues. Given a list of TODO/FIXME comments and recent commit subjects,
 nominate cards to file. Each item must be specific, actionable, and worth
 a card.
+
+Do not nominate work that overlaps with an existing card. Treat an existing
+card as a hit if its title or stated scope covers the same subsystem and
+concern as your candidate. The existing cards are listed in the user message
+under "Existing cards (DO NOT duplicate)".
 
 Return ONLY a single JSON object on one line, no Markdown fence:
 
@@ -83,13 +89,31 @@ async function recentCommitSubjects(repo: string, n = 20): Promise<string[]> {
   }
 }
 
+/** Summarize active cards for the discover prompt so the model can avoid
+ *  nominating duplicates. Filters out column='archived' defense-in-depth
+ *  (resolve moves archived cards to .conductor/archive/cards/, but the
+ *  filter is a safety net if the invariant is broken). Strict listCards:
+ *  a malformed card surfaces as a throw so the operator fixes the board
+ *  before discovery rather than silently losing dedup context. Returns
+ *  [] if .conductor/cards/ is missing. */
+export async function existingCardSummary(repo: string): Promise<string[]> {
+  const cards = await listCards(join(repo, '.conductor', 'cards'));
+  return cards
+    .filter((c) => c.frontmatter.column !== 'archived')
+    .map((c) => `${c.frontmatter.id}  [${c.frontmatter.column}]  ${c.frontmatter.title}`);
+}
+
 export async function discover(args: DiscoverArgs): Promise<DiscoveredItem[]> {
   const { repo, adapter, model } = args;
 
   const todos = await collectTodos(repo);
   const commits = await recentCommitSubjects(repo);
+  const existing = await existingCardSummary(repo);
 
   const userPrompt = [
+    '--- Existing cards (DO NOT duplicate) ---',
+    existing.length > 0 ? existing.join('\n') : '(none)',
+    '',
     '--- TODO / FIXME comments ---',
     todos.length > 0 ? todos.join('\n') : '(none)',
     '',

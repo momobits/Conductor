@@ -64,13 +64,17 @@ Ship as two independent PRs or one combined cleanup PR.
 
 ---
 
-## Phase 4 — Discover op semantic dedup
+## Phase 4 — Discover op semantic dedup — COMPLETE
+
+**Resolved:** 2026-05-12
 
 | # | Item | File | Complexity | Depends on |
 |---|---|---|---|---|
-| 8 | Pass active card titles to discover LLM prompt; defense-in-depth slug overlap filter | [discover-no-topic-level-dedup-against-existing-cards.md](issues/discover-no-topic-level-dedup-against-existing-cards.md) | M | — |
+| 8 | ~~Pass active card titles to discover LLM prompt; defense-in-depth slug overlap filter~~ ✓ [implemented](implemented/discover-no-topic-level-dedup-against-existing-cards.md) (2026-05-12) | ~~[discover-no-topic-level-dedup-against-existing-cards.md](issues/discover-no-topic-level-dedup-against-existing-cards.md)~~ → [archive](archive/issues/discover-no-topic-level-dedup-against-existing-cards.md) | M | — |
 
 **Why now:** standalone change in `src/engine/ops/discover.ts`. No dependency on prior phases. Filed separately because once Phase 1 lands and `scan` is reliable, discover becomes the next-most-friction-rich operation.
+
+**Resolution:** Added `existingCardSummary(repo)` helper to `src/engine/ops/discover.ts` (strict `listCards`; archived-column filter defense-in-depth); threaded into `discover()` userPrompt at head position as `--- Existing cards (DO NOT duplicate) ---`; added no-overlap paragraph to `SYSTEM_PROMPT`. Defense-in-depth Jaccard CLI filter deferred — primary prompt-side fix is sufficient for the dogfood scenario; CLI exact-slug `access()` check preserved as last-resort. 4 new tests; full suite 512 → 516.
 
 ---
 
