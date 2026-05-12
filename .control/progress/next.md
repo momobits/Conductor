@@ -1,7 +1,7 @@
 # Next session kickoff
 
 > Auto-generated from `.control/progress/STATE.md` at 2026-05-12 by
-> `/phase-close`. Edit STATE.md's "Next action" or "Notes for next session"
+> `/session-end`. Edit STATE.md's "Next action" or "Notes for next session"
 > to influence this prompt; **do not edit next.md by hand** -- it's
 > overwritten on every session end.
 
@@ -26,3 +26,4 @@ Phase 12 is "Discover op semantic dedup" — single M-complexity item from `.rel
 - Phase 11's adversarial-review LOW finding (partial-staging detect_drift format-string assertion) was deliberately deferred — not carried forward to phase 12 because it's defense-in-depth on already-implicitly-covered behavior. Open `/relay-discover` may surface it again later; not currently filed.
 - The bucket-aware drift behavior is now operator-visible via `conductor drift [--verbose]`. Phase 12 doesn't touch drift.
 - Notebook step is skipped per `relay-config.md § Notebook Setup` (TypeScript-only project).
+- **Encoding regression observed at this session-end:** `.claude/hooks/regenerate-next-md.ps1` produced UTF-8 mojibake (`â€”` for em-dash, `Â§` for `§`) when it regenerated next.md. The file was rewritten by hand to restore clean UTF-8. Hook bug; not actionable inside the Relay pipeline — file a Control issue or fix the hook script directly in a future session.

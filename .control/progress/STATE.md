@@ -3,7 +3,7 @@
 > Single source of truth. Read this first every session. Updated at every
 > `/session-end` and by the `PreCompact` hook. Every field has a purpose -- fill each.
 
-**Last updated:** 2026-05-12 by /phase-close (session sid-2026-05-12-phase11-close-phase12-kickoff)
+**Last updated:** 2026-05-12 by /session-end (session sid-2026-05-12-phase11-close-phase12-kickoff)
 **Current phase:** phase-12-discover-dedup
 **Current step:** 12.1 — `conductor discover` passes existing-card summary into the LLM user prompt; SYSTEM_PROMPT instructs no-overlap
 **Status:** ready
@@ -24,8 +24,8 @@ Run `/relay-analyze .relay/issues/discover-no-topic-level-dedup-against-existing
 
 ## Git state
 - **Branch:** main
-- **Last commit:** `1d39edd` — feat(11.2): drift quantifies truncation; --verbose lifts the cap. The phase tag is on this commit; a `chore(phase-11)` bookkeeping commit follows during this /phase-close run.
-- **Uncommitted changes:** the /phase-close commit (this file + the new phase-12 scaffolds + next.md regen) is being staged now.
+- **Last commit:** `49557bf` — chore(phase-11): close phase 11, kick off phase 12. The most recent step commit is `1d39edd` (feat(11.2)), where the phase tag lives.
+- **Uncommitted changes:** none (will be one `docs(state)` commit after `/session-end` finishes — the standard session-end self-reference shape).
 - **Last phase tag:** `phase-11-drift-cluster-closed` (created at `1d39edd` during this session's `/phase-close`).
 
 ---
