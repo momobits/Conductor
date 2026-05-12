@@ -3,7 +3,7 @@
 > Single source of truth. Read this first every session. Updated at every
 > `/session-end` and by the `PreCompact` hook. Every field has a purpose -- fill each.
 
-**Last updated:** 2026-05-12 by /phase-close (session sid-2026-05-12-phase10-close-phase11-kickoff)
+**Last updated:** 2026-05-12 by /session-end (session sid-2026-05-12-phase10-close-phase11-kickoff)
 **Current phase:** phase-11-drift-cluster
 **Current step:** 11.1 — `uncommittedSnapshot()` returns `{ staged, unstaged, conflicted }` separately
 **Status:** ready
@@ -24,7 +24,7 @@ Run `/relay-analyze .relay/issues/drift-doesnt-distinguish-staged-vs-unstaged.md
 
 ## Git state
 - **Branch:** main
-- **Last commit:** `<filled in by phase-close commit>` — chore(phase-10): close phase 10, kick off phase 11
+- **Last commit:** `01a44ea` — chore(phase-10): close phase 10, kick off phase 11. The most recent step commit (before the phase-close bookkeeping) is `0e33726` (fix(10.2)).
 - **Uncommitted changes:** none (will be one `docs(state)` commit after `/session-end` finishes — the standard session-end self-reference shape).
 - **Last phase tag:** `phase-10-quick-wins-closed` (created at `0e33726` during this session's `/phase-close`).
 
@@ -56,7 +56,7 @@ Run `/relay-analyze .relay/issues/drift-doesnt-distinguish-staged-vs-unstaged.md
 ---
 
 ## Recently completed (last 5 steps)
-- `<phase-close sha>` — chore(phase-10): close phase 10, kick off phase 11 — 2026-05-12
+- 01a44ea — chore(phase-10): close phase 10, kick off phase 11 — 2026-05-12
 - 0e33726 — fix(10.2): `cost show` exits 1 with stderr-routed diagnostic when daemon is down — 2026-05-12
 - 8c0647e — fix(10.1): promote `# Original Issue` to `## Original Issue` for section consistency — 2026-05-12
 - 7272ecd — docs(state): session end for step 10.1 — 2026-05-12
