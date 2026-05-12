@@ -4,11 +4,12 @@
 // tree, then commit with Control's commit-per-step format.
 
 import { writeFile, mkdir, rm, access } from 'node:fs/promises';
-import { join, resolve, relative, dirname, isAbsolute } from 'node:path';
+import { resolve, relative, dirname, isAbsolute } from 'node:path';
 import type { ModelAdapter } from '../../adapters/adapter.js';
 import { COMMIT_TYPES, type Card, type CommitType, type Diff, type DiffFile } from '../types.js';
 import { appendSection } from '../state/card.js';
 import { commitStep } from '../state/git.js';
+import { parseJsonResponse } from '../util/parse_json_response.js';
 
 export interface ImplementArgs {
   repo: string;
@@ -102,8 +103,8 @@ export async function implement(args: ImplementArgs): Promise<Diff> {
 
   let diff: Diff;
   try {
-    const parsed = JSON.parse(resp.text.trim());
-    if (!COMMIT_TYPES.includes(parsed.commit_type)) {
+    const parsed = parseJsonResponse<{ step?: string; commit_type?: string; commit_subject?: string; files?: unknown[]; notes?: string }>(resp.text, { op: 'implement' });
+    if (!parsed.commit_type || !(COMMIT_TYPES as readonly string[]).includes(parsed.commit_type)) {
       throw new Error(
         `Invalid commit_type "${parsed.commit_type}" from model; expected one of ${COMMIT_TYPES.join(', ')}.`,
       );
@@ -112,7 +113,7 @@ export async function implement(args: ImplementArgs): Promise<Diff> {
       step: String(parsed.step ?? step),
       commit_type: parsed.commit_type as CommitType,
       commit_subject: String(parsed.commit_subject ?? ''),
-      files: Array.isArray(parsed.files) ? parsed.files : [],
+      files: Array.isArray(parsed.files) ? (parsed.files as DiffFile[]) : [],
       notes: String(parsed.notes ?? ''),
     };
   } catch (e) {
@@ -123,13 +124,8 @@ export async function implement(args: ImplementArgs): Promise<Diff> {
     await applyDiffFile(repo, f);
   }
 
-  await commitStep(repo, {
-    type: diff.commit_type,
-    phase: card.frontmatter.phase,
-    step: diff.step,
-    subject: diff.commit_subject,
-  });
-
+  // Append the implementation guideline BEFORE committing so the card body
+  // update is part of the same step commit as the code changes.
   const guideline = [
     `### Step ${diff.step} — ${diff.commit_subject}`,
     '',
@@ -139,6 +135,21 @@ export async function implement(args: ImplementArgs): Promise<Diff> {
   ].join('\n');
 
   await appendSection(card.path, 'Implementation Guidelines', guideline);
+
+  // Stage only what this step touched: the diff files + the card markdown.
+  // Critical: commitStep no longer accepts an empty list and no longer
+  // runs `git add .` (T6-1 fix). Anything else in the working tree must
+  // be handled by the user outside conductor's scope.
+  const cardRelative = relative(repo, card.path).replace(/\\/g, '/');
+  const filesToCommit = [...diff.files.map((f) => f.path), cardRelative];
+
+  await commitStep(repo, {
+    type: diff.commit_type,
+    phase: card.frontmatter.phase,
+    step: diff.step,
+    subject: diff.commit_subject,
+    files: filesToCommit,
+  });
 
   return diff;
 }

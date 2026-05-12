@@ -13,6 +13,12 @@ export interface CommitStepArgs {
   phase: string; // phase ordinal or short name; e.g. '2' or '2a'
   step: string;  // e.g. '5.3'
   subject: string;
+  /** Files to stage for this commit. Repo-relative paths. Required —
+   *  previous behavior used `git add .` which would sweep unrelated
+   *  working-tree changes into a conductor step commit (dogfood
+   *  finding T6-1). Callers MUST pass the exact files they intend to
+   *  commit (typically the diff files written + the card markdown). */
+  files: string[];
 }
 
 function git(repo: string): SimpleGit {
@@ -29,7 +35,14 @@ export async function commitStep(
   args: CommitStepArgs,
 ): Promise<string> {
   const g = git(repo);
-  await g.add('.');
+  if (args.files.length === 0) {
+    throw new Error(
+      'commitStep: no files supplied. The caller must list the exact files ' +
+        'to commit; "git add ." is forbidden to avoid sweeping unrelated ' +
+        'working-tree changes into a conductor step commit (T6-1).',
+    );
+  }
+  await g.add(args.files);
   const subject = `${args.type}(${args.phase}.${args.step}): ${args.subject}`;
   const result = await g.commit(subject);
   return result.commit;
