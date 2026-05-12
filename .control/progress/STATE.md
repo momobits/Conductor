@@ -3,9 +3,9 @@
 > Single source of truth. Read this first every session. Updated at every
 > `/session-end` and by the `PreCompact` hook. Every field has a purpose -- fill each.
 
-**Last updated:** 2026-05-12 by /session-end (session sid-2026-05-12-phase9-steps92-93-close-phase10-kickoff)
-**Current phase:** phase-10-quick-wins
-**Current step:** 10.1 — Promote `# Original Issue` → `## Original Issue` across discover + createCard + docstring
+**Last updated:** 2026-05-12 by /phase-close (session sid-2026-05-12-phase10-close-phase11-kickoff)
+**Current phase:** phase-11-drift-cluster
+**Current step:** 11.1 — `uncommittedSnapshot()` returns `{ staged, unstaged, conflicted }` separately
 **Status:** ready
 
 ---
@@ -18,15 +18,15 @@
 ---
 
 ## Next action
-Run `/relay-analyze .relay/issues/discover-original-issue-uses-h1-not-h2.md` to begin step 10.1. This is an XS-complexity diff (≤10 lines across `src/cli/commands/discover.ts:57`, `src/engine/state/card.ts:118`, and the docstring at `card.ts:6-12`). Single-pass `/relay-plan` is appropriate; `/relay-superplan` would be over-engineered for this trivial change.
+Run `/relay-analyze .relay/issues/drift-doesnt-distinguish-staged-vs-unstaged.md` to begin step 11.1. M-complexity refactor (split `uncommittedFiles` → `uncommittedSnapshot()` with three buckets) in `src/engine/state/git.ts:90-102`, then thread the new shape through `src/engine/ops/detect_drift.ts:90-110`. Single-pass `/relay-plan` is appropriate; `/relay-superplan` is overkill for a same-file refactor.
 
 ---
 
 ## Git state
 - **Branch:** main
-- **Last commit:** 82ec2ca — chore(phase-9): close phase 9, kick off phase 10. The most recent step commit (before the phase-close bookkeeping) is `159387d` (fix(9.3)).
+- **Last commit:** `<filled in by phase-close commit>` — chore(phase-10): close phase 10, kick off phase 11
 - **Uncommitted changes:** none (will be one `docs(state)` commit after `/session-end` finishes — the standard session-end self-reference shape).
-- **Last phase tag:** `phase-9-malformed-yaml-error-surface-closed` (created at `159387d` during this session's `/phase-close`).
+- **Last phase tag:** `phase-10-quick-wins-closed` (created at `0e33726` during this session's `/phase-close`).
 
 ---
 
@@ -36,54 +36,53 @@ Run `/relay-analyze .relay/issues/discover-original-issue-uses-h1-not-h2.md` to 
 ---
 
 ## In-flight work
-- None — fresh phase-10 kickoff. Two XS items planned (10.1 H1→H2 promotion; 10.2 cost-show exit code). Both ship as independent commits in one branch per `.relay/relay-ordering.md § Phase 2`.
+- None — fresh phase-11 kickoff. Two items planned (11.1 `uncommittedSnapshot()` refactor M; 11.2 `… N more` + `--verbose` S). 11.2 depends on 11.1's helper. Both ship as sequential commits in one branch per `.relay/relay-ordering.md § Phase 3`.
 
 ---
 
 ## Test / eval status
-- **Last test run:** 2026-05-12 — `npm test` → **497/497 pass across 96 test files** in 15.65s. Zero regressions. (Re-verified at HEAD `159387d` immediately before this phase-close.)
+- **Last test run:** 2026-05-12 — `npm test` → **499/499 pass across 96 test files** in 14.84s at HEAD `0e33726`. Zero regressions. Smoke test confirmed for phase 10.2: `node dist/cli/index.js cost show` with no daemon prints diagnostic and exits 1.
 - **Eval score** (agent phases only): n/a.
-- **Regression tests added in phase-9:** 9.1 added 11 cases in `tests/engine/state/card.test.ts`; 9.2 added 6 more (`listCardsLenient`) + 1 in `tests/engine/ops/scan.test.ts` + 1 in `tests/cli/scan.test.ts` (8 total for 9.2); 9.3 rewrote 2 existing `tests/agent/task_agent.test.ts` cases to assert thrown error + no phantom dir, extended 1 `tests/cli/work.test.ts` case, and added 1 new redteam case (`tests/adversarial/loop_redteam.test.ts`) using a synthetic throw-factory. Net suite: 488 → 497 (+9).
+- **Regression tests added in phase-10:** 10.1 added 2 assertions to the existing `tests/cli/discover.test.ts` test plus 1 new test in `tests/engine/state/card.test.ts` (new `describe('createCard')` block, net +1 test entry); 10.2 flipped the existing `tests/cli/cost-cli.test.ts` exit-code assertion (and renamed its title) plus 1 new logErr-routing test (+1 test entry). Net suite: 497 → 499 (+2).
 
 ---
 
 ## Recent decisions (last 3 ADRs)
-- No formal ADRs filed during phase-9. Two design decisions are inline-documented and durable in `.relay/relay-config.md § Edge Cases > Data Boundaries`:
-  - **Typed `readCard` errors** (`CardNotFoundError` / `CardParseError` with `reason: 'yaml' | 'schema'` and a `code` discriminator for wire-boundary duck-typing) + `messageForReadCardError(err, cardId, cardPath)` helper as single source of truth for user-facing message text.
-  - **`listCards` vs `listCardsLenient`** policy: snapshot/decision paths use strict; observability surfaces use lenient. The lenient variant catches per-file `CardParseError` and rethrows everything else via `instanceof` discrimination.
-  - **`TaskAgent.run()` throw-vs-yield contract**: pre-run validation failures throw (no run dir created); mid-run errors yield `{kind:'error',...}` as before. The autonomy loop's `runOneCard` wraps the for-await in try/catch and routes thrown errors through the same `classifyHalt + publish conductor-halt` branch as yielded ones — single diagnostic UX.
-- Promote any of these to formal ADRs (`.control/architecture/decisions/`) if a downstream phase needs to reference the design explicitly.
+- No formal ADRs filed during phase-10. Two notable behaviors are inline-documented in their archived issue files:
+  - **`createCard`'s default body is dead-code-at-runtime today** (`src/engine/state/card.ts:211`) — the RPC `card_new` handler always passes `body: p.body ?? ''` (empty string short-circuits `??`); the CLI `runCardNew` bypasses `createCard` entirely with its own `writeFile`. The H2 default is kept for docstring-contract consistency and to be correct for any future caller; the new `describe('createCard')` test pins it.
+  - **CLI failure-exit convention** is now consistent across `scan`, `drift`, `init`, and `cost`: `process.exitCode = 1` (Windows-safe; no `process.exit(1)`), set conditionally only when failing (`if (code !== 0) process.exitCode = code` in `attachCost`; `scan.ts:44-46` uses `if (status.cards.length === 0 && errs.length > 0) ...`). Promote to a formal ADR if a downstream phase needs to reference the convention explicitly.
+- A potential ADR may emerge during 11.1's `/relay-analyze` if the `uncommittedSnapshot()` bucket structure becomes a wider contract beyond drift's use.
 
 ---
 
 ## Recently completed (last 5 steps)
+- `<phase-close sha>` — chore(phase-10): close phase 10, kick off phase 11 — 2026-05-12
+- 0e33726 — fix(10.2): `cost show` exits 1 with stderr-routed diagnostic when daemon is down — 2026-05-12
+- 8c0647e — fix(10.1): promote `# Original Issue` to `## Original Issue` for section consistency — 2026-05-12
+- 7272ecd — docs(state): session end for step 10.1 — 2026-05-12
 - 82ec2ca — chore(phase-9): close phase 9, kick off phase 10 — 2026-05-12
-- 159387d — fix(9.3): work validates card before creating run dir — 2026-05-12
-- a374f8a — fix(9.2): scan continues on per-card YAML failure — 2026-05-12
-- 1fb8561 — fix(9.1): differentiate ENOENT from parse-failure in readCard callers — 2026-05-12
-- 485944d — chore(9.0): bootstrap Control phase-9 scaffold — 2026-05-12
 
 ---
 
 ## Attempts that didn't work (current step only)
-- None for step 10.1 yet.
+- None for step 11.1 yet.
 
 ---
 
 ## Environment snapshot
-- **Language / runtime:** TypeScript (Node ≥ 20). Engine builds with `tsc -p tsconfig.json`; UI built by `scripts/build-ui.mjs`. zod 3.23.8 confirmed as direct dep.
+- **Language / runtime:** TypeScript (Node ≥ 20). Engine builds with `tsc -p tsconfig.json` (NOT auto-run by `npm test` — `npm test` uses vitest's own transformer against `src/`, so smoke tests against `node dist/...` require an explicit `npm run build` first). UI built by `scripts/build-ui.mjs`. zod 3.23.8 confirmed as direct dep.
 - **Key pinned deps:** vitest, simple-git, gray-matter, zod, chokidar, @anthropic-ai/sdk.
 - **Model in use:** Claude Opus 4.7 (1M context).
-- **Other:** Chokidar polling (50ms interval, 100ms stabilityThreshold). `pretest` builds the UI via `scripts/build-ui.mjs` — `npm test` runs `tsc -p tsconfig.json && npm run build:ui && vitest run`. Test timeout 5000ms.
+- **Other:** Chokidar polling (50ms interval, 100ms stabilityThreshold). `pretest` builds only the UI via `npm run build:ui`. `npm test` is `vitest run` against `src/`. Test timeout 5000ms.
 
 ---
 
 ## Notes for next session
 
-Phase 10 is "Quick wins" (two XS-complexity fixes from `.relay/relay-ordering.md § Phase 2`):
+Phase 11 is "Drift command refactor (cluster)" — bundles two related dogfood findings (T5-4 + T5-5) that both touch `src/engine/state/git.ts` and `src/engine/ops/detect_drift.ts`. Per `.relay/relay-ordering.md § Phase 3`:
 
-- **Step 10.1** — `discover-original-issue-uses-h1-not-h2`. Three-line diff across `src/cli/commands/discover.ts:57`, `src/engine/state/card.ts:118`, and the docstring at `card.ts:6-12`. Update any existing test that greps for `# Original Issue` (likely in `tests/cli/discover.test.ts` or `tests/engine/state/card.test.ts` — search before editing).
-- **Step 10.2** — `cost-show-exits-zero-when-daemon-down`. `src/cli/commands/cost.ts:22-27` adds a `process.exitCode = 1` branch when `discoverDaemon()` returns undefined. Match the Windows-safe `exitCode` pattern from 9.2's scan CLI; do not use `process.exit(1)`. Decide between unconditional non-zero vs `--strict` flag during `/relay-analyze` (lean: unconditional, simpler).
-- Both ship as independent commits in one branch. After both close, `/phase-close` will tag `phase-10-quick-wins-closed`.
-- Test commands per `.relay/relay-config.md § Test Commands`: targeted vitest paths for `tests/cli/` and `tests/engine/state/`, then full `npm test`. Notebook step is skipped (TypeScript-only project per `relay-config.md § Notebook Setup`).
-- The phase-9 typed-error infrastructure is not used by phase-10 — these are pure UX fixes.
+- **Step 11.1** — `drift-doesnt-distinguish-staged-vs-unstaged`. M-complexity refactor: introduce `uncommittedSnapshot()` returning `{ staged, unstaged, conflicted }` arrays in `src/engine/state/git.ts:90-102`. Map the seven git status fields (`created`/`modified`/`deleted`/`renamed`/`staged`/`not_added`/`conflicted`) into three buckets; decide rename + partial-stage edge case rules during `/relay-analyze`. Then thread the new shape through `src/engine/ops/detect_drift.ts:90-110`'s `uncommitted-state-mismatch` payload.
+- **Step 11.2** — `drift-truncates-file-list-at-10`. S-complexity, depends on 11.1's `uncommittedSnapshot()`. `src/engine/ops/detect_drift.ts:101` truncates the file-list preview at 10 silently. Add a per-bucket truncation accounting (`… N more` suffix) and a `--verbose` flag on `src/cli/commands/drift.ts` that lifts the cap. Test commands: `npx vitest run tests/engine/state/git.test.ts tests/engine/ops/detect_drift.test.ts tests/cli/drift.test.ts`.
+- Both ship as sequential commits in one branch (11.2 imports the helper from 11.1). After both close, `/phase-close` will tag `phase-11-drift-cluster-closed`.
+- Phase-10's adversarial-review finding (`runCardNew:79` writes `# Original` H1) and the `.relay/relay-readme.md:332` lifecycle-diagram drift are filed only in the phase-10 impl docs / archived issue Related Work — they are NOT carried forward as Control deferrals because they belong in the Relay phase-7 docs bundle, not in phase-11's drift work.
+- Notebook step is skipped per `relay-config.md § Notebook Setup` (TypeScript-only project).
