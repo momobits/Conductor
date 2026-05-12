@@ -1,9 +1,9 @@
 # Next session kickoff
 
-> Auto-generated from `.control/progress/STATE.md` at 2026-05-12T18:54:07Z by
-> `.claude/hooks/regenerate-next-md.sh`. Edit STATE.md's "Next action"
-> or "Notes for next session" to influence this prompt; **do not edit
-> next.md by hand** -- it's overwritten on every session end.
+> Auto-generated from `.control/progress/STATE.md` at 2026-05-12 by
+> `/phase-close`. Edit STATE.md's "Next action" or "Notes for next session"
+> to influence this prompt; **do not edit next.md by hand** -- it's
+> overwritten on every session end.
 
 This is a Control-managed project. Bootstrap protocol:
 
@@ -15,14 +15,14 @@ If the SessionStart hook is installed, steps 1-3 run automatically and you
 see a structured `[control:state]` block instead of doing them by hand.
 
 ## Next action
-Run `/relay-analyze .relay/issues/drift-doesnt-distinguish-staged-vs-unstaged.md` to begin step 11.1. M-complexity refactor (split `uncommittedFiles` → `uncommittedSnapshot()` with three buckets) in `src/engine/state/git.ts:90-102`, then thread the new shape through `src/engine/ops/detect_drift.ts:90-110`. Single-pass `/relay-plan` is appropriate; `/relay-superplan` is overkill for a same-file refactor.
+Run `/relay-analyze .relay/issues/discover-no-topic-level-dedup-against-existing-cards.md` to begin step 12.1. M-complexity refactor — add `existingCardSummary(repo)` helper, thread into the discover user prompt as `--- Existing cards (DO NOT duplicate) ---`, update SYSTEM_PROMPT to instruct no-overlap. Single-pass `/relay-plan` is appropriate; the change is contained to `src/engine/ops/discover.ts` plus its tests, with optional defense-in-depth filter in `src/cli/commands/discover.ts` decided during `/relay-analyze`.
 
 ## Notes for next session
 
-Phase 11 is "Drift command refactor (cluster)" — bundles two related dogfood findings (T5-4 + T5-5) that both touch `src/engine/state/git.ts` and `src/engine/ops/detect_drift.ts`. Per `.relay/relay-ordering.md § Phase 3`:
+Phase 12 is "Discover op semantic dedup" — single M-complexity item from `.relay/relay-ordering.md § Phase 4`:
 
-- **Step 11.1** — `drift-doesnt-distinguish-staged-vs-unstaged`. M-complexity refactor: introduce `uncommittedSnapshot()` returning `{ staged, unstaged, conflicted }` arrays in `src/engine/state/git.ts:90-102`. Map the seven git status fields (`created`/`modified`/`deleted`/`renamed`/`staged`/`not_added`/`conflicted`) into three buckets; decide rename + partial-stage edge case rules during `/relay-analyze`. Then thread the new shape through `src/engine/ops/detect_drift.ts:90-110`'s `uncommitted-state-mismatch` payload.
-- **Step 11.2** — `drift-truncates-file-list-at-10`. S-complexity, depends on 11.1's `uncommittedSnapshot()`. `src/engine/ops/detect_drift.ts:101` truncates the file-list preview at 10 silently. Add a per-bucket truncation accounting (`… N more` suffix) and a `--verbose` flag on `src/cli/commands/drift.ts` that lifts the cap. Test commands: `npx vitest run tests/engine/state/git.test.ts tests/engine/ops/detect_drift.test.ts tests/cli/drift.test.ts`.
-- Both ship as sequential commits in one branch (11.2 imports the helper from 11.1). After both close, `/phase-close` will tag `phase-11-drift-cluster-closed`.
-- Phase-10's adversarial-review finding (`runCardNew:79` writes `# Original` H1) and the `.relay/relay-readme.md:332` lifecycle-diagram drift are filed only in the phase-10 impl docs / archived issue Related Work — they are NOT carried forward as Control deferrals because they belong in the Relay phase-7 docs bundle, not in phase-11's drift work.
+- **Step 12.1** — `discover-no-topic-level-dedup-against-existing-cards`. The issue (T2-3) is straightforward: `conductor discover` today has zero visibility into existing cards (`src/engine/ops/discover.ts:92-98` user prompt has only TODO/FIXME + commit subjects; `src/cli/commands/discover.ts:36-39` dedups by exact filename only). Fix: add `existingCardSummary(repo)` helper that lists active cards as `<id> [<column>] <title>`, thread into the user prompt as `--- Existing cards (DO NOT duplicate) ---`, and update SYSTEM_PROMPT with a no-overlap instruction. Optional defense-in-depth: post-model slug-overlap (Jaccard) filter in `src/cli/commands/discover.ts` — decide during `/relay-analyze` whether to include or defer. Test commands: `npx vitest run tests/engine/ops/discover.test.ts tests/cli/discover.test.ts`.
+- After 12.1 closes, `/phase-close` will tag `phase-12-discover-dedup-closed`. There's no 12.2 unless `/relay-analyze` discovers the defense-in-depth filter needs its own step.
+- Phase 11's adversarial-review LOW finding (partial-staging detect_drift format-string assertion) was deliberately deferred — not carried forward to phase 12 because it's defense-in-depth on already-implicitly-covered behavior. Open `/relay-discover` may surface it again later; not currently filed.
+- The bucket-aware drift behavior is now operator-visible via `conductor drift [--verbose]`. Phase 12 doesn't touch drift.
 - Notebook step is skipped per `relay-config.md § Notebook Setup` (TypeScript-only project).
