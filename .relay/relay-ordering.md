@@ -18,7 +18,9 @@ All 16 items originate from the same dogfood session (`docs/dogfood-log.md` 2026
 
 ---
 
-## Phase 1 — Malformed-YAML error surface (P1 bugs)
+## Phase 1 — Malformed-YAML error surface (P1 bugs) — COMPLETE
+
+**Resolved:** 2026-05-12
 
 **Single readCard error-handling refactor; ship as one PR or three sequential commits in one branch.** All three items touch overlapping surface (`readCard` error semantics, `task_agent.ts` card-load path, `listCards` recovery). Doing them in sequence in the same branch keeps the typed-error pattern consistent.
 
@@ -26,7 +28,7 @@ All 16 items originate from the same dogfood session (`docs/dogfood-log.md` 2026
 |---|---|---|---|---|
 | 1 | ~~Differentiate ENOENT from parse-failure in `readCard` callers~~ ✓ [implemented](implemented/misleading-card-not-found-for-malformed-yaml.md) (2026-05-12) | ~~[misleading-card-not-found-for-malformed-yaml.md](issues/misleading-card-not-found-for-malformed-yaml.md)~~ → [archive](archive/issues/misleading-card-not-found-for-malformed-yaml.md) | S | — |
 | 2 | ~~`scan` continues on per-card YAML failure (warns, exits 0 if any healthy)~~ ✓ [implemented](implemented/scan-bails-entirely-on-one-malformed-card.md) (2026-05-12) | ~~[scan-bails-entirely-on-one-malformed-card.md](issues/scan-bails-entirely-on-one-malformed-card.md)~~ → [archive](archive/issues/scan-bails-entirely-on-one-malformed-card.md) | M | #1 (uses typed errors) ✓ available |
-| 3 | `work` validates card before creating run dir | [work-creates-run-dir-before-validating-card.md](issues/work-creates-run-dir-before-validating-card.md) | S | #1 (same `task_agent.ts:74-77` block) ✓ available |
+| 3 | ~~`work` validates card before creating run dir~~ ✓ [implemented](implemented/work-creates-run-dir-before-validating-card.md) (2026-05-12) | ~~[work-creates-run-dir-before-validating-card.md](issues/work-creates-run-dir-before-validating-card.md)~~ → [archive](archive/issues/work-creates-run-dir-before-validating-card.md) | S | #1 (same `task_agent.ts:74-77` block) ✓ available |
 
 **Why this phase first:** `scan` is the central observability command; one bad card silences the whole board view (P1). The "Card not found" lie blocks diagnosis (P1). Phantom run dirs (P2) accumulate every time the first two bugs are hit. They share `readCard()` error surface — doing them together prevents two passes through the same code.
 

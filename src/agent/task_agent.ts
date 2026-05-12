@@ -73,8 +73,7 @@ export class TaskAgent {
       card = await readCard(cardPath);
     } catch (e: unknown) {
       const message = messageForReadCardError(e, this.cardId, cardPath);
-      yield await this.emit({ kind: 'error', cardId: this.cardId, message });
-      return;
+      throw new Error(message);
     }
 
     const column = card.frontmatter.column;

@@ -176,4 +176,32 @@ describe('Conductor loop — adversarial', () => {
     );
     expect(halt).toBeDefined();
   });
+
+  it('publishes conductor-halt when agent factory throws (9.3 pre-run validation contract)', async () => {
+    const { repo, cardId } = await setupCard();
+    const cfg = ProjectConfigSchema.parse({
+      routing: { default: 'mock' },
+      autonomy: { default: 'auto' },
+    });
+    const events: DaemonEvent[] = [];
+    const bus = new EventBus();
+    bus.subscribe((e) => events.push(e));
+    const factory = (_cid: string) =>
+      (async function* (): AsyncGenerator<TaskEvent> {
+        throw new Error(`Card not found: ${cardId} (looked at .conductor/cards/${cardId}.md)`);
+      })();
+    const c = new Conductor({
+      repo,
+      config: cfg,
+      runtime: new InMemoryRuntime(),
+      bus,
+      agentFactory: factory,
+      iterationLimit: 5,
+    });
+    await c.start();
+    const halt = events.find(
+      (e) => e.kind === 'conductor-halt' && /not found/i.test(e.reason),
+    );
+    expect(halt).toBeDefined();
+  });
 });

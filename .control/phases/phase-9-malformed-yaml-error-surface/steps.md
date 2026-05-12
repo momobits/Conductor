@@ -5,7 +5,7 @@
 
 - [x] 9.1 — Differentiate ENOENT from parse-failure in `readCard` callers
 - [x] 9.2 — `scan` continues on per-card YAML failure (warns, exits 0 if any healthy)
-- [ ] 9.3 — `work` validates card before creating run dir
+- [x] 9.3 — `work` validates card before creating run dir
 
 ## Step detail
 

@@ -133,45 +133,50 @@ export class Conductor {
     let escalated = false;
     let halt = false;
     let haltReason: string | undefined;
-    for await (const ev of this.agentFactory(cardId)) {
-      if (ev.kind === 'transition_request') {
-        const mode = this.effectiveMode(cardId);
-        const recommendation = ev.recommendation;
-        if (!recommendation || ev.policy === 'manual') {
-          this.bus.publish({ kind: 'conductor-decision', cardId, action: 'escalate', reason: ev.policy === 'manual' ? 'manual policy' : 'no recommendation', optionId: 'approve' });
+    try {
+      for await (const ev of this.agentFactory(cardId)) {
+        if (ev.kind === 'transition_request') {
+          const mode = this.effectiveMode(cardId);
+          const recommendation = ev.recommendation;
+          if (!recommendation || ev.policy === 'manual') {
+            this.bus.publish({ kind: 'conductor-decision', cardId, action: 'escalate', reason: ev.policy === 'manual' ? 'manual policy' : 'no recommendation', optionId: 'approve' });
+            escalated = true;
+            break;
+          }
+          const decision = await conduct({ mode, recommendation, threshold: this.config.confidence.threshold });
+          this.bus.publish({ kind: 'conductor-decision', cardId, action: decision.action, reason: decision.reason, optionId: decision.optionId });
+          if (decision.action === 'halt') {
+            this.haltCount += 1;
+            this.bus.publish({ kind: 'conductor-halt', reason: decision.reason, cardId });
+            return { queueHalted: true, advanced: false };
+          }
+          if (decision.action === 'escalate') {
+            escalated = true;
+            break;
+          }
+          // approve: write the column transition
+          const card = await readCard(cardPath);
+          card.frontmatter.column = ev.to;
+          await writeCard(card);
+          advancedTo = ev.to;
+        } else if (ev.kind === 'recommendation') {
+          this.bus.publish({ kind: 'conductor-decision', cardId, action: 'escalate', reason: `${ev.recommendation.operation} recommendation: ${ev.recommendation.recommended}`, optionId: ev.recommendation.recommended });
           escalated = true;
-          break;
-        }
-        const decision = await conduct({ mode, recommendation, threshold: this.config.confidence.threshold });
-        this.bus.publish({ kind: 'conductor-decision', cardId, action: decision.action, reason: decision.reason, optionId: decision.optionId });
-        if (decision.action === 'halt') {
-          this.haltCount += 1;
-          this.bus.publish({ kind: 'conductor-halt', reason: decision.reason, cardId });
-          return { queueHalted: true, advanced: false };
-        }
-        if (decision.action === 'escalate') {
-          escalated = true;
-          break;
-        }
-        // approve: write the column transition
-        const card = await readCard(cardPath);
-        card.frontmatter.column = ev.to;
-        await writeCard(card);
-        advancedTo = ev.to;
-      } else if (ev.kind === 'recommendation') {
-        this.bus.publish({ kind: 'conductor-decision', cardId, action: 'escalate', reason: `${ev.recommendation.operation} recommendation: ${ev.recommendation.recommended}`, optionId: ev.recommendation.recommended });
-        escalated = true;
-      } else if (ev.kind === 'halt') {
-        if (advancedTo === undefined) {
-          haltReason = ev.reason;
+        } else if (ev.kind === 'halt') {
+          if (advancedTo === undefined) {
+            haltReason = ev.reason;
+            halt = true;
+          }
+        } else if (ev.kind === 'error') {
+          haltReason = ev.message;
           halt = true;
+        } else if (ev.kind === 'complete') {
+          advancedTo = ev.finalColumn;
         }
-      } else if (ev.kind === 'error') {
-        haltReason = ev.message;
-        halt = true;
-      } else if (ev.kind === 'complete') {
-        advancedTo = ev.finalColumn;
       }
+    } catch (e) {
+      haltReason = e instanceof Error ? e.message : String(e);
+      halt = true;
     }
 
     if (halt && haltReason) {

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { readdirSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, basename } from 'node:path';
@@ -66,10 +67,13 @@ describe('runWork', () => {
     expect(result.finalColumn).toBe('planned');
   });
 
-  it('throws if the card does not exist', async () => {
+  it('throws if the card does not exist and creates no run dir', async () => {
     const adapter = new MockAdapter();
     await expect(
       runWork({ cwd: tmp, cardId: 'no-such-card', adapter }),
     ).rejects.toThrow(/not found/);
+    // runInit creates an empty .conductor/runs/ — assert no run subdirectory
+    // (phantom or otherwise) was created by the failed work invocation.
+    expect(readdirSync(join(tmp, '.conductor', 'runs'))).toEqual([]);
   });
 });

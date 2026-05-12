@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { TaskAgent } from '../../src/agent/task_agent.js';
@@ -100,24 +100,28 @@ describe('TaskAgent', () => {
     expect(agent.runId).toBe(`20260507T123456-${cardId}`);
   });
 
-  it('emits error event when card does not exist', async () => {
+  it('throws on missing card without creating a run dir', async () => {
+    const repo = mkdtempSync(join(tmpdir(), 'conductor-agent-missing-'));
+    mkdirSync(join(repo, '.conductor', 'cards'), { recursive: true });
     const config = ProjectConfigSchema.parse({});
     const agent = new TaskAgent({
-      repo: '/nonexistent-conductor-repo',
+      repo,
       cardId: 'no-such-card',
       adapter: new MockAdapter(),
       config,
     });
-    const events: TaskEvent[] = [];
-    for await (const e of agent.run()) events.push(e);
-    expect(events).toHaveLength(1);
-    expect(events[0].kind).toBe('error');
-    if (events[0].kind === 'error') {
-      expect(events[0].message).toMatch(/no-such-card/);
+    let err: Error | undefined;
+    try {
+      for await (const _ of agent.run()) { /* should never yield anything */ }
+    } catch (e) {
+      err = e as Error;
     }
+    expect(err).toBeDefined();
+    expect(err!.message).toMatch(/no-such-card/);
+    expect(existsSync(join(repo, '.conductor', 'runs'))).toBe(false);
   });
 
-  it('emits parse-aware error event when card YAML is malformed', async () => {
+  it('throws parse-aware error without creating a run dir when YAML is malformed', async () => {
     const repo = mkdtempSync(join(tmpdir(), 'conductor-agent-bad-'));
     const cardsDir = join(repo, '.conductor', 'cards');
     mkdirSync(cardsDir, { recursive: true });
@@ -145,14 +149,16 @@ blocked_by: []
     );
     const config = ProjectConfigSchema.parse({});
     const agent = new TaskAgent({ repo, cardId, adapter: new MockAdapter(), config });
-    const events: TaskEvent[] = [];
-    for await (const e of agent.run()) events.push(e);
-    expect(events).toHaveLength(1);
-    expect(events[0].kind).toBe('error');
-    if (events[0].kind === 'error') {
-      expect(events[0].message).toMatch(/parse/i);
-      expect(events[0].message).not.toMatch(/not found/i);
-      expect(events[0].message).toContain(cardId);
+    let err: Error | undefined;
+    try {
+      for await (const _ of agent.run()) { /* should never yield anything */ }
+    } catch (e) {
+      err = e as Error;
     }
+    expect(err).toBeDefined();
+    expect(err!.message).toMatch(/parse/i);
+    expect(err!.message).not.toMatch(/not found/i);
+    expect(err!.message).toContain(cardId);
+    expect(existsSync(join(repo, '.conductor', 'runs'))).toBe(false);
   });
 });
