@@ -67,11 +67,45 @@ describe('detect_drift op', () => {
     expect(drifts.some((d) => d.kind === 'branch-mismatch')).toBe(true);
   });
 
-  it('returns uncommitted-state-mismatch when there are dirty files', async () => {
+  it('returns uncommitted-state-mismatch with staged/unstaged breakdown', async () => {
     await init('# State\n');
     await writeFile(join(tmp, 'dirty.txt'), 'x');
     const drifts = await detectDrift({ repo: tmp });
-    expect(drifts.some((d) => d.kind === 'uncommitted-state-mismatch')).toBe(true);
+    const d = drifts.find((x) => x.kind === 'uncommitted-state-mismatch');
+    expect(d).toBeDefined();
+    expect(d!.actual).toBe('1 uncommitted file(s) (0 staged, 1 unstaged)');
+  });
+
+  it('reports both staged and unstaged counts in the breakdown', async () => {
+    await init('# State\n');
+    await writeFile(join(tmp, 'staged.txt'), 's');
+    await writeFile(join(tmp, 'wip.txt'), 'w');
+    await simpleGit(tmp).add(['staged.txt']);
+    const drifts = await detectDrift({ repo: tmp });
+    const d = drifts.find((x) => x.kind === 'uncommitted-state-mismatch');
+    expect(d?.actual).toBe('2 uncommitted file(s) (1 staged, 1 unstaged)');
+  });
+
+  it('appends conflicted count only when a conflict exists', async () => {
+    await init('# State\n');
+    const g = simpleGit(tmp);
+    await writeFile(join(tmp, 'c.txt'), 'base\n');
+    await g.add(['c.txt']);
+    await g.commit('base');
+    const baseBranch = (await g.status()).current ?? 'main';
+    await g.checkoutLocalBranch('feature');
+    await writeFile(join(tmp, 'c.txt'), 'feature\n');
+    await g.add(['c.txt']);
+    await g.commit('feat edit');
+    await g.checkout(baseBranch);
+    await writeFile(join(tmp, 'c.txt'), 'main\n');
+    await g.add(['c.txt']);
+    await g.commit('main edit');
+    try { await g.merge(['feature']); } catch { /* expected */ }
+    const drifts = await detectDrift({ repo: tmp });
+    const d = drifts.find((x) => x.kind === 'uncommitted-state-mismatch');
+    expect(d?.actual).toMatch(/, 1 conflicted/);
+    expect(d?.actual).toMatch(/^1 uncommitted file\(s\)/);
   });
 
   it('flags branch-mismatch when git reports no current branch (detached HEAD)', async () => {

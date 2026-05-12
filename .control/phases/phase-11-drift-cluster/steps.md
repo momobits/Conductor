@@ -3,7 +3,7 @@
 > One branch, two ordered commits. 11.2 builds on 11.1's `uncommittedSnapshot()` helper.
 > Each step closes with `<type>(11.<N>): <subject>` and flips its checkbox in the same commit.
 
-- [ ] 11.1 — `uncommittedSnapshot()` returns `{ staged, unstaged, conflicted }` separately
+- [x] 11.1 — `uncommittedSnapshot()` returns `{ staged, unstaged, conflicted }` separately
 - [ ] 11.2 — Drift quantifies truncation (`… N more`); `conductor drift --verbose` shows full list
 
 ## Step detail

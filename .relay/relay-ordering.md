@@ -57,8 +57,8 @@ Ship as two independent PRs or one combined cleanup PR.
 
 | # | Item | File | Complexity | Depends on |
 |---|---|---|---|---|
-| 6 | `uncommittedSnapshot()` returns `{staged, unstaged, conflicted}` separately | [drift-doesnt-distinguish-staged-vs-unstaged.md](issues/drift-doesnt-distinguish-staged-vs-unstaged.md) | M | — |
-| 7 | Drift quantifies truncation (`… N more`); `conductor drift --verbose` shows full list | [drift-truncates-file-list-at-10.md](issues/drift-truncates-file-list-at-10.md) | S | #6 (uses snapshot) |
+| 6 | ~~`uncommittedSnapshot()` returns `{staged, unstaged, conflicted}` separately~~ ✓ [implemented](implemented/drift-doesnt-distinguish-staged-vs-unstaged.md) (2026-05-12) | ~~[drift-doesnt-distinguish-staged-vs-unstaged.md](issues/drift-doesnt-distinguish-staged-vs-unstaged.md)~~ → [archive](archive/issues/drift-doesnt-distinguish-staged-vs-unstaged.md) | M | — |
+| 7 | Drift quantifies truncation (`… N more`); `conductor drift --verbose` shows full list | [drift-truncates-file-list-at-10.md](issues/drift-truncates-file-list-at-10.md) | S | #6 (uses snapshot) ✓ available |
 
 ---
 

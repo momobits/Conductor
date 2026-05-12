@@ -87,16 +87,52 @@ export async function describeRef(repo: string): Promise<string> {
   }
 }
 
-export async function uncommittedFiles(repo: string): Promise<string[]> {
+/** Categorized snapshot of working-tree paths reported by `git status`,
+ *  derived from per-file `(index, working_dir)` XY codes — see
+ *  https://git-scm.com/docs/git-status#_short_format. Buckets are NOT
+ *  mutually exclusive: a file that has been `git add`-ed AND then
+ *  re-edited appears in BOTH `staged` AND `unstaged` so callers (drift)
+ *  can surface the partial-staging state explicitly.
+ *
+ *  We read `status.files[].index` / `.working_dir` directly rather than
+ *  the high-level `status.modified` / `status.staged` flat arrays
+ *  because simple-git's flat arrays conflate index-side and worktree-side
+ *  states (e.g. a fully-staged modification with a clean worktree lands
+ *  in BOTH `status.modified` AND `status.staged`). Reading XY directly
+ *  gives the precise index-vs-worktree partition required here. */
+export interface UncommittedSnapshot {
+  staged: string[];
+  unstaged: string[];
+  conflicted: string[];
+}
+
+export async function uncommittedSnapshot(repo: string): Promise<UncommittedSnapshot> {
   const status = await git(repo).status();
-  const all = [
-    ...status.modified,
-    ...status.created,
-    ...status.deleted,
-    ...status.not_added,
-    ...status.staged,
-    ...status.conflicted,
-    ...status.renamed.map((r) => r.to),
-  ];
-  return [...new Set(all)];
+  const staged: string[] = [];
+  const unstaged: string[] = [];
+  const conflicted: string[] = [];
+  for (const f of status.files) {
+    const x = f.index;
+    const y = f.working_dir;
+    const isConflict =
+      x === 'U' || y === 'U' ||
+      (x === 'A' && y === 'A') ||
+      (x === 'D' && y === 'D');
+    if (isConflict) {
+      conflicted.push(f.path);
+      continue;
+    }
+    if (x !== ' ' && x !== '?') staged.push(f.path);
+    if (y !== ' ') unstaged.push(f.path);
+  }
+  return {
+    staged: [...new Set(staged)],
+    unstaged: [...new Set(unstaged)],
+    conflicted: [...new Set(conflicted)],
+  };
+}
+
+export async function uncommittedFiles(repo: string): Promise<string[]> {
+  const snap = await uncommittedSnapshot(repo);
+  return [...new Set([...snap.staged, ...snap.unstaged, ...snap.conflicted])];
 }

@@ -5,7 +5,7 @@
 
 import type { Drift } from '../types.js';
 import { readState } from '../state/session.js';
-import { currentBranch, lastCommitSha, describeRef, uncommittedFiles } from '../state/git.js';
+import { currentBranch, lastCommitSha, describeRef, uncommittedSnapshot } from '../state/git.js';
 
 export interface DetectDriftArgs {
   repo: string;
@@ -90,15 +90,25 @@ export async function detectDrift(args: DetectDriftArgs): Promise<Drift[]> {
     }
   }
 
-  const dirty = (await uncommittedFiles(repo)).filter(
-    (f) => !f.startsWith('.conductor/') && !f.startsWith('.conductor\\'),
-  );
-  if (dirty.length > 0) {
+  const snap = await uncommittedSnapshot(repo);
+  const notConductor = (f: string) =>
+    !f.startsWith('.conductor/') && !f.startsWith('.conductor\\');
+  const staged = snap.staged.filter(notConductor);
+  const unstaged = snap.unstaged.filter(notConductor);
+  const conflicted = snap.conflicted.filter(notConductor);
+  // Use Set cardinality for the total: a partial-staged file (present in
+  // both `staged` and `unstaged`) is one file, even though it contributes
+  // to both per-state counts. `staged.length + unstaged.length + conflicted.length`
+  // can exceed `all.length` by design — the parenthetical describes states,
+  // not file counts.
+  const all = [...new Set([...staged, ...unstaged, ...conflicted])];
+  if (all.length > 0) {
+    const conflictedClause = conflicted.length > 0 ? `, ${conflicted.length} conflicted` : '';
     drifts.push({
       kind: 'uncommitted-state-mismatch',
       expected: 'clean working tree',
-      actual: `${dirty.length} uncommitted file(s)`,
-      detail: dirty.slice(0, 10).join(', ') + (dirty.length > 10 ? ', …' : ''),
+      actual: `${all.length} uncommitted file(s) (${staged.length} staged, ${unstaged.length} unstaged${conflictedClause})`,
+      detail: all.slice(0, 10).join(', ') + (all.length > 10 ? ', …' : ''),
     });
   }
 
