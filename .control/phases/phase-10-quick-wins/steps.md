@@ -4,7 +4,7 @@
 > and flips its checkbox in the same commit.
 
 - [x] 10.1 — Promote `# Original Issue` → `## Original Issue` across discover + createCard + docstring
-- [ ] 10.2 — `cost show` exits 1 (or via `--strict`) when daemon is down
+- [x] 10.2 — `cost show` exits 1 (or via `--strict`) when daemon is down
 
 ## Step detail
 

@@ -11,6 +11,7 @@ import { readEndpointFile } from '../../daemon/pidfile.js';
 export interface CostShowArgs {
   repo: string;
   log: (s: string) => void;
+  logErr?: (s: string) => void;
 }
 
 interface Summary {
@@ -22,8 +23,8 @@ interface Summary {
 export async function costShowCommand(args: CostShowArgs): Promise<number> {
   const endpoint = await readEndpointFile(args.repo);
   if (!endpoint) {
-    args.log('(daemon not running — start with `conductor daemon start`)');
-    return 0;
+    (args.logErr ?? args.log)('(daemon not running — start with `conductor daemon start`)');
+    return 1;
   }
   const token = (await readFile(join(args.repo, '.conductor', 'auth.token'), 'utf8')).trim();
   const res = await fetch(`${endpoint}/rpc`, {
@@ -34,7 +35,7 @@ export async function costShowCommand(args: CostShowArgs): Promise<number> {
   const body = (await res.json()) as { result?: Summary };
   const s = body.result;
   if (!s) {
-    args.log('(no result)');
+    (args.logErr ?? args.log)('(no result)');
     return 1;
   }
   args.log(
@@ -59,9 +60,11 @@ function fmtCeiling(n: number): string {
 export function attachCost(program: Command): void {
   const cmd = program.command('cost').description('Cost telemetry');
   cmd.command('show').action(async () => {
-    await costShowCommand({
+    const code = await costShowCommand({
       repo: process.cwd(),
       log: (s: string) => process.stdout.write(s + '\n'),
+      logErr: (s: string) => process.stderr.write(s + '\n'),
     });
+    if (code !== 0) process.exitCode = code;
   });
 }
