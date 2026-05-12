@@ -6,4 +6,141 @@
 
 ---
 
-No outstanding items. Run the discovery skills first to populate .relay/issues/ and .relay/features/.
+## Overall strategy
+
+All 16 items originate from the same dogfood session (`docs/dogfood-log.md` 2026-05-12). The ordering optimizes for:
+
+1. **Same-file coupling** — items that touch `src/engine/state/card.ts`, `src/agent/task_agent.ts`, or `src/engine/ops/detect_drift.ts` are bundled into single phases to share refactor surface and avoid merge conflicts.
+2. **P1 first** — both P1 bugs are in the malformed-YAML error surface, which sits in front of every CLI command. Fix this before anything else.
+3. **Quick wins early** — trivial changes (H1→H2, exit code) ship as Phase 2 to clear the board before bigger refactors.
+4. **Invasive last** — the plan prompt restructure (P2) and brain-log infrastructure (P2) are the highest-risk items; sequenced after stability fixes so a rollback can be clean.
+5. **Docs in one batch** — five docs-only items ship as a single PR (Phase 7).
+
+---
+
+## Phase 1 — Malformed-YAML error surface (P1 bugs)
+
+**Single readCard error-handling refactor; ship as one PR or three sequential commits in one branch.** All three items touch overlapping surface (`readCard` error semantics, `task_agent.ts` card-load path, `listCards` recovery). Doing them in sequence in the same branch keeps the typed-error pattern consistent.
+
+| # | Item | File | Complexity | Depends on |
+|---|---|---|---|---|
+| 1 | Differentiate ENOENT from parse-failure in `readCard` callers | [misleading-card-not-found-for-malformed-yaml.md](issues/misleading-card-not-found-for-malformed-yaml.md) | S | — |
+| 2 | `scan` continues on per-card YAML failure (warns, exits 0 if any healthy) | [scan-bails-entirely-on-one-malformed-card.md](issues/scan-bails-entirely-on-one-malformed-card.md) | M | #1 (uses typed errors) |
+| 3 | `work` validates card before creating run dir | [work-creates-run-dir-before-validating-card.md](issues/work-creates-run-dir-before-validating-card.md) | S | #1 (same `task_agent.ts:74-77` block) |
+
+**Why this phase first:** `scan` is the central observability command; one bad card silences the whole board view (P1). The "Card not found" lie blocks diagnosis (P1). Phantom run dirs (P2) accumulate every time the first two bugs are hit. They share `readCard()` error surface — doing them together prevents two passes through the same code.
+
+**Recommended approach:** introduce typed errors (`CardNotFoundError`, `CardParseError`) in `src/engine/state/card.ts`, then rewrite the three call-sites (`src/cli/commands/transition.ts:24-29`, `src/agent/task_agent.ts:74-77`, `src/engine/state/card.ts` `listCards`) to differentiate.
+
+---
+
+## Phase 2 — Quick wins (low risk, high signal)
+
+Ship as two independent PRs or one combined cleanup PR.
+
+| # | Item | File | Complexity | Depends on |
+|---|---|---|---|---|
+| 4 | Promote `# Original Issue` → `## Original Issue` across discover + createCard + docstring | [discover-original-issue-uses-h1-not-h2.md](issues/discover-original-issue-uses-h1-not-h2.md) | XS | — |
+| 5 | `cost show` exits 1 (or via `--strict`) when daemon is down | [cost-show-exits-zero-when-daemon-down.md](issues/cost-show-exits-zero-when-daemon-down.md) | XS | — |
+
+**Why now:** trivial diffs, no risk, immediate consistency improvements. Clears the board before larger refactors.
+
+---
+
+## Phase 3 — Drift command refactor (cluster)
+
+**Bundle T5-4 and T5-5 into one PR.** Both touch `src/engine/ops/detect_drift.ts` and `src/engine/state/git.ts`. The snapshot refactor (T5-4) introduces `uncommittedSnapshot()` which T5-5's mtime-sorted preview can build on.
+
+| # | Item | File | Complexity | Depends on |
+|---|---|---|---|---|
+| 6 | `uncommittedSnapshot()` returns `{staged, unstaged, conflicted}` separately | [drift-doesnt-distinguish-staged-vs-unstaged.md](issues/drift-doesnt-distinguish-staged-vs-unstaged.md) | M | — |
+| 7 | Drift quantifies truncation (`… N more`); `conductor drift --verbose` shows full list | [drift-truncates-file-list-at-10.md](issues/drift-truncates-file-list-at-10.md) | S | #6 (uses snapshot) |
+
+---
+
+## Phase 4 — Discover op semantic dedup
+
+| # | Item | File | Complexity | Depends on |
+|---|---|---|---|---|
+| 8 | Pass active card titles to discover LLM prompt; defense-in-depth slug overlap filter | [discover-no-topic-level-dedup-against-existing-cards.md](issues/discover-no-topic-level-dedup-against-existing-cards.md) | M | — |
+
+**Why now:** standalone change in `src/engine/ops/discover.ts`. No dependency on prior phases. Filed separately because once Phase 1 lands and `scan` is reliable, discover becomes the next-most-friction-rich operation.
+
+---
+
+## Phase 5 — Plan op prompt restructure
+
+| # | Item | File | Complexity | Depends on |
+|---|---|---|---|---|
+| 9 | Plan prompt extracts resolved decisions from Analysis before emitting steps; `[need:]` allowed only for items not in the preamble | [plan-op-leaves-need-placeholders-resolved-in-analysis.md](issues/plan-op-leaves-need-placeholders-resolved-in-analysis.md) | M | — |
+
+**Why placed here:** the change is to the LLM prompt for `plan`, so output drift in user projects is the main risk. Land it AFTER Phases 1-4 have stabilized the surrounding workflow — if a rollback is needed, the rest of the pipeline is in a known-good state. Regression coverage via `MockAdapter` is essential.
+
+---
+
+## Phase 6 — Brain observability (new module)
+
+| # | Item | File | Complexity | Depends on |
+|---|---|---|---|---|
+| 10 | `BrainLogWriter` persists conductor-* events to `.conductor/brain.log.jsonl`; daemon wiring + retention policy | [brain-events-not-persisted-across-daemon-restarts.md](issues/brain-events-not-persisted-across-daemon-restarts.md) | L | — |
+
+**Why placed here:** the only L (large) item — adds a new file (`src/daemon/brain_log.ts`), wires it into `src/daemon/index.ts` startup/shutdown, optionally extends `ProjectConfigSchema` with a `brain_log` retention block, and adds end-to-end coverage in `tests/integration/phase6-end-to-end.test.ts`. Substantial enough to warrant its own PR with its own review cycle. No code dependencies on prior phases, but ordering it late keeps the larger PR away from the parallel small fixes.
+
+---
+
+## Phase 7 — Documentation bundle
+
+**Ship as one PR.** Five docs-only items + small description-string and `.gitignore` template touches.
+
+| # | Item | File | Complexity | Depends on |
+|---|---|---|---|---|
+| 11 | Quickstart latency estimate by model class | [quickstart-work-cycle-latency-estimate-understated.md](issues/quickstart-work-cycle-latency-estimate-understated.md) | XS | — |
+| 12 | Document `transition` adjacency vs override semantics in operations.md and `--help` | [transition-command-adjacency-vs-spec-override-semantics.md](issues/transition-command-adjacency-vs-spec-override-semantics.md) | XS | — |
+| 13 | Document `auth.token` lifecycle; verify gitignore template | [auth-token-persists-on-disk-after-daemon-stop.md](issues/auth-token-persists-on-disk-after-daemon-stop.md) | XS | — |
+| 14 | MCP session handshake docs + curl example | [mcp-tools-list-requires-session-handshake-docs-gap.md](issues/mcp-tools-list-requires-session-handshake-docs-gap.md) | XS | — |
+| 15 | `conductor.recommend` description tightened in tool list + docs | [rpc-recommend-method-semantics-docs-gap.md](issues/rpc-recommend-method-semantics-docs-gap.md) | XS | — |
+
+**Why placed here:** docs PRs are easiest to review when the code state is stable. After Phases 1-6, several docs anchor to behaviors that are themselves changed by the code fixes — bundling docs last avoids writing docs twice.
+
+---
+
+## Phase 8 — Observation closure
+
+| # | Item | File | Complexity | Depends on |
+|---|---|---|---|---|
+| 16 | Confirm recommendation-event design intent; close with no code change | [recommendation-event-duplicates-card-body-rationale.md](issues/recommendation-event-duplicates-card-body-rationale.md) | None | — |
+
+**Why placed here:** working-as-designed item; no fix expected. Run `/relay-resolve` to archive after acknowledgement.
+
+---
+
+## Cross-phase dependencies (visual)
+
+```
+Phase 1 (P1 readCard bugs)
+   ↓ ── shares task_agent.ts surface ────────────────┐
+Phase 2 (quick wins)  ←─ independent                  │
+Phase 3 (drift cluster) ←─ independent                │
+Phase 4 (discover dedup)  ←─ independent              │
+Phase 5 (plan prompt)  ←─ independent                 │
+Phase 6 (brain log)  ←─ independent                   │
+Phase 7 (docs bundle)  ←─ depends on stability of 1-6 │
+Phase 8 (observation closure)  ←─ no deps             │
+```
+
+Only Phase 1 has internal sequencing. Phases 2-6 are mutually independent and could run in parallel by different contributors. Phase 7 depends on the code state being settled.
+
+---
+
+## Complexity legend
+
+- **XS** — single file, ≤10 lines changed, no behavior change to existing tests
+- **S** — single file, <50 lines changed, may add 1-2 regression tests
+- **M** — 2-4 files, 50-200 lines, requires new typed surface or refactor of a shared helper, 3-5 regression tests
+- **L** — new module + wiring, config schema change, integration test extension
+
+---
+
+## Run start
+
+To begin: `/relay-analyze` with the file path for item #1 — `misleading-card-not-found-for-malformed-yaml.md` (the smallest piece of the Phase 1 cluster, sets up the typed-error pattern for #2 and #3).

@@ -10,15 +10,40 @@
 
 | Category | Outstanding | Resolved | Total |
 |----------|-------------|----------|-------|
-| Issues (issues/) | 0 | 0 | 0 |
+| Issues (issues/) | 16 | 0 | 16 |
 | Features (features/) | 0 | 0 | 0 |
 | Implemented (implemented/) | — | 0 | 0 |
+
+All 16 active issues were filed on 2026-05-12 from the deferred-findings table in `docs/dogfood-log.md` (initial comprehensive dogfood test session). Every item was re-verified against current source at HEAD; none are resolved.
 
 ---
 
 ## Active Issues — .relay/issues/
 
-No active issues. Run /relay-discover to scan the codebase.
+### P1 — bug (2)
+
+- **[scan-bails-entirely-on-one-malformed-card.md](issues/scan-bails-entirely-on-one-malformed-card.md)** — OUTSTANDING — `conductor scan` exits non-zero with the raw YAML parse error when ANY card has malformed frontmatter, hiding every healthy card. Evidence: `src/engine/state/card.ts:54-68` (`listCards` has no per-file try/catch); `src/engine/ops/scan.ts:16` (`scan` propagates the throw). Source: dogfood T5-2.
+- **[misleading-card-not-found-for-malformed-yaml.md](issues/misleading-card-not-found-for-malformed-yaml.md)** — OUTSTANDING — `conductor work` and `transition` surface "Card not found: ..." when the file exists but YAML parse fails. Evidence: bare `catch {}` blocks at `src/agent/task_agent.ts:74-77` and `src/cli/commands/transition.ts:24-29` swallow `readCard()` parse errors and conflate them with ENOENT. Source: dogfood T5-3.
+
+### P2 — quality (6)
+
+- **[plan-op-leaves-need-placeholders-resolved-in-analysis.md](issues/plan-op-leaves-need-placeholders-resolved-in-analysis.md)** — OUTSTANDING — `plan` op emits `[need: ...]` placeholders for design decisions the `## Analysis` section already settled, eroding the analyze→plan pipeline's leverage. Evidence: `src/engine/ops/plan.ts:36-42` SYSTEM_PROMPT has the `[need:]` instruction but no "extract resolved decisions first" pass. Source: dogfood T1-1.
+- **[discover-original-issue-uses-h1-not-h2.md](issues/discover-original-issue-uses-h1-not-h2.md)** — OUTSTANDING — Cards begin with `# Original Issue` (H1), inconsistent with the H2 sections appended by every downstream op. Evidence: H1 written at `src/cli/commands/discover.ts:57` AND `src/engine/state/card.ts:118` (`createCard` default body); doc comment at `card.ts:6` perpetuates the convention. Source: dogfood T2-2.
+- **[discover-no-topic-level-dedup-against-existing-cards.md](issues/discover-no-topic-level-dedup-against-existing-cards.md)** — OUTSTANDING — `conductor discover` only dedups by exact filename collision; the LLM is never told which cards already exist, so semantic duplicates get filed. Evidence: `src/engine/ops/discover.ts:92-98` user prompt contains only TODO/FIXME + commits; `src/cli/commands/discover.ts:36-39` is access-check only. Source: dogfood T2-3.
+- **[brain-events-not-persisted-across-daemon-restarts.md](issues/brain-events-not-persisted-across-daemon-restarts.md)** — OUTSTANDING — Conductor brain events (`conductor-iteration`, `conductor-decision`, `conductor-halt`, `conductor-status`) are bus-only; lost on daemon stop. Evidence: `src/daemon/event_bus.ts:5` doc comment explicitly says "Events are not persisted anywhere." Source: dogfood T4-1.
+- **[work-creates-run-dir-before-validating-card.md](issues/work-creates-run-dir-before-validating-card.md)** — OUTSTANDING — `conductor work <nonexistent-card>` creates a phantom run directory with an `error` event before failing. Evidence: `src/agent/task_agent.ts:50-62` eagerly constructs `RunLogWriter`; the error-event emit at `task_agent.ts:75` triggers `mkdir`. Source: dogfood T5-1.
+- **[drift-truncates-file-list-at-10.md](issues/drift-truncates-file-list-at-10.md)** — OUTSTANDING — `conductor drift` truncates the uncommitted file list at 10 with no `--verbose` escape and no count of how many are hidden. Evidence: `src/engine/ops/detect_drift.ts:101`. Source: dogfood T5-5.
+
+### P3 — observation (8)
+
+- **[quickstart-work-cycle-latency-estimate-understated.md](issues/quickstart-work-cycle-latency-estimate-understated.md)** — OUTSTANDING — `docs/quickstart.md` cites "60–120s" for a `conductor work` cycle; Opus subscription analyze alone hit 151s in dogfood. Documentation accuracy issue. Source: dogfood T1-2.
+- **[transition-command-adjacency-vs-spec-override-semantics.md](issues/transition-command-adjacency-vs-spec-override-semantics.md)** — OUTSTANDING — Spec language suggests `transition` is a human-override; implementation enforces adjacency via `canTransition()`. Spec/docs alignment question. Evidence: `src/cli/commands/transition.ts:31-35`. Source: dogfood T3-1.
+- **[recommendation-event-duplicates-card-body-rationale.md](issues/recommendation-event-duplicates-card-body-rationale.md)** — OUTSTANDING — `recommendation` events serialize the full per-option rationale into `events.jsonl`, duplicating `## Adversarial Review` content. Working as designed (replay/audit value); flagged for awareness. Evidence: `src/agent/runlog.ts:60`. Source: dogfood T3-2.
+- **[auth-token-persists-on-disk-after-daemon-stop.md](issues/auth-token-persists-on-disk-after-daemon-stop.md)** — OUTSTANDING — `.conductor/auth.token` is not cleared by `daemon stop`; rotated on next start. Intentional design (RPC reconnect), but undocumented. Evidence: `src/daemon/index.ts:134-137` clears pid/endpoint/mcp but not auth. Source: dogfood T4-2.
+- **[mcp-tools-list-requires-session-handshake-docs-gap.md](issues/mcp-tools-list-requires-session-handshake-docs-gap.md)** — OUTSTANDING — MCP `tools/list` requires `initialize` → `notifications/initialized` → `tools/list` with the captured session ID. Correct MCP 2025-03-26 behavior; docs gap. Evidence: `src/daemon/mcp_server.ts:105-106` uses `StreamableHTTPServerTransport`. Source: dogfood T4-3.
+- **[rpc-recommend-method-semantics-docs-gap.md](issues/rpc-recommend-method-semantics-docs-gap.md)** — OUTSTANDING — `conductor.recommend` *files* a recommendation; it does not return one. Public-facing description is ambiguous. Evidence: `src/rpc/methods.ts:210-216`. Source: dogfood T4-4.
+- **[drift-doesnt-distinguish-staged-vs-unstaged.md](issues/drift-doesnt-distinguish-staged-vs-unstaged.md)** — OUTSTANDING — `uncommitted-state-mismatch` collapses staged + unstaged into one bucket. Evidence: `src/engine/state/git.ts:90-102` (`uncommittedFiles` unions all seven status fields). Source: dogfood T5-4.
+- **[cost-show-exits-zero-when-daemon-down.md](issues/cost-show-exits-zero-when-daemon-down.md)** — OUTSTANDING — `conductor cost show` exits 0 when daemon is not running, defeating shell-script `if`-checks. Evidence: `src/cli/commands/cost.ts:22-27`. Source: dogfood T5-6.
 
 ---
 
@@ -31,3 +56,9 @@ No active features.
 ## Implemented — .relay/implemented/
 
 None yet.
+
+---
+
+## In-Progress Work
+
+No items have pipeline sections yet — none have reached `/relay-analyze`. Run **`/relay-order`** to rank, then **`/relay-analyze`** on the top item to begin.
