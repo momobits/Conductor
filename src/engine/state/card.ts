@@ -124,6 +124,42 @@ export async function listCards(cardsDir: string): Promise<Card[]> {
   return out;
 }
 
+/** Per-file-lenient variant of `listCards`. Catches `CardParseError` per
+ *  card and returns it as a warning entry; non-`CardParseError` throws
+ *  (ENOENT race, EACCES, EISDIR, readdir failures) still propagate raw.
+ *  Used by observability surfaces (`scan` op + RPC handler) that should
+ *  show partial-success rather than blank-on-first-failure. The stored
+ *  `message` is the inner-cause only — callers compose their own
+ *  user-facing format (the `path` is provided separately). */
+export async function listCardsLenient(
+  cardsDir: string,
+): Promise<{ cards: Card[]; errors: Array<{ path: string; message: string }> }> {
+  let entries: string[];
+  try {
+    entries = await readdir(cardsDir);
+  } catch (e: unknown) {
+    if ((e as NodeJS.ErrnoException)?.code === 'ENOENT') return { cards: [], errors: [] };
+    throw e;
+  }
+  const mdFiles = entries.filter((n) => n.endsWith('.md')).sort();
+  const cards: Card[] = [];
+  const errors: Array<{ path: string; message: string }> = [];
+  for (const name of mdFiles) {
+    const fullPath = join(cardsDir, name);
+    try {
+      cards.push(await readCard(fullPath));
+    } catch (e) {
+      if (e instanceof CardParseError) {
+        const innerMsg = e.cause instanceof Error ? truncate(e.cause.message) : String(e.cause);
+        errors.push({ path: fullPath, message: `${e.reason}: ${innerMsg}` });
+      } else {
+        throw e;
+      }
+    }
+  }
+  return { cards, errors };
+}
+
 export async function appendSection(
   path: string,
   heading: string,

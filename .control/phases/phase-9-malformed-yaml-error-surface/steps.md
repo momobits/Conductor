@@ -4,7 +4,7 @@
 > `<type>(9.<N>): <subject>` and flips its checkbox in the same commit.
 
 - [x] 9.1 — Differentiate ENOENT from parse-failure in `readCard` callers
-- [ ] 9.2 — `scan` continues on per-card YAML failure (warns, exits 0 if any healthy)
+- [x] 9.2 — `scan` continues on per-card YAML failure (warns, exits 0 if any healthy)
 - [ ] 9.3 — `work` validates card before creating run dir
 
 ## Step detail

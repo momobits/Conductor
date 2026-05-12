@@ -28,7 +28,7 @@ import { Conductor, defaultAgentFactory } from '../conductor/loop.js';
 import { dump as yamlDump } from 'js-yaml';
 import { writeFile } from 'node:fs/promises';
 import { loadProjectConfig } from '../config/load.js';
-import { readCard, writeCard, listCards, createCard } from '../engine/state/card.js';
+import { readCard, writeCard, listCards, listCardsLenient, createCard } from '../engine/state/card.js';
 import { canTransition } from '../engine/lifecycle.js';
 import { TaskAgent } from '../agent/task_agent.js';
 import type { Column } from '../engine/types.js';
@@ -108,7 +108,7 @@ async function transition(ctx: MethodContext, raw: unknown) {
 
 async function scan(ctx: MethodContext, raw: unknown) {
   ScanParams.parse(raw);
-  const all = await listCards(cardsDir(ctx.repo));
+  const { cards: all, errors } = await listCardsLenient(cardsDir(ctx.repo));
   const by_column: Record<Column, number> = {
     discovered: 0, planned: 0, approved: 0, building: 0, verifying: 0, shipped: 0, archived: 0,
   };
@@ -117,7 +117,7 @@ async function scan(ctx: MethodContext, raw: unknown) {
     by_column[c.frontmatter.column] = (by_column[c.frontmatter.column] ?? 0) + 1;
     by_phase[c.frontmatter.phase] = (by_phase[c.frontmatter.phase] ?? 0) + 1;
   }
-  return { cards: all, by_column, by_phase };
+  return { cards: all, by_column, by_phase, errors };
 }
 
 async function order(ctx: MethodContext, raw: unknown) {

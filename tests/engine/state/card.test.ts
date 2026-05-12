@@ -7,6 +7,7 @@ import {
   readCard,
   writeCard,
   listCards,
+  listCardsLenient,
   appendSection,
   buildCardPath,
   CardNotFoundError,
@@ -150,6 +151,65 @@ describe('listCards', () => {
   it('returns empty array when cardsDir does not exist', async () => {
     const cards = await listCards(join(tmp, 'no-such-dir'));
     expect(cards).toEqual([]);
+  });
+});
+
+describe('listCardsLenient', () => {
+  async function writeBadYamlCard(path: string): Promise<void> {
+    await writeFile(path, '---\nthis is: : : not yaml\n---\nbody\n');
+  }
+  async function writeBadSchemaCard(path: string): Promise<void> {
+    await writeFile(path, '---\nid: foo\n---\nbody\n');
+  }
+
+  it('returns all good cards and an empty errors array when every card parses', async () => {
+    await copyFile(fixturePath, join(cardsDir, '2026-05-12-a.md'));
+    await copyFile(fixturePath, join(cardsDir, '2026-05-12-b.md'));
+    const { cards, errors } = await listCardsLenient(cardsDir);
+    expect(cards).toHaveLength(2);
+    expect(errors).toEqual([]);
+  });
+
+  it('returns good cards and one error entry when one card has malformed YAML', async () => {
+    await copyFile(fixturePath, join(cardsDir, '2026-05-12-good.md'));
+    await writeBadYamlCard(join(cardsDir, '2026-05-12-bad.md'));
+    const { cards, errors } = await listCardsLenient(cardsDir);
+    expect(cards).toHaveLength(1);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]!.path.endsWith('2026-05-12-bad.md')).toBe(true);
+    expect(errors[0]!.message).toMatch(/^yaml:/);
+    expect(errors[0]!.message).toBeTruthy();
+  });
+
+  it('catches schema failures (Zod), not just YAML failures', async () => {
+    await writeBadSchemaCard(join(cardsDir, '2026-05-12-thin.md'));
+    const { cards, errors } = await listCardsLenient(cardsDir);
+    expect(cards).toEqual([]);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]!.message).toMatch(/^schema:/);
+  });
+
+  it('returns cards: [], errors: [] when cardsDir does not exist', async () => {
+    const result = await listCardsLenient(join(tmp, 'no-such-dir'));
+    expect(result).toEqual({ cards: [], errors: [] });
+  });
+
+  it('returns cards: [], errors: [N] when every card is broken', async () => {
+    await writeBadYamlCard(join(cardsDir, '2026-05-12-bad-a.md'));
+    await writeBadYamlCard(join(cardsDir, '2026-05-12-bad-b.md'));
+    const { cards, errors } = await listCardsLenient(cardsDir);
+    expect(cards).toEqual([]);
+    expect(errors).toHaveLength(2);
+  });
+
+  it('rethrows non-CardParseError failures (regression guard for the instanceof check)', async () => {
+    await copyFile(fixturePath, join(cardsDir, '2026-05-12-anything.md'));
+    // A directory disguised as a .md file: readdir surfaces it (the filter
+    // keeps .md-suffixed entries regardless of dirent type), then readCard's
+    // readFile() throws EISDIR — NOT a CardParseError. The lenient variant
+    // must rethrow rather than silence.
+    await mkdir(join(cardsDir, '2026-05-12-trap.md'));
+    await expect(listCardsLenient(cardsDir)).rejects.toThrow();
   });
 });
 

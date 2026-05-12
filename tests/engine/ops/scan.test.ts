@@ -57,4 +57,19 @@ describe('scan op', () => {
       '2026-05-07-a', '2026-05-07-b', '2026-05-07-c',
     ]);
   });
+
+  it('continues past a malformed card, returning healthy cards plus errors', async () => {
+    const cardsDir = join(tmp, '.conductor', 'cards');
+    await writeCardFile(cardsDir, '2026-05-07-good', 'discovered', 'phase-2', 1);
+    await writeFile(
+      join(cardsDir, '2026-05-07-bad.md'),
+      '---\nbroken: : :\n---\nbody\n',
+    );
+    const status = await scan({ repo: tmp });
+    expect(status.cards).toHaveLength(1);
+    expect(status.cards[0]!.id).toBe('2026-05-07-good');
+    expect(status.errors).toHaveLength(1);
+    expect(status.errors![0]!.path.endsWith('2026-05-07-bad.md')).toBe(true);
+    expect(status.by_column.discovered).toBe(1);
+  });
 });

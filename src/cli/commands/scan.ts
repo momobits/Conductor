@@ -26,6 +26,11 @@ export function attachScan(program: Command): void {
     .description('List active cards grouped by column')
     .action(async () => {
       const status = await runScan({ cwd: process.cwd() });
+      const errs = status.errors ?? [];
+      for (const e of errs) {
+        // eslint-disable-next-line no-console
+        console.error(`[warn] ${e.path}: ${e.message}`);
+      }
       for (const col of COLUMNS) {
         const cards = status.cards.filter((c) => c.column === col);
         if (cards.length === 0) continue;
@@ -35,6 +40,9 @@ export function attachScan(program: Command): void {
           // eslint-disable-next-line no-console
           console.log(`  ${c.id}  p${c.priority}  ${c.phase}  — ${c.title}`);
         }
+      }
+      if (status.cards.length === 0 && errs.length > 0) {
+        process.exitCode = 1;
       }
     });
 }

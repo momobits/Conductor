@@ -6,14 +6,16 @@
 import { join } from 'node:path';
 import type { Column, Status } from '../types.js';
 import { COLUMNS } from '../types.js';
-import { listCards } from '../state/card.js';
+import { listCardsLenient } from '../state/card.js';
 
 export interface ScanArgs {
   repo: string;
 }
 
 export async function scan(args: ScanArgs): Promise<Status> {
-  const cards = await listCards(join(args.repo, '.conductor', 'cards'));
+  const { cards, errors } = await listCardsLenient(
+    join(args.repo, '.conductor', 'cards'),
+  );
 
   const by_column: Record<Column, number> = {} as Record<Column, number>;
   for (const col of COLUMNS) by_column[col] = 0;
@@ -35,5 +37,5 @@ export async function scan(args: ScanArgs): Promise<Status> {
     };
   });
 
-  return { cards: summaries, by_column, by_phase };
+  return { cards: summaries, by_column, by_phase, errors };
 }

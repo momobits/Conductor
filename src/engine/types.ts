@@ -141,6 +141,7 @@ export interface Status {
   cards: CardSummary[];
   by_column: Record<Column, number>;
   by_phase: Record<string, number>;
+  errors?: Array<{ path: string; message: string }>;
 }
 
 export interface OrderingEntry {
