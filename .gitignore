@@ -45,3 +45,9 @@ coverage/
 .conductor/runtime.sqlite
 .conductor/snapshots/
 .conductor/runs/
+
+# --- Control framework ---
+.control/snapshots/
+.control/.is-source-repo
+.claude/settings.local.json
+# --- /Control ---

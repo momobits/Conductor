@@ -1,0 +1,202 @@
+# Relay: Help & Navigation
+
+**Sequence**: **`/relay-help`** (navigation utility — invoke at any point)
+
+Analyze the user's intent and current project state, then guide them to the right skill.
+
+## Execution
+
+### Step 0 — Parse user input
+
+The user may invoke this skill in several ways:
+
+**With a description** (intent-based):
+```
+/relay-help I want to add authentication
+/relay-help The search API is returning duplicates
+/relay-help What should I do next?
+/relay-help I found a bug in the parser
+```
+
+**Without a description** (state-based):
+```
+/relay-help
+```
+
+If the user provided a description, go to **Step 1 (Intent routing)**.
+If no description, skip to **Step 2 (Setup check)**.
+
+---
+
+### Step 1 — Intent routing
+
+The user described what they want. Classify their intent and route them:
+
+**a) They describe a problem, bug, or gap** (something broken, missing, wrong):
+→ "This sounds like an issue. Run **/relay-new-issue** to file it:
+   `/relay-new-issue [their description]`
+   The skill will investigate, confirm it's an issue, and create the file. If it turns out to be a feature, it will redirect you to **/relay-brainstorm**."
+
+**b) They describe a feature, enhancement, or new capability** (something to build):
+→ "This sounds like a feature. Run **/relay-brainstorm** to explore it:
+   `/relay-brainstorm [their description]`
+   The skill will ask clarifying questions and help you design it interactively."
+
+**c) They're unsure or it's ambiguous** (could be either):
+→ "Not sure if this is a bug or a feature? Run **/relay-new-issue** — it will investigate the codebase, determine whether it's an issue or a feature, and route you accordingly. Features get redirected to **/relay-brainstorm** automatically."
+
+**d) They want to scan for problems** ("find issues", "what's broken", "audit"):
+→ "Run **/relay-discover** to systematically scan the codebase for bugs, gaps, and issues."
+
+**e) They want to continue or resume work** ("what's next", "where was I", "continue"):
+→ Skip to **Step 2** and proceed with state-based detection.
+
+**f) They ask about Relay itself** ("how does relay work", "what skills are available"):
+→ Show the **Available Relay Skills** table and **Workflow Paths** section below. Explain that Relay has three entry points: scan for issues, file a specific item, or brainstorm a feature — and all paths lead through the same code pipeline.
+
+After routing, also mention the current project state if relevant (e.g., "You also have 2 items in progress — run `/relay-help` without a description to see their status").
+
+---
+
+### Step 2 — Check if Relay is set up
+
+- Look for `.relay/` directory. If it doesn't exist, tell the user:
+  "Relay is not set up in this project. Run **/relay-setup** to initialize."
+  Stop here.
+
+### Step 3 — Read current state
+
+- Read `.relay/version.md` (if it exists) for installed version info
+- Read `.relay/relay-status.md` (if it exists) for item counts, in-progress work, and staleness flags
+- Read `.relay/relay-ordering.md` (if it exists) for the current work plan
+- Check `.relay/issues/` and `.relay/features/` for active items
+- Check `.relay/notebooks/` for in-progress notebooks
+
+### Step 4 — Detect where the user is in the workflow
+
+**No items at all** (empty issues/ and features/):
+→ "Your project has no tracked items yet. What would you like to do?
+   - **/relay-discover** — scan the codebase for bugs, gaps, and issues
+   - **/relay-new-issue** — file a specific bug or gap you already know about
+   - **/relay-brainstorm** — explore a new feature idea
+   Tell me what you're thinking and I'll point you to the right skill."
+
+**Items exist but no relay-status.md or it's stale (>1 day old)**:
+→ "Your status file needs refreshing. Run **/relay-scan** to update, then **/relay-order** to prioritize."
+
+**Items exist with up-to-date status but no relay-ordering.md**:
+→ "Status is current but work isn't prioritized. Run **/relay-order** to create the work plan."
+
+**Ordering exists with outstanding phases**:
+Check if any items are in-progress (have pipeline sections appended):
+
+**Scope-formation lifecycle detection (Phase 12-4)** — check FIRST, before pipeline-stage detection below. These branches recognize 12-2 / 12-3 lifecycle states; if any matches, the user is routed to the corresponding lifecycle action rather than the per-item pipeline stage:
+- Item file's most-recent `### Scope Decision` has `*Mode:* grouped run` AND no `## Implementation Plan` yet → "Grouped run leader detected. Run **/relay-plan** or **/relay-superplan** on [item] — the planner will emit a `### Grouped Run Coverage` section as required by the Scope Decision's Planner Contract."
+- Item file contains a `> Grouped into [<leader>] run on YYYY-MM-DD` annotation → "This item is a grouped existing-item sibling of `[<leader>]`. The grouped run is tracked under its leader. Run **/relay-help** on the leader, or run **/relay-plan**/**/relay-review**/**/relay-verify**/**/relay-resolve** on the leader to advance the run. Per-entry closure for this sibling is recorded in the leader's `### Per-Entry Closure` block."
+- Item file's front-matter contains `*Promoted from:*` AND `*Promotion Class:* lightweight` AND no `## Implementation Plan` yet → "Promoted feature detected (lightweight). Run **/relay-plan** or **/relay-superplan** on [item] — the planner will emit a `### Promoted Feature Coverage` section."
+- Item file's front-matter contains `*Promoted from:*` AND `*Promotion Class:* broad` AND no `## Implementation Plan` yet → "Promoted feature detected (broad). Run **/relay-superplan** on [item] (preferred on Claude Code) — the planner will emit `### Design Deepening` BEFORE the implementation plan and `### Promoted Feature Coverage` after. **/relay-plan** with `### Design Deepening` is the cross-platform fallback."
+- Item file's front-matter contains `*Promoted from:*` AND a `## Verification Report` exists → annotate the existing pipeline-stage recommendation with the applied tier: "Closure tier applied: <tier> (waiver fired: <yes|no>; baseline: <baseline>)." Read `*Closure Tier Applied:*` from front-matter; fall back to baseline if absent.
+
+If no scope-formation branch matched, fall through to the existing pipeline-stage branches below:
+
+- If in-progress items found, recommend resuming from their current stage.
+  Check sections in the item file to determine stage (check in this order —
+  later conditions take precedence over earlier ones):
+  - Has ## Analysis but no ## Implementation Plan → "Resume with **/relay-plan** (single-pass) or **/relay-superplan** (5-agent synthesis) on [item]"
+  - Has ## Implementation Plan but no ## Adversarial Review → "Resume with **/relay-review** on [item]"
+  - Has ## Adversarial Review with verdict REJECTED → "Plan was rejected. Resume with **/relay-plan** or **/relay-superplan** on [item] to revise"
+  - Has ## Adversarial Review with verdict DEFERRED → "This item was deferred to a later phase. Skip to the next item, or run **/relay-analyze** on the next phase."
+  - Has ## Adversarial Review (APPROVED/APPROVED WITH CHANGES) but no ## Implementation Guidelines → "Ready to implement [item]. Say **'implement the plan'**"
+  - Has ## Implementation Guidelines but no ## Verification Report → "Implementation may be done. Resume with **/relay-verify** on [item]"
+  - Has ## Verification Report with verdict INCOMPLETE or HAS ISSUES → "Verification found issues. Resume with **/relay-verify** on [item]"
+  - Has ## Verification Report with verdict COMPLETE but no notebook in .relay/notebooks/ → "Resume with **/relay-notebook** on [item]"
+  - Has matching notebook in .relay/notebooks/ → "Ready to close out. Run **/relay-resolve** on [item]"
+- If no in-progress items, recommend starting the next phase:
+  → "Next up: [Phase X] from relay-ordering.md. Run **/relay-analyze** to begin."
+- Always add: "You can also file new items anytime with **/relay-new-issue** or **/relay-brainstorm**."
+
+**All phases complete**:
+→ "All planned work is complete! Options:
+   - **/relay-discover** — scan for new issues
+   - **/relay-brainstorm** — explore new features
+   - **/relay-new-issue** — file a specific bug or gap
+   - **/relay-scan** — refresh status to confirm everything is clean"
+
+**Feature pipeline in progress**:
+- Brainstorm with status BRAINSTORMING → "Continue brainstorming with **/relay-brainstorm**"
+- Brainstorm with status READY FOR DESIGN → "Design the features with **/relay-design**"
+- Features DESIGNED but not in ordering → "Run **/relay-scan** then **/relay-order** to integrate features into the work plan"
+- Brainstorms with BRAINSTORMING or READY FOR DESIGN that are older than 7 days → also mention: "You have stale brainstorms. Run **/relay-cleanup** to archive abandoned ones."
+
+**Exercise pipeline state** (check alongside the above conditions — these are additions, not replacements):
+- `.relay/relay-exercise.md` does not exist AND project has source code
+  → *"You haven't mapped this project's capabilities yet. Run **/relay-exercise** for a bottom-up capability map, or **/relay-exercise \"<your goal>\"** if you have a specific user journey to probe for missing capabilities. Or continue with standard discovery via **/relay-discover**."*
+- Master hub exists AND its Aggregate Capabilities table has rows with status `mapped` (not yet exercised in any session)
+  → *"N capabilities mapped but not yet exercised. Run **/relay-exercise-run** to start exercising one at a time within the active session, **/relay-exercise-run <group>** to sweep a group, or **/relay-exercise-auto** to auto-sweep the entire session in isolated agents (run + file end-to-end, no per-item prompting)."*
+- Active goal session with non-terminal Journey rows: master hub Sessions table has a row with Mode `goal` and Status `active`, and that session's `_control.md` Journey table has at least one row with Status ∈ `exists | gap`
+  → *"Active goal session `<session>` has <Q> un-walked steps (<E> exists, <G> gaps). Run **/relay-exercise-run** to walk the journey end-to-end with adaptive gap handling (substitute / file / skip), **/relay-exercise-run <N>** for a specific step, or **/relay-exercise-auto** to auto-sweep the journey with a one-time gap policy (auto-adapt / auto-file / auto-skip) and per-step isolated agents. Mid-walk, the interactive runner pauses on high-severity findings or failures and offers `replan` to revise remaining steps without losing progress; the auto sweep records them in the final summary instead of pausing."*
+- Active exercise files exist under `.relay/exercise/<session>/*.md` in any active session subfolder, with `draft` findings
+  → *"N exercise files have unprocessed findings (across <K> active session(s)). Run **/relay-exercise-file --session <session> <capability>** for a specific capability, or **/relay-exercise-file --session <session>** with no capability arg to walk all files in the session (step-order in goal sessions)."*
+- Master hub Aggregate Capabilities has rows with status `stale`
+  → *"N capabilities marked stale (project has changed since last map). Run **/relay-exercise** to refresh — creates a fresh session subfolder with the current scope."*
+- User is asking "can this project do X" or "what's missing to do X" (intent-based; Step 1 routes this, but Step 4 surfaces it as an option here too)
+  → *"Goal mode answers that. Run **/relay-exercise \"<your goal narrative>\"** to map required capabilities top-down and identify gaps. The runner will then walk the journey and adapt around gaps."*
+
+Priority when multiple exercise conditions apply: draft findings first (active work), then stale refresh, then new mapping (default or goal mode). Exercise conditions coexist with issue/feature conditions — present both if applicable.
+
+### Step 5 — Present recommendations
+
+- Show the current state summary (items count, what's in progress)
+- Recommend the specific next action with the skill command
+- If multiple paths are available, list them with brief explanations
+- If the user seems unsure, ask what they're trying to accomplish
+
+## Available Relay Skills
+
+| Skill | Purpose |
+|-------|---------|
+| **/relay-setup** | Initialize Relay in a new project |
+| **/relay-discover** | Scan codebase for bugs, gaps, issues |
+| **/relay-new-issue** | File a specific bug or gap |
+| **/relay-brainstorm** | Explore a new feature idea |
+| **/relay-design** | Design features from brainstorm |
+| **/relay-cleanup** | Archive abandoned brainstorms |
+| **/relay-exercise** | Map project capabilities for stress-testing |
+| **/relay-exercise-run** | Execute scenarios against a capability |
+| **/relay-exercise-file** | Walk findings and file issues or brainstorm seeds |
+| **/relay-exercise-auto** | Auto-sweep run + file across the active session (one agent per item) |
+| **/relay-scan** | Update project status |
+| **/relay-order** | Prioritize work |
+| **/relay-analyze** | Validate item before implementation |
+| **/relay-plan** | Create implementation plan (single-pass) |
+| **/relay-superplan** | Create implementation plan via 5 competing agents, then synthesize |
+| **/relay-review** | Adversarial review of plan |
+| **/relay-verify** | Verify implementation |
+| **/relay-notebook** | Create verification notebook |
+| **/relay-resolve** | Close out and archive completed work |
+| **/relay-help** | Navigation guidance — where you are now |
+
+## Workflow Paths
+
+```
+Specific issue     →  /relay-new-issue  →  /relay-scan → /relay-order → /relay-analyze → ... → /relay-resolve
+Systematic scan    →  /relay-discover   →  /relay-scan → /relay-order → /relay-analyze → ... → /relay-resolve
+Feature idea       →  /relay-brainstorm → /relay-design → /relay-scan → /relay-order → /relay-analyze → ... → /relay-resolve
+Exercise session   →  /relay-exercise → /relay-exercise-run → /relay-exercise-file → /relay-scan → ... → /relay-resolve
+Exercise (sweep)   →  /relay-exercise → /relay-exercise-auto → /relay-scan → ... → /relay-resolve
+```
+
+## Code Pipeline
+
+```
+/relay-analyze → /relay-plan OR /relay-superplan → /relay-review → implement → /relay-verify → /relay-notebook → /relay-resolve
+```
+
+## Notes
+
+- This skill reads .relay/ state files but does not modify them
+- If relay-status.md exists, use its dates and in-progress tables rather than re-scanning the codebase
+- When multiple paths are available, present all options but highlight the recommended one
+- Run each Relay skill in a fresh conversation for best results
+- When the user provides a description, prioritize intent routing (Step 1) over state detection (Step 4)
+- /relay-new-issue is the universal entry point for uncertain items — it investigates and redirects features automatically
