@@ -3,7 +3,7 @@
 > Single source of truth. Read this first every session. Updated at every
 > `/session-end` and by the `PreCompact` hook. Every field has a purpose -- fill each.
 
-**Last updated:** 2026-05-14 by /phase-close (post-Phase-17 close-out)
+**Last updated:** 2026-05-14 by /session-end (session sid-2026-05-14-phase-17-init-gitignore-template)
 **Current phase:** 18 — TBD (placeholder scaffold; next session names + populates)
 **Current step:** 18.1 (TBD)
 **Status:** ready (Phase 17 closed cleanly; Phase 18 scaffolded but not yet authored)
