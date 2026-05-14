@@ -106,19 +106,23 @@ Ship as two independent PRs or one combined cleanup PR.
 
 ---
 
-## Phase 7 — Documentation bundle
+## Phase 7 — Documentation bundle — COMPLETE
+
+**Resolved:** 2026-05-14
 
 **Ship as one PR.** Five docs-only items + small description-string and `.gitignore` template touches.
 
 | # | Item | File | Complexity | Depends on |
 |---|---|---|---|---|
-| 11 | Quickstart latency estimate by model class | [quickstart-work-cycle-latency-estimate-understated.md](issues/quickstart-work-cycle-latency-estimate-understated.md) | XS | — |
-| 12 | Document `transition` adjacency vs override semantics in operations.md and `--help` | [transition-command-adjacency-vs-spec-override-semantics.md](issues/transition-command-adjacency-vs-spec-override-semantics.md) | XS | — |
-| 13 | Document `auth.token` lifecycle; verify gitignore template | [auth-token-persists-on-disk-after-daemon-stop.md](issues/auth-token-persists-on-disk-after-daemon-stop.md) | XS | — |
-| 14 | MCP session handshake docs + curl example | [mcp-tools-list-requires-session-handshake-docs-gap.md](issues/mcp-tools-list-requires-session-handshake-docs-gap.md) | XS | — |
-| 15 | `conductor.recommend` description tightened in tool list + docs | [rpc-recommend-method-semantics-docs-gap.md](issues/rpc-recommend-method-semantics-docs-gap.md) | XS | — |
+| 11 | ~~Quickstart latency estimate by model class~~ ✓ [implemented](implemented/quickstart-work-cycle-latency-estimate-understated.md) (2026-05-14) | ~~[quickstart-work-cycle-latency-estimate-understated.md](issues/quickstart-work-cycle-latency-estimate-understated.md)~~ → [archive](archive/issues/quickstart-work-cycle-latency-estimate-understated.md) | XS | — |
+| 12 | ~~Document `transition` adjacency vs override semantics in operations.md and `--help`~~ ✓ [implemented](implemented/transition-command-adjacency-vs-spec-override-semantics.md) (2026-05-14) | ~~[transition-command-adjacency-vs-spec-override-semantics.md](issues/transition-command-adjacency-vs-spec-override-semantics.md)~~ → [archive](archive/issues/transition-command-adjacency-vs-spec-override-semantics.md) | XS | — |
+| 13 | ~~Document `auth.token` lifecycle; verify gitignore template~~ ✓ [implemented](implemented/auth-token-persists-on-disk-after-daemon-stop.md) (2026-05-14) | ~~[auth-token-persists-on-disk-after-daemon-stop.md](issues/auth-token-persists-on-disk-after-daemon-stop.md)~~ → [archive](archive/issues/auth-token-persists-on-disk-after-daemon-stop.md) | XS | — |
+| 14 | ~~MCP session handshake docs + curl example~~ ✓ [implemented](implemented/mcp-tools-list-requires-session-handshake-docs-gap.md) (2026-05-14) | ~~[mcp-tools-list-requires-session-handshake-docs-gap.md](issues/mcp-tools-list-requires-session-handshake-docs-gap.md)~~ → [archive](archive/issues/mcp-tools-list-requires-session-handshake-docs-gap.md) | XS | — |
+| 15 | ~~`conductor.recommend` description tightened in tool list + docs~~ ✓ [implemented](implemented/rpc-recommend-method-semantics-docs-gap.md) (2026-05-14) | ~~[rpc-recommend-method-semantics-docs-gap.md](issues/rpc-recommend-method-semantics-docs-gap.md)~~ → [archive](archive/issues/rpc-recommend-method-semantics-docs-gap.md) | XS | — |
 
 **Why placed here:** docs PRs are easiest to review when the code state is stable. After Phases 1-6, several docs anchor to behaviors that are themselves changed by the code fixes — bundling docs last avoids writing docs twice.
+
+**Resolution:** Single bundled commit (Control phase 15.1). Two source-side micro-edits (`src/cli/commands/transition.ts:44` `.description()` expanded; `src/daemon/mcp_server.ts:38` `conductor.recommend` description tightened) + four doc surfaces touched (`docs/quickstart.md` latency table; `docs/operations.md` +3 new sections — transition adjacency, auth token lifecycle, RPC method surface; new `docs/mcp.md` with three-step handshake + curl example). `init.ts` gitignore-template emission deferred to a future code-side issue if needed — the doc tells users to add the gitignore lines by hand. Suite 538/538 unchanged (no tests added or affected). Typecheck clean. Closes T1-2, T3-1, T4-2, T4-3, T4-4 from the 2026-05-12 dogfood session.
 
 ---
 

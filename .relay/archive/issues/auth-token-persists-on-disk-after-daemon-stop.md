@@ -1,3 +1,5 @@
+> **ARCHIVED** — Resolved. See [implementation doc](../../implemented/auth-token-persists-on-disk-after-daemon-stop.md). Bundled into Phase 15.1 docs PR.
+
 # `.conductor/auth.token` persists on disk after `daemon stop`
 
 *Created: 2026-05-12*
@@ -110,3 +112,22 @@ For Option B:
 - `src/daemon/index.ts` — call `clearAuthToken` from `shutdown()` and
   `stopDaemon()` exit paths.
 - `tests/daemon/auth.test.ts` — coverage for the clear/regen cycle.
+
+---
+
+## Analysis
+
+*Analyzed: 2026-05-14*
+
+### Validation
+- Problem still exists at HEAD `3c7dc8f`. `src/daemon/auth.ts` confirmed unchanged: `generateAuthToken` writes UUIDv4 on each start; no `clearAuthToken` function exists; shutdown paths in `src/daemon/index.ts:126-138` clear pidfile + endpoint + mcp endpoint but NOT auth.token. The repo's own `.gitignore` line 41 includes `.conductor/auth.token` ✓; however **`src/cli/commands/init.ts` writes NO `.gitignore` to user projects** — this is a separate hygiene gap from the dogfood issue's "verify gitignore template" check.
+- Approach (Option A — document, don't change behavior) still valid for this docs-only phase.
+
+### Scope Decision
+
+*Mode:* keep narrow
+*Decided:* 2026-05-14
+*Rationale:* Bundled into Phase 15.1 docs PR. See **primary item** [quickstart-work-cycle-latency-estimate-understated.md](quickstart-work-cycle-latency-estimate-understated.md) for the consolidated plan + review + verification. The `init.ts` gitignore-template emission gap is **deferred to a future code-side issue** if needed — out of scope for this docs sweep.
+
+### Approach
+Option A from the issue. Add an "Auth token lifecycle" section to `docs/operations.md` explaining: token regenerated on each daemon start; not cleared on stop (by design, for RPC client reconnect); rotated on next start; users should add `.conductor/auth.token` to their project's `.gitignore` (template emission deferred — see scope note).

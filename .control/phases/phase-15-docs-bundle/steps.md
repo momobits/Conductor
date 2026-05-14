@@ -7,7 +7,7 @@
 > a code-side cleanup), split into 15.1a-15.1e sequential commits in one
 > branch, with the final commit flipping the 15.1 checkbox.
 
-- [ ] 15.1 — Documentation bundle: quickstart latency estimate, transition adjacency vs override, auth.token lifecycle + gitignore, MCP session handshake docs, conductor.recommend RPC semantics
+- [x] 15.1 — Documentation bundle: quickstart latency estimate, transition adjacency vs override, auth.token lifecycle + gitignore, MCP session handshake docs, conductor.recommend RPC semantics
 
 ## Step detail
 

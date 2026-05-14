@@ -35,7 +35,7 @@ const TOOLS: readonly ToolDef[] = [
   { name: 'conductor.exercise_file', description: 'File an exercise finding' },
   { name: 'conductor.work_card', description: 'Spawn a Task Agent on a card' },
   { name: 'conductor.work_next', description: 'Pick the next eligible card and work it' },
-  { name: 'conductor.recommend', description: 'File a recommendation manually' },
+  { name: 'conductor.recommend', description: 'File a recommendation against a card (for plugins / foreign tools). Writes to the run log; does NOT return a recommendation. For "which card should I work on next?", use conductor.work_next.' },
   { name: 'conductor.config_get', description: 'Read the project config from disk' },
   { name: 'conductor.config_set', description: 'Write and validate the project config' },
   { name: 'conductor.session_status', description: 'Query active TaskAgent sessions' },

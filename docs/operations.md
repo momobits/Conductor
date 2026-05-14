@@ -115,3 +115,79 @@ The minimum surface area:
 
 The op is now first-class: routable, testable, surfaceable via CLI/RPC/MCP
 once a handler is added.
+
+---
+
+## Manual transitions and the adjacency rule
+
+`conductor transition <card-id> <column>` moves a card between columns
+without going through the autonomy gate machinery. **But adjacency is
+still enforced.** The lifecycle state machine (in `src/engine/lifecycle.ts`)
+allows:
+
+- **Forward**: exactly one column at a time
+  (`discovered → planned → approved → building → verifying → shipped → archived`).
+- **Backward**: three specific moves only:
+  `planned → discovered`, `building → approved`, `verifying → building`.
+
+Any other transition rejects with `Illegal transition: <from> -> <to>`.
+
+**To move a card across multiple stages** (e.g., `approved → shipped`),
+call `conductor transition` once per step.
+
+There is no `--force` flag. The design preserves the integrity of the
+lifecycle graph; the "human override" semantic that `transition` provides
+applies to **autonomy policy gates** (`manual` / `assist` / `auto`), NOT
+to **adjacency**.
+
+---
+
+## Auth token lifecycle
+
+`.conductor/auth.token` is a UUIDv4 bearer credential for the daemon's
+HTTP `/rpc` and MCP transports.
+
+- **Created**: on every `conductor daemon start` — `generateAuthToken()`
+  writes a fresh UUIDv4 to `.conductor/auth.token`, overwriting any prior
+  token. The file is shared between the daemon process and any client
+  (CLI commands, UI, MCP integrations) that needs to authenticate.
+- **NOT cleared** on `conductor daemon stop`. This is intentional: the
+  next daemon start would regenerate the token anyway, and leaving the
+  file in place avoids a brief window where a CLI client sees ENOENT
+  rather than a stale-but-recoverable token.
+- **Rotated on next start**. Any token captured before the daemon stop
+  is invalidated when the next daemon starts.
+
+**Gitignore your auth token.** Add to your project's `.gitignore`:
+
+```
+.conductor/auth.token
+.conductor/auth.endpoint
+.conductor/mcp.endpoint
+.conductor/mcp.sock
+.conductor/runs/
+.conductor/snapshots/
+```
+
+`conductor init` does NOT currently write a `.gitignore` template. Add
+the lines above by hand after running `init`. (If your project's
+`.gitignore` is missing these and the daemon has started, run
+`git status` to confirm `.conductor/auth.token` is not staged.)
+
+---
+
+## RPC method surface (selected)
+
+The daemon exposes its full RPC surface via JSON-RPC over HTTP at
+`/rpc` and via MCP at `/mcp` (see [mcp.md](mcp.md) for the MCP handshake).
+A few methods are easy to confuse:
+
+| Method | What it does | What it returns |
+|---|---|---|
+| `conductor.work_next` | Picks the next eligible card from `ordering.md` and runs the Task Agent on it. | `{ cardId, runId }` for the chosen card. |
+| `conductor.recommend` | **Files** a recommendation against a card (for plugins / foreign tools to record their preference). | `{ ok: true }`. Does NOT return a recommendation. |
+| `conductor.scan` | Snapshot of card columns + phases. | The current board state. |
+| `conductor.order` | Re-ranks the queue. | `{ ok: true }` after rewriting `ordering.md`. |
+
+See `src/daemon/mcp_server.ts` for the full tool list; see
+`src/rpc/methods.ts` for handler implementations and parameter schemas.

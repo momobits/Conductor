@@ -41,7 +41,9 @@ export async function runTransition(args: TransitionArgs): Promise<void> {
 export function attachTransition(program: Command): void {
   program
     .command('transition <cardId> <column>')
-    .description(`Manually transition a card. Columns: ${COLUMNS.join(' | ')}`)
+    .description(
+      `Manually transition a card to an ADJACENT column (forward by one step, or one of three explicit backward moves: planned→discovered, building→approved, verifying→building). Skips autonomy policy gates but NOT the lifecycle adjacency rule. Columns: ${COLUMNS.join(' | ')}`,
+    )
     .action(async (cardId: string, column: string) => {
       if (!(COLUMNS as readonly string[]).includes(column)) {
         throw new Error(`Unknown column: ${column}. Valid: ${COLUMNS.join(', ')}`);

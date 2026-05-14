@@ -1,3 +1,5 @@
+> **ARCHIVED** — Resolved. See [implementation doc](../../implemented/mcp-tools-list-requires-session-handshake-docs-gap.md). Bundled into Phase 15.1 docs PR.
+
 # MCP `tools/list` requires multi-step session handshake — docs gap
 
 *Created: 2026-05-12*
@@ -96,3 +98,22 @@ stale "no session needed" claims.
 - `docs/operations.md` (or new `docs/mcp.md`) — add the handshake section.
 - `README.md` — cross-link if the README has an MCP section.
 - `examples/mcp/handshake.sh` (optional) — example script.
+
+---
+
+## Analysis
+
+*Analyzed: 2026-05-14*
+
+### Validation
+- Problem still exists at HEAD `3c7dc8f`. `src/daemon/mcp_server.ts:105-107` confirmed: `StreamableHTTPServerTransport` with `sessionIdGenerator`, stateful sessions enforced. No `docs/mcp.md` exists. `docs/operations.md` has no MCP-client integration section. The handshake is undocumented.
+- Approach (docs-only — add `docs/mcp.md` with curl example, cross-link from operations.md) still valid.
+
+### Scope Decision
+
+*Mode:* keep narrow
+*Decided:* 2026-05-14
+*Rationale:* Bundled into Phase 15.1 docs PR. See **primary item** [quickstart-work-cycle-latency-estimate-understated.md](quickstart-work-cycle-latency-estimate-understated.md) for the consolidated plan + review + verification.
+
+### Approach
+Create new `docs/mcp.md` with the three-step initialize → notifications/initialized → tools/list handshake using curl. Cross-link from `docs/operations.md`. Skip the optional `examples/mcp/handshake.sh` standalone script for this sweep — defer to a follow-up if the docs alone prove insufficient in dogfood.

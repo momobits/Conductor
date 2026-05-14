@@ -1,3 +1,5 @@
+> **ARCHIVED** — Resolved. See [implementation doc](../../implemented/transition-command-adjacency-vs-spec-override-semantics.md). Bundled into Phase 15.1 docs PR.
+
 # `conductor transition` rejects non-adjacent moves despite spec wording about human overrides
 
 *Created: 2026-05-12*
@@ -91,3 +93,24 @@ If Option B (alternative):
 - `src/cli/commands/transition.ts` — add `--force` flag, bypass
   `canTransition()` when set.
 - `tests/cli/transition.test.ts` — coverage for forced moves.
+
+---
+
+## Analysis
+
+*Analyzed: 2026-05-14*
+
+### Validation
+- Problem still exists at HEAD `3c7dc8f`: `src/cli/commands/transition.ts:31-35` throws `Illegal transition` unconditionally; `.description()` at line 44 reads `Manually transition a card. Columns: ...` with no adjacency mention. `docs/operations.md` has no manual-transition section.
+- Approach (Option A — keep current behavior, fix docs + help text) still valid.
+
+### Scope Decision
+
+*Mode:* keep narrow
+*Decided:* 2026-05-14
+*Rationale:* Bundled into the Phase 15.1 docs PR. See **primary item** [quickstart-work-cycle-latency-estimate-understated.md](quickstart-work-cycle-latency-estimate-understated.md) for the consolidated Implementation Plan, Adversarial Review, and Verification Report covering all 5 Phase 7 docs items.
+
+### Approach
+Option A from the issue. Two edits:
+- `src/cli/commands/transition.ts:44` — extend `.description()` to mention adjacency.
+- `docs/operations.md` — add a "Manual transitions and the adjacency rule" section.

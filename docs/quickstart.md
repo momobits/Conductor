@@ -106,6 +106,20 @@ conductor transition <card-id> approved
 
 ---
 
+## Latency expectations
+
+A single `conductor work <card-id>` cycle takes one or two LLM calls (analyze + plan, or implement, depending on the card column). Per-op times vary by model class:
+
+| Model class | Per-op latency | analyze + plan total |
+|---|---|---|
+| **Haiku / Sonnet / GPT-5 / Gemini 2.5 Pro** | 30–60s | 60–120s |
+| **Opus subscription (`claude-sub:opus`)** | 50–150s | 100–300s |
+| **Local (LM Studio, Ollama)** | varies — depends on hardware | varies |
+
+Times scale with card body size. A 4-page analysis prompt sits at the upper end of each band. If your first `conductor work` cycle on Opus exceeds 120s, that's expected — let it finish. See [providers.md](providers.md) for routing.
+
+---
+
 ## 6. Use the web UI (recommended for daily use)
 
 ```bash

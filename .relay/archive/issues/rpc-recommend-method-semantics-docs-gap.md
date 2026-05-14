@@ -1,3 +1,5 @@
+> **ARCHIVED** — Resolved. See [implementation doc](../../implemented/rpc-recommend-method-semantics-docs-gap.md). Bundled into Phase 15.1 docs PR.
+
 # `conductor.recommend` RPC method semantics not documented — confused with "get next card"
 
 *Created: 2026-05-12*
@@ -78,3 +80,24 @@ No code changes required.
   `conductor.recommend`.
 - `docs/operations.md` — clarify the RPC method table.
 - `README.md` — if the RPC section in the README touches this, update there too.
+
+---
+
+## Analysis
+
+*Analyzed: 2026-05-14*
+
+### Validation
+- Problem still exists at HEAD `3c7dc8f`. `src/daemon/mcp_server.ts:38` confirmed: `{ name: 'conductor.recommend', description: 'File a recommendation manually' }`. The current description is technically accurate ("File a recommendation") but does not explicitly contrast against the conventional "get next recommendation" semantic users may guess from the method name. Issue's recommendation (more verbose description) is still warranted.
+- `docs/operations.md` has no RPC method table at all — it covers engine ops (analyze, plan, etc.) but not the RPC surface. Adding a brief RPC reference is appropriate.
+- Approach (docs-only — tighten description + add RPC table to operations.md) still valid.
+
+### Scope Decision
+
+*Mode:* keep narrow
+*Decided:* 2026-05-14
+*Rationale:* Bundled into Phase 15.1 docs PR. See **primary item** [quickstart-work-cycle-latency-estimate-understated.md](quickstart-work-cycle-latency-estimate-understated.md) for the consolidated plan + review + verification.
+
+### Approach
+1. `src/daemon/mcp_server.ts:38` — replace `'File a recommendation manually'` with a longer description that contrasts files-vs-returns and points to `conductor.work_next` for the get-next semantic.
+2. `docs/operations.md` — add a brief RPC method surface section listing `conductor.recommend` + `conductor.work_next` side-by-side with their distinct purposes.
