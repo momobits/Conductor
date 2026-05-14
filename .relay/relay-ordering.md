@@ -78,13 +78,17 @@ Ship as two independent PRs or one combined cleanup PR.
 
 ---
 
-## Phase 5 — Plan op prompt restructure
+## Phase 5 — Plan op prompt restructure — COMPLETE
+
+**Resolved:** 2026-05-14
 
 | # | Item | File | Complexity | Depends on |
 |---|---|---|---|---|
-| 9 | Plan prompt extracts resolved decisions from Analysis before emitting steps; `[need:]` allowed only for items not in the preamble | [plan-op-leaves-need-placeholders-resolved-in-analysis.md](issues/plan-op-leaves-need-placeholders-resolved-in-analysis.md) | M | — |
+| 9 | ~~Plan prompt extracts resolved decisions from Analysis before emitting steps; `[need:]` allowed only for items not in the preamble~~ ✓ [implemented](implemented/plan-op-leaves-need-placeholders-resolved-in-analysis.md) (2026-05-14) | ~~[plan-op-leaves-need-placeholders-resolved-in-analysis.md](issues/plan-op-leaves-need-placeholders-resolved-in-analysis.md)~~ → [archive](archive/issues/plan-op-leaves-need-placeholders-resolved-in-analysis.md) | M | — |
 
 **Why placed here:** the change is to the LLM prompt for `plan`, so output drift in user projects is the main risk. Land it AFTER Phases 1-4 have stabilized the surrounding workflow — if a rollback is needed, the rest of the pipeline is in a known-good state. Regression coverage via `MockAdapter` is essential.
+
+**Resolution:** Restructured `src/engine/ops/plan.ts:22-42` SYSTEM_PROMPT to require a `### Resolved decisions from analysis` preamble (H3, nested under `## Implementation Plan` to avoid colliding with `extractSection` in `review.ts:41`) before atomic-step plan. Strategy A (preamble enumeration) + Strategy B (scan-first defensive clause tying `[need:]` validity to preamble presence) layered into one prompt. Existing test 4 prose assertions (`/grounding/i`, `/do NOT invent/i`) preserved verbatim. Added 3 regression tests: prompt-shape lock-in (`Resolved decisions from analysis` + scan-first clause), end-to-end preamble survival with head-position `indexOf` ordering (mirrors Phase 12.1 pattern), and T1-1 regression (no `[need: path]` re-ask; legitimate `[need:]` preserved). Suite 516 → 519 (+3). Typecheck clean.
 
 ---
 

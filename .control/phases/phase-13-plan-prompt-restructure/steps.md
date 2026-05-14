@@ -3,7 +3,7 @@
 > Single item, M-complexity. Ships as one or two sequential commits in one branch.
 > The step closes with `<type>(13.1): <subject>` and flips its checkbox in the same commit.
 
-- [ ] 13.1 — `conductor plan` SYSTEM_PROMPT emits a "Resolved decisions from analysis" preamble before atomic steps; `[need:]` only for items not in the preamble
+- [x] 13.1 — `conductor plan` SYSTEM_PROMPT emits a "Resolved decisions from analysis" preamble before atomic steps; `[need:]` only for items not in the preamble
 
 ## Step detail
 
