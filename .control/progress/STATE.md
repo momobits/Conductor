@@ -3,9 +3,9 @@
 > Single source of truth. Read this first every session. Updated at every
 > `/session-end` and by the `PreCompact` hook. Every field has a purpose -- fill each.
 
-**Last updated:** 2026-05-14 by /phase-close (session sid-2026-05-14-phase13-close-phase14-kickoff)
-**Current phase:** phase-14-brain-log
-**Current step:** 14.1 — `BrainLogWriter` persists `conductor-*` events to `.conductor/brain.log.jsonl`; daemon wiring + retention policy; integration coverage extension
+**Last updated:** 2026-05-14 by /phase-close (session sid-2026-05-14-phase13-phase14-close-phase15-kickoff)
+**Current phase:** phase-15-docs-bundle
+**Current step:** 15.1 — Documentation bundle (5 XS-complexity docs items from `.relay/relay-ordering.md § Phase 7`)
 **Status:** ready
 
 ---
@@ -18,15 +18,16 @@
 ---
 
 ## Next action
-Run `/relay-analyze .relay/issues/brain-events-not-persisted-across-daemon-restarts.md` to begin step 14.1. L-complexity new-module item: `src/daemon/brain_log.ts` (`BrainLogWriter` class subscribing to `EventBus`, filtering `conductor-*` events, appending JSONL rows to `.conductor/brain.log.jsonl`, with retention prune at startup) + daemon wiring in `src/daemon/index.ts:startDaemon()` (instantiate after bus, close in shutdown) + doc comment update in `src/daemon/event_bus.ts:5` + optional config schema extension in `src/config/schema.ts` (decide during superplan: share `run_log.*` keys vs. add `brain_log.*` block) + unit tests in `tests/daemon/brain_log.test.ts` + extend `tests/integration/phase6-end-to-end.test.ts`. L-complexity → `/relay-superplan` is mandatory per the project directive; expected 5 parallel Plan agents diverging on module shape, retention config, write semantics, test layering, and failure semantics.
+
+Run `/relay-analyze` on all 5 docs items in a single main-session pass (the subsystem-search dimension is auto-skipped for documentation-only targets per `/relay-analyze` workflow.md), then a single bundled `/relay-plan` covering all 5 edits. The 5 items: `quickstart-work-cycle-latency-estimate-understated.md` (T1-2), `transition-command-adjacency-vs-spec-override-semantics.md` (T3-1), `auth-token-persists-on-disk-after-daemon-stop.md` (T4-2), `mcp-tools-list-requires-session-handshake-docs-gap.md` (T4-3), `rpc-recommend-method-semantics-docs-gap.md` (T4-4). Per `relay-ordering.md § Phase 7`, ship as one PR. Single commit `feat(15.1): docs bundle ...` at resolve completion flips the 15.1 checkbox.
 
 ---
 
 ## Git state
 - **Branch:** main
-- **Last commit:** `5e0c389` — feat(13.1): plan SYSTEM_PROMPT emits resolved-decisions preamble before steps. Followed by `568fedc` (docs(state) housekeeping for the bash-hook regeneration of next.md). The phase-close `chore(phase-13)` commit lands after this STATE.md write.
-- **Uncommitted changes:** STATE.md + next.md + `.control/phases/phase-14-brain-log/{README.md,steps.md}` are about to be committed by `/phase-close` as `chore(phase-13): close phase 13, kick off phase 14`.
-- **Last phase tag:** `phase-13-plan-prompt-restructure-closed` (created at `5e0c389` during this session's `/phase-close`).
+- **Last commit:** `68e6d14` — feat(14.1): persist brain events to .conductor/brain.log.jsonl. Followed (after this STATE.md write) by the phase-close `chore(phase-14)` commit.
+- **Uncommitted changes:** STATE.md + next.md + phase-15 scaffolds are about to be committed by `/phase-close` as `chore(phase-14): close phase 14, kick off phase 15`.
+- **Last phase tag:** `phase-14-brain-log-closed` (created at `68e6d14` during this session's `/phase-close`).
 
 ---
 
@@ -36,56 +37,56 @@ Run `/relay-analyze .relay/issues/brain-events-not-persisted-across-daemon-resta
 ---
 
 ## In-flight work
-- None — fresh phase-14 kickoff. One item planned (14.1 `BrainLogWriter` + daemon wiring + retention + integration coverage; L-complexity). Sub-step decomposition decided during `/relay-superplan` — expect 2-4 sequential commits in one branch with the final commit flipping the 14.1 checkbox.
+- None — fresh phase-15 kickoff. The phase has one step (15.1) bundling 5 XS docs items. Default shape is one commit; if any item surfaces a code-side cleanup, split into 15.1a-15.1e sequential commits.
 
 ---
 
 ## Test / eval status
-- **Last test run:** 2026-05-14 — `npm test` → **519/519 pass across 96 test files** in 17.10s at HEAD `5e0c389`. Zero regressions. Typecheck clean.
+- **Last test run:** 2026-05-14 — `npm test` → **538/538 pass across 98 test files** in 16.47s at HEAD `68e6d14`. Zero regressions. Typecheck clean.
 - **Eval score** (agent phases only): n/a.
-- **Regression tests added in phase-13:** 13.1 added 3 tests to `tests/engine/ops/plan.test.ts` (prompt-shape lock-in for the preamble + scan-first rule; end-to-end preamble survival with `indexOf` head-position ordering; T1-1 regression asserting no `[need: path]` re-ask while preserving legitimate unresolved `[need:]`). Net suite: 516 → 519 (+3).
+- **Regression tests added in phase-14:** 14.1 added 13 tests to `tests/daemon/brain_log.test.ts` (writer behavior 7 + pruneBrainLog 6 including malformed-row tolerance), 5 tests to `tests/config/schema-phase14.test.ts` (defaults, lenient sub-keys, explicit values, rejects negative keep_days, rejects non-positive keep_last_n), and 1 test to `tests/integration/phase6-end-to-end.test.ts` (brain pipeline persists conductor-status to .conductor/brain.log.jsonl e2e). Net suite: 519 → 538 (+19; planned +15-16, delivered +19).
 
 ---
 
 ## Recent decisions (last 3 ADRs)
-- No formal ADRs filed during phase-13. Several invariants captured inline in the implementation doc Caveats and Analysis:
-  - **H3 mandatory for in-section preambles.** Whenever an op's SYSTEM_PROMPT instructs the model to emit a structured sub-section inside what `appendSection` will wrap under an `## H2` heading, the model's sub-section MUST use H3 (`### ...`). H2 inside H2 splits the section in `extractSection`'s view (regex `/\n##\s+/`) and breaks downstream consumers. Verified for `plan.ts` preamble; same invariant applies to any future op that emits a structured preamble. Documented in `.relay/implemented/plan-op-leaves-need-placeholders-resolved-in-analysis.md § Caveats`.
-  - **"Settle resolved context first" precedent for n=2 ops.** Phase 12.1 (discover dedup) established HEAD-of-userPrompt context-injection at the operator layer; Phase 13.1 (plan preamble) introduces required-output-preamble at the model-output layer. Both instances of the same broader principle. ADR-worthy at n=3 (natural next candidate: `review.ts` requiring a preamble quoting accepted `[need:]` items).
-  - **Strategy A + Strategy B layering for prompt-engineering fixes.** Two independent failure modes warrant two fail-safes. Marginal token cost is negligible vs. the value of redundant counter-pressure. Pattern recorded for future prompt-restructure work.
-- A potential ADR may emerge during 14.1's `/relay-superplan` if the config-schema decision (share `run_log.*` keys vs. add `brain_log.*` block) or the writer-lifecycle ownership decision (bus-owned vs daemon-owned) becomes load-bearing for future persistent subscribers.
+- No formal ADRs filed during phase-14. Several invariants captured inline in the implementation doc Caveats:
+  - **EventBus subscriber-lifecycle invariant: writer.close() MUST run BEFORE bus.close().** Encoded in `index.ts:shutdown` via `try { await brainLog.close(); } finally { bus.close(); }`. Structural enforcement avoids hand-wavy convention. ADR-worthy when n ≥ 3 persistent subscribers (currently n=1 with the brain log writer).
+  - **JSONL appender + prune-at-boot pattern repeats at n=2 (RunLogWriter + BrainLogWriter).** Refactor-Forward agent flagged shared-base-class extraction as deferred at this scale; revisit at n=3 if a third JSONL writer appears.
+  - **`keepDays=0 → cutoff=Infinity` semantic.** `pruneRuns` and `pruneBrainLog` both treat keepDays=0 as "time-window disabled, defer to keepLastN." Adversarial review caught a draft using `-Infinity` (opposite semantic); corrected pre-implementation. Documented in the implementation doc Caveats; future writer-with-prune work should match.
+  - **Close-drain invariant for serialized Promise chains: `closed` flag belongs in upstream-of-scheduling (onEvent), NOT downstream-of-scheduling (appendLine).** Adversarial review caught a draft with an `if (this.closed) return;` early-exit in `appendLine` that would have silently dropped pre-close-scheduled events during drain. The `appendLine` source carries a 5-line NOTE: comment documenting this invariant. Test #4 (close drains in-flight writes) guards it.
+- A potential ADR may emerge during 15.1's `/relay-analyze` if any of the 5 docs items surfaces a code-side semantic change rather than a pure docs gap.
 
 ---
 
 ## Recently completed (last 5 steps)
+- 68e6d14 — feat(14.1): persist brain events to .conductor/brain.log.jsonl — 2026-05-14
+- 7d8c7d3 — docs(state): regenerate next.md for phase-14 kickoff (post-phase-close fix-up) — 2026-05-14
+- f7d973d — chore(phase-13): close phase 13, kick off phase 14 — 2026-05-14
+- 568fedc — docs(state): pick up bash-hook regeneration of next.md from prior session-end — 2026-05-14
 - 5e0c389 — feat(13.1): plan SYSTEM_PROMPT emits resolved-decisions preamble before steps — 2026-05-14
-- debf476 — docs(state): session end for phase-12 close, phase-13 kickoff — 2026-05-12
-- 1fd9457 — chore(phase-12): close phase 12, kick off phase 13 — 2026-05-12
-- d90cb0b — feat(12.1): discover passes existing-cards summary into prompt; SYSTEM_PROMPT instructs no-overlap — 2026-05-12
-- 1d39edd — feat(11.2): drift quantifies truncation; --verbose lifts the cap — 2026-05-12
 
-Phase 13 closed (tag: `phase-13-plan-prompt-restructure-closed`, commit: `5e0c389`); Phase 14 kicked off.
+Phase 14 closed (tag: `phase-14-brain-log-closed`, commit: `68e6d14`); Phase 15 kicked off.
 
 ---
 
 ## Attempts that didn't work (current step only)
-- None for step 14.1 yet.
+- None for step 15.1 yet.
 
 ---
 
 ## Environment snapshot
-- **Language / runtime:** TypeScript (Node ≥ 20). Engine builds with `tsc -p tsconfig.json` (NOT auto-run by `npm test` — `npm test` uses vitest's own transformer against `src/`, so smoke tests against `node dist/...` require an explicit `npm run build` first). UI built by `scripts/build-ui.mjs`. zod 3.23.8 confirmed as direct dep.
-- **Key pinned deps:** vitest, simple-git, gray-matter, zod, chokidar, @anthropic-ai/sdk.
+- **Language / runtime:** TypeScript (Node ≥ 20). Engine builds with `tsc -p tsconfig.json`. UI built by `scripts/build-ui.mjs`. zod 3.23.8 confirmed as direct dep.
+- **Key pinned deps:** vitest 2.1.9, simple-git, gray-matter, zod, chokidar, @anthropic-ai/sdk.
 - **Model in use:** Claude Opus 4.7 (1M context).
-- **Other:** Chokidar polling (50ms interval, 100ms stabilityThreshold). `pretest` builds only the UI via `npm run build:ui`. `npm test` is `vitest run` against `src/`. Test timeout 5000ms. Daemon event bus is in-memory fan-out (`src/daemon/event_bus.ts`); brain events currently NOT persisted (the gap phase 14 closes).
+- **Other:** Chokidar polling (50ms interval, 100ms stabilityThreshold). `pretest` builds only the UI via `npm run build:ui`. `npm test` is `vitest run` against `src/`. Test timeout 5000ms. Daemon EventBus is in-memory fan-out; TaskAgent events persist via run log; brain events persist via brain log (Phase 14 just shipped).
 
 ---
 
 ## Notes for next session
 
-Phase 14 is "Brain log" — single L-complexity item from `.relay/relay-ordering.md § Phase 6`:
+Phase 15 is "Documentation bundle" — 5 XS-complexity docs items from `.relay/relay-ordering.md § Phase 7`:
 
-- **Step 14.1** — `brain-events-not-persisted-across-daemon-restarts`. The issue (T4-1) is a meaningful auditability gap: the daemon's `EventBus` publishes four `conductor-*` event kinds in real time to SSE clients but writes nothing to disk; `src/daemon/event_bus.ts:5` explicitly comments "Events are not persisted anywhere." When the daemon stops, brain history is lost; post-hoc diagnosis of halts/decisions becomes impossible. Fix: add a `BrainLogWriter` subscribing to the bus, filtering for `conductor-*` kinds, appending JSONL rows to `.conductor/brain.log.jsonl`, with retention prune at startup. Wire in `src/daemon/index.ts:startDaemon()` after bus creation and before MCP attach; close in daemon shutdown. Update `event_bus.ts:5` doc comment to reflect the new persistence pair. Optional config schema extension for `brain_log` retention block (decision deferred to superplan). Integration coverage in `tests/integration/phase6-end-to-end.test.ts`. Test commands: `npx vitest run tests/daemon/brain_log.test.ts tests/daemon/` (unit) + `npx vitest run tests/integration/phase6-end-to-end.test.ts` (integration).
-- L-complexity → mandatory `/relay-superplan`. The 5 strategy agents diverge on module shape (bus-owned subscriber vs. daemon-owned pair), retention config (share `run_log.*` keys vs. add `brain_log.*` block), write semantics (sync append vs. async batched flush), test layering (heavy unit vs. heavy integration), and failure semantics (does writer I/O error halt the brain or get swallowed).
-- After 14.1 closes, `/phase-close` will tag `phase-14-brain-log-closed`. Sub-step decomposition may produce 2-4 sequential commits; the final commit flips the 14.1 checkbox.
-- Phase 13's "settle resolved context first" precedent applies at n=2 (discover + plan). If a third op adopts the pattern (review.ts preamble for accepted `[need:]` items), file an ADR. Not yet warranted.
+- **Step 15.1** — bundled docs commit covering: (1) quickstart latency by model class (T1-2); (2) transition adjacency vs override semantics in `docs/operations.md` + `--help` (T3-1); (3) `.conductor/auth.token` lifecycle in `docs/operations.md` + verify gitignore template (T4-2); (4) MCP session handshake docs + curl example (T4-3); (5) `conductor.recommend` RPC description tightened in tool list + `docs/rpc.md` (T4-4). Test commands: `npm run typecheck` + `npm test` to guard against accidental code drift via inline code examples.
+- Recommended flow: single main-session `/relay-analyze` pass on all 5 items (subsystem-search auto-skipped for docs-only targets per /relay-analyze workflow.md), single bundled `/relay-plan`, single `/relay-review`, single implementation pass with 5 targeted Edit calls, single `/relay-verify`, single `/relay-resolve` archiving all 5 items together. Final commit `feat(15.1): docs bundle ...` flips the 15.1 checkbox.
+- After 15.1 closes, `/phase-close` will tag `phase-15-docs-bundle-closed`. The remaining Relay phase is Phase 8 (observation closure — 1 working-as-designed item: `recommendation-event-duplicates-card-body-rationale.md`). Phase 8 closes without code changes — just acknowledge + archive.
 - Notebook step is skipped per `relay-config.md § Notebook Setup` (TypeScript-only project).

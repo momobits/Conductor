@@ -16,14 +16,13 @@ see a structured `[control:state]` block instead of doing them by hand.
 
 ## Next action
 
-Resume Phase 14 (Brain log). Run `/session-start` to confirm git state and load the canonical status, then run `/relay-analyze .relay/issues/brain-events-not-persisted-across-daemon-restarts.md` to begin step 14.1.
+Resume Phase 15 (Documentation bundle). Run `/session-start` to confirm git state and load the canonical status, then run `/relay-analyze` on the 5 docs items together (or in sequence) to begin step 15.1.
 
 ## Notes for next session
 
-Phase 14 is "Brain log" — single L-complexity item from `.relay/relay-ordering.md § Phase 6`:
+Phase 15 is "Documentation bundle" — 5 XS-complexity docs items from `.relay/relay-ordering.md § Phase 7`:
 
-- **Step 14.1** — `brain-events-not-persisted-across-daemon-restarts`. The issue (T4-1) is a meaningful auditability gap: the daemon's `EventBus` publishes four `conductor-*` event kinds in real time to SSE clients but writes nothing to disk; `src/daemon/event_bus.ts:5` explicitly comments "Events are not persisted anywhere." When the daemon stops, brain history is lost; post-hoc diagnosis of halts/decisions becomes impossible. Fix: add a `BrainLogWriter` subscribing to the bus, filtering for `conductor-*` kinds, appending JSONL rows to `.conductor/brain.log.jsonl`, with retention prune at startup. Wire in `src/daemon/index.ts:startDaemon()` after bus creation and before MCP attach; close in daemon shutdown. Update `event_bus.ts:5` doc comment to reflect the new persistence pair. Optional config schema extension for `brain_log` retention block (decision deferred to superplan). Integration coverage in `tests/integration/phase6-end-to-end.test.ts`. Test commands: `npx vitest run tests/daemon/brain_log.test.ts tests/daemon/` (unit) + `npx vitest run tests/integration/phase6-end-to-end.test.ts` (integration).
-- L-complexity → mandatory `/relay-superplan`. The 5 strategy agents diverge on module shape (bus-owned subscriber vs. daemon-owned pair), retention config (share `run_log.*` keys vs. add `brain_log.*` block), write semantics (sync append vs. async batched flush), test layering (heavy unit vs. heavy integration), and failure semantics (does writer I/O error halt the brain or get swallowed).
-- After 14.1 closes, `/phase-close` will tag `phase-14-brain-log-closed`. Sub-step decomposition may produce 2-4 sequential commits; the final commit flips the 14.1 checkbox.
-- Phase 13's "settle resolved context first" precedent applies at n=2 (discover + plan). If a third op adopts the pattern (review.ts preamble for accepted `[need:]` items), file an ADR. Not yet warranted.
+- **Step 15.1** — bundled docs commit covering: (1) quickstart latency by model class (T1-2); (2) transition adjacency vs override semantics in `docs/operations.md` + `--help` (T3-1); (3) `.conductor/auth.token` lifecycle in `docs/operations.md` + verify gitignore template (T4-2); (4) MCP session handshake docs + curl example (T4-3); (5) `conductor.recommend` RPC description tightened in tool list + `docs/rpc.md` (T4-4). Test commands: `npm run typecheck` + `npm test` to guard against accidental code drift via inline code examples.
+- Recommended flow: single main-session `/relay-analyze` pass on all 5 items (subsystem-search auto-skipped for docs-only targets), single bundled `/relay-plan`, single `/relay-review`, single implementation pass with 5 targeted Edit calls, single `/relay-verify`, single `/relay-resolve` archiving all 5 items together. Final commit `feat(15.1): docs bundle ...` flips the 15.1 checkbox.
+- After 15.1 closes, `/phase-close` will tag `phase-15-docs-bundle-closed`. The remaining Relay phase is Phase 8 (observation closure — 1 working-as-designed item: `recommendation-event-duplicates-card-body-rationale.md`). Phase 8 closes without code changes.
 - Notebook step is skipped per `relay-config.md § Notebook Setup` (TypeScript-only project).
