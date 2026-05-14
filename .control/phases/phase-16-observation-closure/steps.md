@@ -5,7 +5,7 @@
 > (or `chore(16.1)` if preferred — both pass the commit-msg hook). The commit
 > flips the 16.1 checkbox.
 
-- [ ] 16.1 — Close `recommendation-event-duplicates-card-body-rationale.md` (T3-2) as working-as-designed; archive with banner; mark Phase 8 COMPLETE in relay-ordering.md.
+- [x] 16.1 — Close `recommendation-event-duplicates-card-body-rationale.md` (T3-2) as working-as-designed; archive with banner; mark Phase 8 COMPLETE in relay-ordering.md.
 
 ## Step detail
 

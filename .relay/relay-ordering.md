@@ -126,13 +126,25 @@ Ship as two independent PRs or one combined cleanup PR.
 
 ---
 
-## Phase 8 — Observation closure
+## Phase 8 — Observation closure — COMPLETE
+
+**Resolved:** 2026-05-14
 
 | # | Item | File | Complexity | Depends on |
 |---|---|---|---|---|
-| 16 | Confirm recommendation-event design intent; close with no code change | [recommendation-event-duplicates-card-body-rationale.md](issues/recommendation-event-duplicates-card-body-rationale.md) | None | — |
+| 16 | ~~Confirm recommendation-event design intent; close with no code change~~ ✓ [implemented](implemented/recommendation-event-duplicates-card-body-rationale.md) (2026-05-14) — closed as working-as-designed | ~~[recommendation-event-duplicates-card-body-rationale.md](issues/recommendation-event-duplicates-card-body-rationale.md)~~ → [archive](archive/issues/recommendation-event-duplicates-card-body-rationale.md) | None | — |
 
 **Why placed here:** working-as-designed item; no fix expected. Run `/relay-resolve` to archive after acknowledgement.
+
+**Resolution:** Closed as working-as-designed (Control phase 16.1). The duplication of rationale text in `events.jsonl` and `## Adversarial Review` is intentional — events.jsonl is the replay/audit substrate (self-describing rows), and the card section is the human-readable presentation. Storage cost bounded by `run_log.keep_days` / `run_log.keep_last_n` retention. The issue's Options A/B/C remain documented in the archived file for any future storage/cost revisit. No code changes. Suite 538/538 unchanged. Closes T3-2 from the 2026-05-12 dogfood session.
+
+---
+
+> **🎉 RELAY ORDERING COMPLETE — 2026-05-14**
+>
+> All 16 items from the 2026-05-12 initial dogfood session resolved
+> across Phases 1-8. Next backlog comes from a fresh `/relay-discover`
+> or `/relay-scan` pass.
 
 ---
 
