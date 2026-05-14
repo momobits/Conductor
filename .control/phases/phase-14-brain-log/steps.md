@@ -6,7 +6,7 @@
 > config, and test layering). Expect 2-4 sequential commits in one branch.
 > The final commit closes 14.1 and flips its checkbox in the same commit.
 
-- [ ] 14.1 — `BrainLogWriter` persists `conductor-*` events to `.conductor/brain.log.jsonl`; daemon wiring + retention policy; integration coverage extension
+- [x] 14.1 — `BrainLogWriter` persists `conductor-*` events to `.conductor/brain.log.jsonl`; daemon wiring + retention policy; integration coverage extension
 
 ## Step detail
 

@@ -92,13 +92,17 @@ Ship as two independent PRs or one combined cleanup PR.
 
 ---
 
-## Phase 6 — Brain observability (new module)
+## Phase 6 — Brain observability (new module) — COMPLETE
+
+**Resolved:** 2026-05-14
 
 | # | Item | File | Complexity | Depends on |
 |---|---|---|---|---|
-| 10 | `BrainLogWriter` persists conductor-* events to `.conductor/brain.log.jsonl`; daemon wiring + retention policy | [brain-events-not-persisted-across-daemon-restarts.md](issues/brain-events-not-persisted-across-daemon-restarts.md) | L | — |
+| 10 | ~~`BrainLogWriter` persists conductor-* events to `.conductor/brain.log.jsonl`; daemon wiring + retention policy~~ ✓ [implemented](implemented/brain-events-not-persisted-across-daemon-restarts.md) (2026-05-14) | ~~[brain-events-not-persisted-across-daemon-restarts.md](issues/brain-events-not-persisted-across-daemon-restarts.md)~~ → [archive](archive/issues/brain-events-not-persisted-across-daemon-restarts.md) | L | — |
 
 **Why placed here:** the only L (large) item — adds a new file (`src/daemon/brain_log.ts`), wires it into `src/daemon/index.ts` startup/shutdown, optionally extends `ProjectConfigSchema` with a `brain_log` retention block, and adds end-to-end coverage in `tests/integration/phase6-end-to-end.test.ts`. Substantial enough to warrant its own PR with its own review cycle. No code dependencies on prior phases, but ordering it late keeps the larger PR away from the parallel small fixes.
+
+**Resolution:** Added `BrainLogWriter` (`src/daemon/brain_log.ts`, ~140 lines) subscribing to the EventBus and filtering `kind.startsWith('conductor-')`; appends JSONL rows to `.conductor/brain.log.jsonl` via lazy mkdir + serialized `pending` Promise chain (publish() stays O(1)), with fail-once-then-quiet error guard. `pruneBrainLog` free function applies union retention semantics matching `pruneRuns` (Infinity cutoff when keepDays=0). Wired in `startDaemon()` with `try { await brainLog.close(); } finally { bus.close(); }` for structural shutdown-ordering enforcement. Dedicated `brain_log` config block parallel to `run_log` with `.default({})` defaults. `event_bus.ts:5` doc comment updated. 5-agent superplan synthesis (Test-Driven base + Safety/Minimal cherry-picks) — adversarial review caught two MEDIUM defects amended in-place (cutoff `-Infinity` → `Infinity`; removed close-drain-breaking early-exit in `appendLine`). Suite 519 → 538 (+19: 13 unit + 5 schema + 1 e2e). Typecheck clean.
 
 ---
 

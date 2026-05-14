@@ -79,6 +79,12 @@ export const ProjectConfigSchema = z
         keep_last_n: z.number().int().positive().default(200),
       })
       .default({}),
+    brain_log: z
+      .object({
+        keep_days: z.number().int().nonnegative().default(30),
+        keep_last_n: z.number().int().positive().default(200),
+      })
+      .default({}),
     tracker: z
       .discriminatedUnion('kind', [
         z.object({

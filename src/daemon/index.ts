@@ -22,6 +22,7 @@ import { EventBus } from './event_bus.js';
 import { TrackerPoller } from './tracker_poller.js';
 import { makeTrackerAdapter } from '../trackers/factory.js';
 import { pruneRuns } from '../agent/runlog_store.js';
+import { BrainLogWriter, pruneBrainLog } from './brain_log.js';
 
 export interface DaemonHandle {
   url: string;
@@ -60,9 +61,22 @@ export async function startDaemon(args: StartDaemonArgs): Promise<DaemonHandle> 
     console.error(`runlog prune at boot failed: ${(e as Error).message}`);
   }
 
+  // Prune brain log at boot per config.brain_log retention. Best-effort —
+  // a failure must not block daemon startup. Symmetric with runlog prune above.
+  try {
+    await pruneBrainLog(args.repo, {
+      keepLastN: config.brain_log.keep_last_n,
+      keepDays: config.brain_log.keep_days,
+    });
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error(`brainlog prune at boot failed: ${(e as Error).message}`);
+  }
+
   const authToken = await generateAuthToken(args.repo);
   const runtime = new InMemoryRuntime();
   const bus = new EventBus();
+  const brainLog = new BrainLogWriter({ repo: args.repo, bus });
 
   const ctx = {
     repo: args.repo, config, runtime, bus,
@@ -131,7 +145,7 @@ export async function startDaemon(args: StartDaemonArgs): Promise<DaemonHandle> 
       if (trackerPoller) await trackerPoller.stop();
       await watcher.close();
       await server.close();
-      bus.close();
+      try { await brainLog.close(); } finally { bus.close(); }
       await clearPidFile(args.repo);
       await clearEndpointFile(args.repo);
       await clearMcpEndpointFile(args.repo);

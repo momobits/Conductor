@@ -98,4 +98,27 @@ describe('Phase 6 end-to-end', () => {
       await handle.shutdown();
     }
   });
+
+  it('brain pipeline persists conductor-status events to .conductor/brain.log.jsonl', async () => {
+    // Boot daemon (no eligible cards so the brain exits immediately), start
+    // and stop the brain via RPC, shut down. The brain log writer should
+    // capture both conductor-status running:true and running:false rows.
+    const repo = seed([]);
+    writeFileSync(join(repo, '.conductor', 'ordering.md'), '# Ordering\n\n', 'utf8');
+    const handle = await startDaemon({ repo, port: 0 });
+    try {
+      const token = readFileSync(join(repo, '.conductor', 'auth.token'), 'utf8').trim();
+      await rpc(handle.url, token, 'conductor_start', {});
+      await rpc(handle.url, token, 'conductor_stop', {});
+    } finally {
+      await handle.shutdown();
+    }
+    // After shutdown, brain log drain has flushed.
+    const logText = readFileSync(join(repo, '.conductor', 'brain.log.jsonl'), 'utf8');
+    const rows = logText.split('\n').filter((l) => l.length > 0).map((l) => JSON.parse(l) as { kind: string; payload?: { running?: boolean } });
+    const statusEvents = rows.filter((r) => r.kind === 'conductor-status');
+    expect(statusEvents.length).toBeGreaterThanOrEqual(2);
+    expect(statusEvents.some((r) => r.payload?.running === true)).toBe(true);
+    expect(statusEvents.some((r) => r.payload?.running === false)).toBe(true);
+  });
 });

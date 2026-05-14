@@ -2,8 +2,11 @@
 //
 // Typed in-memory pub/sub. The daemon owns a single EventBus; the watcher,
 // runtime, and TaskAgent runner all publish to it; the SSE endpoint
-// subscribes per-client. Events are not persisted anywhere — that's the
-// JSONL run log's job (per spec § 14).
+// subscribes per-client. TaskAgent events persist via the run log
+// (.conductor/runs/<run-id>/events.jsonl, per spec § 14); brain
+// orchestration events persist via the brain log
+// (.conductor/brain.log.jsonl, see src/daemon/brain_log.ts). SSE
+// remains the real-time fan-out surface.
 
 import type { TaskEvent } from '../agent/events.js';
 import type { WatcherEvent } from './watcher.js';
