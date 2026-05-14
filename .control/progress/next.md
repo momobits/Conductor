@@ -1,9 +1,9 @@
 # Next session kickoff
 
-> Auto-generated from `.control/progress/STATE.md` at 2026-05-12T21:04:57Z by
-> `.claude/hooks/regenerate-next-md.sh`. Edit STATE.md's "Next action"
-> or "Notes for next session" to influence this prompt; **do not edit
-> next.md by hand** -- it's overwritten on every session end.
+> Auto-generated from `.control/progress/STATE.md` at 2026-05-14 by
+> `/phase-close`. Edit STATE.md's "Next action" or "Notes for next session"
+> to influence this prompt; **do not edit next.md by hand** -- it's overwritten
+> on every session end (and at every `/phase-close`).
 
 This is a Control-managed project. Bootstrap protocol:
 
@@ -15,14 +15,15 @@ If the SessionStart hook is installed, steps 1-3 run automatically and you
 see a structured `[control:state]` block instead of doing them by hand.
 
 ## Next action
-Run `/relay-analyze .relay/issues/plan-op-leaves-need-placeholders-resolved-in-analysis.md` to begin step 13.1. M-complexity prompt-restructure: SYSTEM_PROMPT in `src/engine/ops/plan.ts:36-58` gains a mandatory "Resolved decisions from analysis" preamble before atomic steps; `[need:]` allowed only for items not in the preamble; defensive clause instructs the model to scan the analysis first. Single-pass `/relay-plan` is appropriate — change is contained to `src/engine/ops/plan.ts` plus `tests/engine/ops/plan.test.ts`. Strategy A vs A+B trade-off (preamble alone vs preamble + tightened placeholder rule) decided during `/relay-analyze`.
+
+Resume Phase 14 (Brain log). Run `/session-start` to confirm git state and load the canonical status, then run `/relay-analyze .relay/issues/brain-events-not-persisted-across-daemon-restarts.md` to begin step 14.1.
 
 ## Notes for next session
 
-Phase 13 is "Plan op prompt restructure" — single M-complexity item from `.relay/relay-ordering.md § Phase 5`:
+Phase 14 is "Brain log" — single L-complexity item from `.relay/relay-ordering.md § Phase 6`:
 
-- **Step 13.1** — `plan-op-leaves-need-placeholders-resolved-in-analysis`. The issue (T1-1) is structural: `src/engine/ops/plan.ts:36-58` SYSTEM_PROMPT has no "extract resolved decisions from analysis first" pass, so the model over-applies the `[need:]` defensive placeholder to settle questions the analysis already answered. Fix: restructure SYSTEM_PROMPT to require a `## Resolved decisions from analysis` preamble (each decision with a one-line evidence quote drawn from the in-context `--- Analysis ---` section) before the atomic-step plan; `[need:]` is only valid for items NOT in the preamble. Strategy A vs A+B (preamble alone vs preamble + tightened defensive clause) decided during `/relay-analyze`. Test commands: `npx vitest run tests/engine/ops/plan.test.ts`.
-- After 13.1 closes, `/phase-close` will tag `phase-13-plan-prompt-restructure-closed`. There's no 13.2 unless `/relay-analyze` discovers Strategy A and B need to be split.
-- Phase 12's adversarial-review LOW finding (Step 4 import-update not visualized in the diff block) was applied inline at implementation; non-issue.
-- The first-op-injects-other-cards-context pattern from phase 12 is a precedent if 13.1's `/relay-analyze` finds the extraction-preamble pattern is generalizable; revisit if `order`, `verify`, or `review` benefit from board-awareness too.
+- **Step 14.1** — `brain-events-not-persisted-across-daemon-restarts`. The issue (T4-1) is a meaningful auditability gap: the daemon's `EventBus` publishes four `conductor-*` event kinds in real time to SSE clients but writes nothing to disk; `src/daemon/event_bus.ts:5` explicitly comments "Events are not persisted anywhere." When the daemon stops, brain history is lost; post-hoc diagnosis of halts/decisions becomes impossible. Fix: add a `BrainLogWriter` subscribing to the bus, filtering for `conductor-*` kinds, appending JSONL rows to `.conductor/brain.log.jsonl`, with retention prune at startup. Wire in `src/daemon/index.ts:startDaemon()` after bus creation and before MCP attach; close in daemon shutdown. Update `event_bus.ts:5` doc comment to reflect the new persistence pair. Optional config schema extension for `brain_log` retention block (decision deferred to superplan). Integration coverage in `tests/integration/phase6-end-to-end.test.ts`. Test commands: `npx vitest run tests/daemon/brain_log.test.ts tests/daemon/` (unit) + `npx vitest run tests/integration/phase6-end-to-end.test.ts` (integration).
+- L-complexity → mandatory `/relay-superplan`. The 5 strategy agents diverge on module shape (bus-owned subscriber vs. daemon-owned pair), retention config (share `run_log.*` keys vs. add `brain_log.*` block), write semantics (sync append vs. async batched flush), test layering (heavy unit vs. heavy integration), and failure semantics (does writer I/O error halt the brain or get swallowed).
+- After 14.1 closes, `/phase-close` will tag `phase-14-brain-log-closed`. Sub-step decomposition may produce 2-4 sequential commits; the final commit flips the 14.1 checkbox.
+- Phase 13's "settle resolved context first" precedent applies at n=2 (discover + plan). If a third op adopts the pattern (review.ts preamble for accepted `[need:]` items), file an ADR. Not yet warranted.
 - Notebook step is skipped per `relay-config.md § Notebook Setup` (TypeScript-only project).
