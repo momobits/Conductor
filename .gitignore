@@ -39,9 +39,9 @@ coverage/
 
 # Conductor runtime artifacts (when dogfooding)
 .conductor/auth.token
-.conductor/auth.endpoint
+.conductor/daemon.pid
+.conductor/daemon.endpoint
 .conductor/mcp.endpoint
-.conductor/mcp.sock
 .conductor/runtime.sqlite
 .conductor/snapshots/
 .conductor/runs/

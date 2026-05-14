@@ -86,6 +86,50 @@ const DEFAULT_JOURNAL = `# Journal
 (One line per session, appended at session end.)
 `;
 
+// Sentinel-fenced block written to the user's project .gitignore so daemon-
+// written runtime artifacts (auth bearer token, ephemeral endpoint URLs, run
+// logs) are ignored from the moment `conductor init` completes. The sentinel
+// header is the idempotency gate — re-running init detects this line and
+// skips re-adding the block. Users can edit/remove individual lines inside
+// the block without breaking idempotency.
+const GITIGNORE_SENTINEL_HEADER =
+  '# --- conductor managed artifacts (added by `conductor init`) ---';
+const GITIGNORE_SENTINEL_FOOTER = '# --- /conductor ---';
+const GITIGNORE_BLOCK = [
+  GITIGNORE_SENTINEL_HEADER,
+  '.conductor/auth.token',
+  '.conductor/daemon.pid',
+  '.conductor/daemon.endpoint',
+  '.conductor/mcp.endpoint',
+  '.conductor/runs/',
+  '.conductor/snapshots/',
+  GITIGNORE_SENTINEL_FOOTER,
+].join('\n');
+
+async function ensureGitignoreBlock(
+  repo: string,
+): Promise<'created' | 'appended' | 'unchanged'> {
+  const path = join(repo, '.gitignore');
+  let existed = true;
+  let existing = '';
+  try {
+    existing = await readFile(path, 'utf8');
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+    existed = false;
+  }
+  if (existing.includes(GITIGNORE_SENTINEL_HEADER)) {
+    return 'unchanged';
+  }
+  const trimmedEnd = existing.replace(/\s+$/, '');
+  const merged =
+    trimmedEnd === ''
+      ? GITIGNORE_BLOCK + '\n'
+      : trimmedEnd + '\n\n' + GITIGNORE_BLOCK + '\n';
+  await writeFile(path, merged, 'utf8');
+  return existed ? 'appended' : 'created';
+}
+
 export const KNOWN_PROVIDERS = [
   'minimal',
   'subscription',
@@ -159,6 +203,7 @@ export interface InitResult {
   configWritten: boolean;
   configSource: 'embedded-default' | KnownProvider;
   verifyCommand: string | null;
+  gitignore: 'created' | 'appended' | 'unchanged';
 }
 
 export async function runInit(args: InitArgs): Promise<InitResult> {
@@ -191,7 +236,9 @@ export async function runInit(args: InitArgs): Promise<InitResult> {
   await writeIfMissing(join(root, 'ordering.md'), DEFAULT_ORDERING);
   await writeIfMissing(join(root, 'journal.md'), DEFAULT_JOURNAL);
 
-  return { configWritten, configSource: source, verifyCommand: verifyCmd };
+  const gitignore = await ensureGitignoreBlock(args.cwd);
+
+  return { configWritten, configSource: source, verifyCommand: verifyCmd, gitignore };
 }
 
 async function writeIfMissing(path: string, content: string): Promise<boolean> {
@@ -232,11 +279,16 @@ export function attachInit(program: Command): void {
         provider,
         detectVerify: opts.detectVerify,
       });
+      const firstLine = result.configWritten
+        ? `Conductor initialized. .conductor/ scaffold ready (config source: ${result.configSource}${result.verifyCommand ? `, verify_command: ${result.verifyCommand}` : ''}).`
+        : `Conductor scaffold present; .conductor/config.yaml left untouched.`;
+      const gitignoreLine =
+        result.gitignore === 'created'
+          ? ' Wrote .gitignore with Conductor runtime-artifact entries.'
+          : result.gitignore === 'appended'
+            ? ' Appended Conductor runtime-artifact entries to .gitignore.'
+            : '';
       // eslint-disable-next-line no-console
-      console.log(
-        result.configWritten
-          ? `Conductor initialized. .conductor/ scaffold ready (config source: ${result.configSource}${result.verifyCommand ? `, verify_command: ${result.verifyCommand}` : ''}).`
-          : `Conductor scaffold present; .conductor/config.yaml left untouched.`,
-      );
+      console.log(firstLine + gitignoreLine);
     });
 }

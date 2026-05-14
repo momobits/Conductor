@@ -158,21 +158,28 @@ HTTP `/rpc` and MCP transports.
 - **Rotated on next start**. Any token captured before the daemon stop
   is invalidated when the next daemon starts.
 
-**Gitignore your auth token.** Add to your project's `.gitignore`:
+**Gitignore your auth token.** `conductor init` writes (or extends)
+your project's `.gitignore` with the Conductor runtime-artifact
+entries under a sentinel-fenced block. The block looks like:
 
 ```
+# --- conductor managed artifacts (added by `conductor init`) ---
 .conductor/auth.token
-.conductor/auth.endpoint
+.conductor/daemon.pid
+.conductor/daemon.endpoint
 .conductor/mcp.endpoint
-.conductor/mcp.sock
 .conductor/runs/
 .conductor/snapshots/
+# --- /conductor ---
 ```
 
-`conductor init` does NOT currently write a `.gitignore` template. Add
-the lines above by hand after running `init`. (If your project's
-`.gitignore` is missing these and the daemon has started, run
-`git status` to confirm `.conductor/auth.token` is not staged.)
+Re-running `init` is idempotent — the sentinel header line is the
+detection gate, so the block is never duplicated. You can edit or
+remove individual lines inside the block without breaking idempotency
+(`init` keys only on the header). If you ran `init` on a Conductor
+version before this behavior shipped, add the lines above by hand;
+they remain valid and you may delete them once you re-run `init` on a
+current version to install the block-shape version.
 
 ---
 
