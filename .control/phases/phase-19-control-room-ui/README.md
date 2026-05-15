@@ -49,5 +49,6 @@ If this phase's changes need to be undone: `git reset --hard phase-18-daemon-ui-
 
 ## Deferred to Phase 20 (or later)
 
-- **`--browser` flag for `daemon start`** — Phase 18 carry-forward. Original issue: `.relay/archive/issues/daemon-start-missing-browser-flag.md` (P3 UX gap, currently misplaced per `relay-status.md` Lifecycle Integrity Warnings; needs `git mv` to `.relay/issues/` before `/relay-order` picks it up). With the UI now presentable, `--browser` becomes the natural next step — every fresh `daemon start` would land the user into a polished view in one step.
-- **`init detectVerifyCommand` venv-aware for Python** — separate active issue at `.relay/issues/init-verify-command-not-venv-aware-for-python.md` (P2). Unrelated to UI; can land in Phase 20 alongside `--browser` or in a separate phase.
+- **`init detectVerifyCommand` venv-aware for Python** — active issue at `.relay/issues/init-verify-command-not-venv-aware-for-python.md` (P2). Unrelated to UI; the natural next Phase 20 work — every fresh Python project hits the bare-`pytest` literal on first verify.
+
+> The original second bullet here — **`--browser` flag for `daemon start`** — was reclassified **WONT-DO** post-session by operator decision (commit `cd4c889`, 2026-05-15). Copy-paste URL from Phase 18 is sufficient; platform-specific browser-launch surface is not worth the maintenance cost. See `.relay/archive/issues/daemon-start-missing-browser-flag.md` for the WONT-DO banner and rationale. Not carried forward to Phase 20.
