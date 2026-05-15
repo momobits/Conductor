@@ -3,10 +3,10 @@
 > Single source of truth. Read this first every session. Updated at every
 > `/session-end` and by the `PreCompact` hook. Every field has a purpose -- fill each.
 
-**Last updated:** 2026-05-15 by /session-start kickoff (sid-2026-05-15-phase-21-card-body-persistence)
-**Current phase:** 21 — Card-body persistence (op output + chat decoupling)
-**Current step:** 21.1 — bundle of Relay Phase 12 #20 + #21 + #22 + #23
-**Status:** kicked-off (Phase 21 README + steps authored; about to run `/relay-analyze` → `/relay-superplan` on the L-complexity tetra-leader Relay #20 `ui-work-card-output-persisted-into-card-body`)
+**Last updated:** 2026-05-16 by /phase-close (sid-2026-05-16-phase-22-routing-config-destructiveness)
+**Current phase:** 22 — Routing config destructiveness (cluster)
+**Current step:** 22.1 — bundle of Relay Phase 13 PR-1 (#25 + #26 + #28)
+**Status:** kicked-off (Phase 22 scaffold authored; about to run `/relay-analyze` on the M-complexity PR-1 leader `ui-routing-yaml-commit-silently-resets-omitted-fields-to-defaults`)
 
 ---
 
@@ -19,26 +19,30 @@
 
 ## Next action
 
-**Phase 21 active — Relay Phase 12 #20 (card-body persistence) is the showstopper.** A 2026-05-15 Playwright dogfood of the Control Room UI against omniforge surfaced 20 new issues + a keyboard-accessibility feature seed; `/relay-scan` + `/relay-order` ran and grouped the backlog into six Relay phases. Top item: **`ui-work-card-output-persisted-into-card-body.md`** (P1, **L**-complexity). Every UI `Work this card` click silently appends ~100 lines of op output to the card body markdown; one click on omniforge's placeholder grew the body from 8 → 114 lines.
+**Phase 22 active — Relay Phase 13 PR-1 #25 (routing config destructiveness) is the leader.** Phase 21 closed cleanly (tag `phase-21-card-body-persistence-closed`); Relay Phase 12 grouped run shipped 3 full closures + 1 documented partial (#20 plan body dual-write shim; sunset filed at `.relay/issues/engine-ops-still-append-to-card-body.md`). Suite at 585/585.
+
+Top item: **`ui-routing-yaml-commit-silently-resets-omitted-fields-to-defaults.md`** (P2, **M**-complexity; PR-1 leader of Relay Phase 13). Server-side deep-merge in `config_set` unblocks #24 (autonomy dropdown — deferred to PR-2/Phase 23), #26 (Infinity coercion — grouped into PR-1), and stabilizes #28 (zod-error joined message — grouped into PR-1).
 
 Pipeline:
 
-1. `/relay-analyze` on `ui-work-card-output-persisted-into-card-body.md` (Agent(Explore) for landscape scan; main session reads spec + ≤5 affected sources).
-2. `/relay-superplan` (L-item ⇒ 5 parallel Agent(Plan) calls in one message; synthesize from strategy summaries).
-3. `/relay-review` (adversarial; pause for operator only if verdict is APPROVED-WITH-CHANGES or REJECTED).
-4. Implement per finalized plan — 3 commits in order: op-output decoupling → chat sibling artifact → chat markdown rendering. Closes Relay #20 + #21 + #22 + #23 (Phase 12 bundle).
-5. `/relay-verify` (pipe vitest through `2>&1 | tail -50`; dispatch general-purpose agent if loop > 3 iters).
+1. `/relay-analyze` on `ui-routing-yaml-commit-silently-resets-omitted-fields-to-defaults.md` (Agent(Explore) landscape scan; main session reads spec + ≤5 affected sources).
+2. `/relay-plan` (M-item, single-pass; superplan not needed).
+3. `/relay-review` (adversarial; pause for operator only if APPROVED-WITH-CHANGES or REJECTED).
+4. Implement per finalized plan — likely 1–2 commits across `src/rpc/methods.ts:config_set` + `src/rpc/schema.ts` + new `src/rpc/error_handling.ts` (or similar). Closes Relay #25 + #26 + #28 (PR-1 bundle).
+5. `/relay-verify` (full suite + targeted `tests/rpc/methods.test.ts tests/config/`).
 6. `/relay-resolve` (single-pass; commit at end).
 
-Phase 21 README + steps authored at `.control/phases/phase-21-card-body-persistence/`. Bundle Relay Phase 12's four items in a single Control step (21.1) since they share the persistence-via-body anti-pattern and ordering rationale says "ship as one sequenced branch."
+Phase 22 README + steps authored at `.control/phases/phase-22-routing-config-destructiveness/`.
+
+**Deferred to Phase 23**: Relay #24 (routing autonomy dropdown dirty guard) + #27 (yaml comment preservation) as PR-2; PR-2 depends on PR-1's server-side merge being in place.
 
 ---
 
 ## Git state
 - **Branch:** main
-- **Last commit:** `b685305` — chore(phase-20): close phase 20, kick off phase 21. Predecessors: `654973f` (docs(20.1) flip steps.md checkbox), `4f5ac48` (feat(20.1) detectVerifyCommand venv-aware for Python), `a862ec9` (chore(phase-19) close phase 19, kick off phase 20), `751e7cb` (docs(19.1) reflect --browser WONT-DO), `cd4c889` (docs(19.1) file Phase 19 Relay backlog + WONT-DO archival), `4a9e846` (redesign(19.1) control room ui), `46033df` (docs(state) session end for step 18.1), `289ccda` (chore(phase-18) close phase 18, kick off phase 19), `91ab212` (feat(18.1) daemon start prints token-bearing URL).
-- **Uncommitted changes:** about to land in the session-end commit (this STATE.md timestamp refresh + regenerated next.md).
-- **Last phase tag:** `phase-20-init-verify-venv-awareness-closed` (created during this `/phase-close`; predecessor `phase-19-control-room-ui-closed` at `751e7cb`).
+- **Last commit:** `4b4c270` — docs(21.1): /relay-resolve close out Phase 12 grouped run. Predecessors: `c7579d9` (docs(21.1) flip checkbox), `3f46351` (feat(21.1) chat assistant markdown render), `8cc3bad` (feat(21.1) chat sibling JSONL + UI replay), `b81bcd6` (feat(21.1) decouple analyze + plan op output from card body), `807f475` (chore(phase-21) kickoff card-body persistence), `7fbd5a6` (docs(state) session end for step 20.1), `b685305` (chore(phase-20) close phase 20).
+- **Uncommitted changes:** about to land in this `/phase-close` commit (Phase 22 scaffold + STATE.md timestamp refresh).
+- **Last phase tag:** `phase-21-card-body-persistence-closed` (created during this `/phase-close`; predecessor `phase-20-init-verify-venv-awareness-closed` at `654973f`).
 
 ---
 
@@ -48,14 +52,14 @@ Phase 21 README + steps authored at `.control/phases/phase-21-card-body-persiste
 ---
 
 ## In-flight work
-- None — Phase 20 closed cleanly; active Relay backlog is empty. Phase 21 not yet started.
+- Phase 22 step 22.1 about to begin: `/relay-analyze` on Relay #25 `ui-routing-yaml-commit-silently-resets-omitted-fields-to-defaults` (M-complexity; grouped-run candidate with #26 + #28 per Phase 13 PR-1 strategy).
 
 ---
 
 ## Test / eval status
-- **Last test run:** 2026-05-15 — `npm test` → **559/559 pass across 98 test files** in ~16.9s at HEAD `654973f`. Zero regressions. Typecheck clean (`tsc --noEmit` both engine and UI configs). Targeted `npx vitest run tests/cli/init.test.ts` → 32/32 in ~284ms.
+- **Last test run:** 2026-05-16 — `npm test` → **585/585 pass across 101 test files** in ~16.5s at HEAD `4b4c270`. Zero regressions. Typecheck clean (`tsc --noEmit` both engine and UI configs). Targeted `npx vitest run tests/agent/ tests/engine/ops/{analyze,plan,chat}.test.ts tests/engine/state/ tests/rpc/methods.test.ts tests/integration/{phase21,end-to-end}.test.ts tests/cli/work.test.ts` → 122/122 in ~8.3s.
 - **Eval score** (agent phases only): n/a.
-- **Session-level test delta:** 544 → 559 (+15 in `tests/cli/init.test.ts`: 11 `detectPythonVerifyCommand` helper unit tests + 4 `runInit` integration tests).
+- **Session-level test delta:** 559 → 585 (+26). New: `tests/agent/run_artifact.test.ts` (8), `tests/engine/state/chat_log.test.ts` (6), `tests/integration/phase21-end-to-end.test.ts` (2). Extended: `tests/agent/task_agent.test.ts` (+1), `tests/engine/ops/plan.test.ts` (+1), `tests/rpc/methods.test.ts` (+5); contract-migration rewrites in `tests/engine/ops/analyze.test.ts` + `tests/engine/ops/chat.test.ts`.
 
 ---
 
@@ -70,18 +74,18 @@ Phase 21 README + steps authored at `.control/phases/phase-21-card-body-persiste
 ---
 
 ## Recently completed (last 5 steps)
-- 654973f — docs(20.1): flip steps.md checkbox for step 20.1 — 2026-05-15
-- 4f5ac48 — feat(20.1): detectVerifyCommand venv-aware for Python (uv/pdm/poetry/.venv/venv/python -m pytest) — 2026-05-15
-- a862ec9 — chore(phase-19): close phase 19, kick off phase 20 — 2026-05-15
-- 751e7cb — docs(19.1): reflect --browser WONT-DO in Phase 19's Deferred section — 2026-05-15
-- cd4c889 — docs(19.1): file Phase 19 Relay backlog + WONT-DO archival for --browser flag — 2026-05-15
+- 4b4c270 — docs(21.1): /relay-resolve close out Phase 12 grouped run — 2026-05-16
+- c7579d9 — docs(21.1): flip steps.md checkbox for step 21.1 — 2026-05-16
+- 3f46351 — feat(21.1): render chat assistant turns through renderMarkdown — 2026-05-16
+- 8cc3bad — feat(21.1): persist chat to sibling JSONL artifact with UI replay — 2026-05-16
+- b81bcd6 — feat(21.1): decouple analyze + plan op output from card body via run-artifact substrate — 2026-05-16
 
-Control phase tags placed: `phase-13-...-closed` through `phase-20-init-verify-venv-awareness-closed` (8 in succession). Relay ordering: **all 11 Relay Phases resolved** (20 items closed across Control Phases 9-20; +1 closed WONT-DO).
+Control phase tags placed: `phase-13-...-closed` through `phase-21-card-body-persistence-closed` (9 in succession). Relay ordering: 12 Relay Phases resolved (24 items closed across Control Phases 9-21; +1 closed WONT-DO). 16 active issues remain in `.relay/issues/` from the 2026-05-15 dogfood (Phase 13 4-of-5, Phases 14-16, Phase 17 4-feature backlog) + 1 follow-up (`engine-ops-still-append-to-card-body`).
 
 ---
 
 ## Attempts that didn't work (current step only)
-- None (Phase 21 not yet started).
+- None (Phase 22 not yet started).
 
 ---
 
