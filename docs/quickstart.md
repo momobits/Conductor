@@ -43,15 +43,24 @@ conductor init --provider subscription
 
 This creates `.conductor/` with subdirs (`cards/`, `runs/`, `archive/`, etc.), `state.md`, `ordering.md`, `journal.md`, and a `config.yaml` matching the provider you picked.
 
-`init` also sniffs your project type and sets `verify_command`:
+`init` also sniffs your project type and sets `verify_command`. For Python projects, init walks a venv-aware / tool-runner-aware ladder so the default command actually works without an activated venv:
 
 | If your project has... | `verify_command` becomes |
 |---|---|
 | `package.json` | `npm test` |
-| `pyproject.toml` or `setup.py` | `pytest` |
 | `Cargo.toml` | `cargo test` |
 | `go.mod` | `go test ./...` |
 | `Makefile` | `make test` |
+| `pyproject.toml` or `setup.py` + `uv.lock` | `uv run pytest` |
+| `pyproject.toml` or `setup.py` + `pdm.lock` | `pdm run pytest` |
+| `pyproject.toml` or `setup.py` + `poetry.lock` | `poetry run pytest` |
+| `pyproject.toml` or `setup.py` + `.venv/` with python (win32) | `.venv\Scripts\python.exe -m pytest` |
+| `pyproject.toml` or `setup.py` + `.venv/` with python (posix) | `.venv/bin/python -m pytest` |
+| `pyproject.toml` or `setup.py` + `venv/` with python (win32) | `venv\Scripts\python.exe -m pytest` |
+| `pyproject.toml` or `setup.py` + `venv/` with python (posix) | `venv/bin/python -m pytest` |
+| `pyproject.toml` or `setup.py` (no venv, no lockfile) | `python -m pytest` (with stdout note) |
+
+The Python ladder is checked most-specific (tool-runner lockfile) → least-specific (bare `python -m pytest`). The `.venv/` and `venv/` rungs use `process.platform` to pick the correct Python binary path (`Scripts\python.exe` on Windows, `bin/python` on POSIX). When the bare-fallback rung fires, init emits a one-line stdout note so you know to edit `verify_command:` if pytest isn't on the system Python's PATH.
 
 Pass `--no-detect-verify` to skip the sniff and keep the example's default.
 

@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runInit } from '../../src/cli/commands/init.js';
+import { runInit, detectPythonVerifyCommand } from '../../src/cli/commands/init.js';
 
 let tmp: string;
 
@@ -73,12 +73,46 @@ describe('runInit', () => {
     expect(config).toMatch(/^verify_command:\s*npm test$/m);
   });
 
-  it('detects pytest when pyproject.toml is present', async () => {
+  it('detects python -m pytest fallback when pyproject.toml is present without venv/lockfile', async () => {
     await writeFile(join(tmp, 'pyproject.toml'), '[tool.poetry]\n', 'utf8');
     const result = await runInit({ cwd: tmp, provider: 'subscription' });
-    expect(result.verifyCommand).toBe('pytest');
+    expect(result.verifyCommand).toBe('python -m pytest');
+    expect(result.verifyCommandFallback).toBe(true);
     const config = await readFile(join(tmp, '.conductor', 'config.yaml'), 'utf8');
-    expect(config).toMatch(/^verify_command:\s*pytest$/m);
+    expect(config).toMatch(/^verify_command:\s*python -m pytest$/m);
+  });
+
+  it('detects python -m pytest fallback when setup.py is present without venv/lockfile', async () => {
+    await writeFile(join(tmp, 'setup.py'), 'from setuptools import setup\nsetup(name="x")\n', 'utf8');
+    const result = await runInit({ cwd: tmp, provider: 'subscription' });
+    expect(result.verifyCommand).toBe('python -m pytest');
+    expect(result.verifyCommandFallback).toBe(true);
+  });
+
+  it('detects uv run pytest when pyproject.toml + uv.lock are present', async () => {
+    await writeFile(join(tmp, 'pyproject.toml'), '[project]\nname = "x"\n', 'utf8');
+    await writeFile(join(tmp, 'uv.lock'), '', 'utf8');
+    const result = await runInit({ cwd: tmp, provider: 'subscription' });
+    expect(result.verifyCommand).toBe('uv run pytest');
+    expect(result.verifyCommandFallback).toBe(false);
+  });
+
+  it('detects explicit venv-python -m pytest when pyproject.toml + .venv/ are present (host platform)', async () => {
+    await writeFile(join(tmp, 'pyproject.toml'), '[project]\nname = "x"\n', 'utf8');
+    const isWin = process.platform === 'win32';
+    await mkdir(join(tmp, '.venv', isWin ? 'Scripts' : 'bin'), { recursive: true });
+    await writeFile(join(tmp, '.venv', isWin ? 'Scripts' : 'bin', isWin ? 'python.exe' : 'python'), '', 'utf8');
+    const result = await runInit({ cwd: tmp, provider: 'subscription' });
+    const expected = isWin ? `.venv\\Scripts\\python.exe -m pytest` : '.venv/bin/python -m pytest';
+    expect(result.verifyCommand).toBe(expected);
+    expect(result.verifyCommandFallback).toBe(false);
+  });
+
+  it('sets verifyCommandFallback=true exactly when verifyCommand is "python -m pytest"', async () => {
+    await writeFile(join(tmp, 'pyproject.toml'), '[project]\nname = "x"\n', 'utf8');
+    const result = await runInit({ cwd: tmp, provider: 'subscription' });
+    expect(result.verifyCommandFallback).toBe(true);
+    expect(result.verifyCommand).toBe('python -m pytest');
   });
 
   it('detects cargo test when Cargo.toml is present', async () => {
@@ -153,5 +187,96 @@ describe('runInit', () => {
     const after = await readFile(join(tmp, '.gitignore'), 'utf8');
     expect(after).toBe(edited);
     expect(after).not.toContain('.conductor/snapshots/');
+  });
+});
+
+describe('detectPythonVerifyCommand', () => {
+  let cwd: string;
+  beforeEach(async () => {
+    cwd = await mkdtemp(join(tmpdir(), 'conductor-detectpy-'));
+  });
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  // Rungs 1-3: tool-runner lockfiles
+  it('returns "uv run pytest" when uv.lock is present', async () => {
+    await writeFile(join(cwd, 'uv.lock'), '', 'utf8');
+    const result = await detectPythonVerifyCommand(cwd, 'linux');
+    expect(result).toBe('uv run pytest');
+  });
+
+  it('returns "pdm run pytest" when pdm.lock is present (and no uv.lock)', async () => {
+    await writeFile(join(cwd, 'pdm.lock'), '', 'utf8');
+    const result = await detectPythonVerifyCommand(cwd, 'linux');
+    expect(result).toBe('pdm run pytest');
+  });
+
+  it('returns "poetry run pytest" when poetry.lock is present (and no uv/pdm lock)', async () => {
+    await writeFile(join(cwd, 'poetry.lock'), '', 'utf8');
+    const result = await detectPythonVerifyCommand(cwd, 'linux');
+    expect(result).toBe('poetry run pytest');
+  });
+
+  it('prefers uv.lock over pdm.lock and poetry.lock', async () => {
+    await writeFile(join(cwd, 'uv.lock'), '', 'utf8');
+    await writeFile(join(cwd, 'pdm.lock'), '', 'utf8');
+    await writeFile(join(cwd, 'poetry.lock'), '', 'utf8');
+    const result = await detectPythonVerifyCommand(cwd, 'linux');
+    expect(result).toBe('uv run pytest');
+  });
+
+  // Rung 4: .venv platform-split
+  it('returns explicit venv-python -m pytest on win32 when .venv/Scripts/python.exe exists', async () => {
+    await mkdir(join(cwd, '.venv', 'Scripts'), { recursive: true });
+    await writeFile(join(cwd, '.venv', 'Scripts', 'python.exe'), '', 'utf8');
+    const result = await detectPythonVerifyCommand(cwd, 'win32');
+    expect(result).toBe(`.venv\\Scripts\\python.exe -m pytest`);
+  });
+
+  it('returns explicit venv-python -m pytest on posix when .venv/bin/python exists', async () => {
+    await mkdir(join(cwd, '.venv', 'bin'), { recursive: true });
+    await writeFile(join(cwd, '.venv', 'bin', 'python'), '', 'utf8');
+    const result = await detectPythonVerifyCommand(cwd, 'linux');
+    expect(result).toBe('.venv/bin/python -m pytest');
+  });
+
+  // Rung 5: venv (unprefixed) platform-split
+  it('returns explicit venv-python -m pytest on win32 when venv/Scripts/python.exe exists (no .venv/)', async () => {
+    await mkdir(join(cwd, 'venv', 'Scripts'), { recursive: true });
+    await writeFile(join(cwd, 'venv', 'Scripts', 'python.exe'), '', 'utf8');
+    const result = await detectPythonVerifyCommand(cwd, 'win32');
+    expect(result).toBe(`venv\\Scripts\\python.exe -m pytest`);
+  });
+
+  it('returns explicit venv-python -m pytest on posix when venv/bin/python exists (no .venv/)', async () => {
+    await mkdir(join(cwd, 'venv', 'bin'), { recursive: true });
+    await writeFile(join(cwd, 'venv', 'bin', 'python'), '', 'utf8');
+    const result = await detectPythonVerifyCommand(cwd, 'linux');
+    expect(result).toBe('venv/bin/python -m pytest');
+  });
+
+  it('prefers .venv/ over venv/ when both exist (posix)', async () => {
+    await mkdir(join(cwd, '.venv', 'bin'), { recursive: true });
+    await writeFile(join(cwd, '.venv', 'bin', 'python'), '', 'utf8');
+    await mkdir(join(cwd, 'venv', 'bin'), { recursive: true });
+    await writeFile(join(cwd, 'venv', 'bin', 'python'), '', 'utf8');
+    const result = await detectPythonVerifyCommand(cwd, 'linux');
+    expect(result).toBe('.venv/bin/python -m pytest');
+  });
+
+  // Rung 6: fallback
+  it('returns "python -m pytest" when no lockfile or venv directory is present', async () => {
+    const result = await detectPythonVerifyCommand(cwd, 'linux');
+    expect(result).toBe('python -m pytest');
+  });
+
+  // Lockfile beats venv (cascade ordering invariant)
+  it('prefers uv.lock over .venv/', async () => {
+    await writeFile(join(cwd, 'uv.lock'), '', 'utf8');
+    await mkdir(join(cwd, '.venv', 'bin'), { recursive: true });
+    await writeFile(join(cwd, '.venv', 'bin', 'python'), '', 'utf8');
+    const result = await detectPythonVerifyCommand(cwd, 'linux');
+    expect(result).toBe('uv run pytest');
   });
 });

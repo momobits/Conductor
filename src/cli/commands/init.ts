@@ -173,12 +173,66 @@ export async function detectVerifyCommand(cwd: string): Promise<string | null> {
   for (const [marker, cmd] of markers) {
     try {
       await access(join(cwd, marker));
+      if (marker === 'pyproject.toml' || marker === 'setup.py') {
+        return await detectPythonVerifyCommand(cwd);
+      }
       return cmd;
     } catch {
       /* not present, try next */
     }
   }
   return null;
+}
+
+/** Detect the right verify_command for a Python project. Caller is expected to
+ *  gate the call on `pyproject.toml` or `setup.py` presence. Walks a most-specific
+ *  → least-specific cascade and always returns a string (never null):
+ *
+ *    1. uv.lock          → `uv run pytest`
+ *    2. pdm.lock         → `pdm run pytest`
+ *    3. poetry.lock      → `poetry run pytest`
+ *    4. .venv/<python>   → `<explicit-venv-python> -m pytest`  (platform-split)
+ *    5. venv/<python>    → same shape with unprefixed `venv/`
+ *    6. fallback         → `python -m pytest`   ← runInit treats this exact
+ *                                                 literal as the
+ *                                                 `verifyCommandFallback`
+ *                                                 discriminator
+ *
+ *  `platform` is the test seam: defaults to `process.platform` at runtime.
+ *  The existence check uses `node:path.join` (host-platform aware) so a test
+ *  can seed the file with the host's separator and `access()` finds it
+ *  regardless of which `platform` argument was passed. The RETURNED command
+ *  string uses an explicit `sep` derived from `platform`, so unit tests can
+ *  deterministically assert win32 and posix output on either runner. */
+export async function detectPythonVerifyCommand(
+  cwd: string,
+  platform: NodeJS.Platform = process.platform,
+): Promise<string> {
+  const lockfiles: Array<[string, string]> = [
+    ['uv.lock', 'uv run pytest'],
+    ['pdm.lock', 'pdm run pytest'],
+    ['poetry.lock', 'poetry run pytest'],
+  ];
+  for (const [lockfile, cmd] of lockfiles) {
+    try {
+      await access(join(cwd, lockfile));
+      return cmd;
+    } catch {
+      /* not present, try next */
+    }
+  }
+  const scriptsOrBin = platform === 'win32' ? 'Scripts' : 'bin';
+  const pythonExe = platform === 'win32' ? 'python.exe' : 'python';
+  const sep = platform === 'win32' ? '\\' : '/';
+  for (const dir of ['.venv', 'venv']) {
+    try {
+      await access(join(cwd, dir, scriptsOrBin, pythonExe));
+      return `${dir}${sep}${scriptsOrBin}${sep}${pythonExe} -m pytest`;
+    } catch {
+      /* not present, try next */
+    }
+  }
+  return 'python -m pytest';
 }
 
 function applyVerifyCommand(config: string, command: string): string {
@@ -203,6 +257,14 @@ export interface InitResult {
   configWritten: boolean;
   configSource: 'embedded-default' | KnownProvider;
   verifyCommand: string | null;
+  /** True only when `verifyCommand` is the bare `python -m pytest` fallback
+   *  (rung 6 of `detectPythonVerifyCommand`'s ladder) — the daemon's shell
+   *  must already have `python` on PATH and pytest installed in that Python
+   *  for verify to work. Drives the stdout note printed by `attachInit`'s
+   *  action callback so the user knows they're on the least-specific branch.
+   *  False for any other branch (Node, Rust, Go, Makefile, uv/pdm/poetry,
+   *  .venv, venv) or when detection was skipped. */
+  verifyCommandFallback: boolean;
   gitignore: 'created' | 'appended' | 'unchanged';
 }
 
@@ -238,7 +300,9 @@ export async function runInit(args: InitArgs): Promise<InitResult> {
 
   const gitignore = await ensureGitignoreBlock(args.cwd);
 
-  return { configWritten, configSource: source, verifyCommand: verifyCmd, gitignore };
+  const verifyCommandFallback = verifyCmd === 'python -m pytest';
+
+  return { configWritten, configSource: source, verifyCommand: verifyCmd, verifyCommandFallback, gitignore };
 }
 
 async function writeIfMissing(path: string, content: string): Promise<boolean> {
@@ -290,5 +354,11 @@ export function attachInit(program: Command): void {
             : '';
       // eslint-disable-next-line no-console
       console.log(firstLine + gitignoreLine);
+      if (result.verifyCommandFallback) {
+        // eslint-disable-next-line no-console
+        console.log(
+          'Note: No Python venv detected (no .venv/, venv/, uv.lock, pdm.lock, or poetry.lock). Using "python -m pytest" as verify_command. Edit .conductor/config.yaml if pytest isn\'t on the system Python\'s PATH.',
+        );
+      }
     });
 }

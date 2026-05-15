@@ -168,26 +168,15 @@ Ship as two independent PRs or one combined cleanup PR.
 
 ---
 
-## Phase 11 — `init` verify_command Python venv awareness
+## Phase 11 — `init` verify_command Python venv awareness — COMPLETE
 
-**Status:** OUTSTANDING — next up.
+**Resolved:** 2026-05-15
 
 | # | Item | File | Complexity | Depends on |
 |---|---|---|---|---|
-| 19 | `detectVerifyCommand` Python branch becomes venv- and tool-runner-aware (uv / pdm / poetry / `.venv` / `venv` / `python -m pytest` fallback); platform-split path joins; optional init-time stdout note when on the fallback branch | [init-verify-command-not-venv-aware-for-python.md](issues/init-verify-command-not-venv-aware-for-python.md) | M | — |
+| 19 | ~~`detectVerifyCommand` Python branch becomes venv- and tool-runner-aware (uv / pdm / poetry / `.venv` / `venv` / `python -m pytest` fallback); platform-split path joins; optional init-time stdout note when on the fallback branch~~ ✓ [implemented](implemented/init-verify-command-not-venv-aware-for-python.md) (2026-05-15) | ~~[init-verify-command-not-venv-aware-for-python.md](issues/init-verify-command-not-venv-aware-for-python.md)~~ → [archive](archive/issues/init-verify-command-not-venv-aware-for-python.md) | M | — |
 
-**Why placed here:** highest-severity active item (P2). The current bare-`pytest` literal breaks the default-config Python verify loop on every fresh project where the daemon was started outside an activated venv — which is the dominant convention (`python -m venv .venv`, poetry, pdm, uv). Surface area is well-scoped: one helper in `src/cli/commands/init.ts` (the marker ladder), a `process.platform` branch for win32/posix path joins, an optional one-line stdout note when falling back to `python -m pytest`, and a docs touch in `docs/quickstart.md § 3` to replace the single row with the new detection ladder. No new dependencies; no run-time behavior change for non-Python projects.
-
-**Recommended approach (from the issue's "Proposed fix" + planner notes):**
-
-1. Restructure `detectVerifyCommand` so the Python branch fires a ladder of checks (most-specific → least-specific): `uv.lock` → `uv run pytest`; `pdm.lock` → `pdm run pytest`; `poetry.lock` → `poetry run pytest`; `.venv/{Scripts,bin}/python(.exe)` → explicit venv-Python `-m pytest`; `venv/{Scripts,bin}/python(.exe)` → same shape with unprefixed venv dir; otherwise `python -m pytest` (replacing the bare `pytest` literal — strictly safer fallback).
-2. Use `process.platform === 'win32'` to choose between `Scripts/python.exe` and `bin/python`. Use `node:path` `join`/`sep` for the constructed verify-command string; do not hard-code separators.
-3. Update `tests/cli/init.test.ts`: 2-3 existing Python-detection tests need their assertions updated to expect the new defaults (no longer bare `pytest`). Add new cases for each ladder rung (`.venv`-win32, `.venv`-posix, `venv`-win32, `venv`-posix, `poetry.lock`, `pdm.lock`, `uv.lock`, `python -m pytest` fallback). Stub `process.platform` per `vi.spyOn(process, 'platform', 'get')` pattern.
-4. Update `docs/quickstart.md § 3`'s verify_command sniff table — replace the single `pyproject.toml | setup.py → pytest` row with the ladder, noting the platform split.
-5. Optional but low-cost: at init time, when on the `python -m pytest` fallback branch, emit a one-line stdout note (mirrors the shape of Phase 9's gitignore-block stdout signal). Keeps the workaround discoverable without forcing the user to read docs.
-6. Out-of-scope deferrals filed in the issue (record here so the planner sees them up front): Conda env detection (low value, deferred to follow-up if dogfood signals); `Makefile + pyproject.toml` ordering nit (orthogonal; separate issue if confirmed); examples/`.conductor/config.yaml` venv comment block (polish, optional).
-
-**Severity calibration recap.** P2: not P1 (workaround is a one-line config edit, no data loss, daemon/MCP/CLI/UI continue working); not P3 (fires on every first Python card; workaround non-obvious without reading source). Verify is on the autonomous-loop critical path — `approved → building → verifying → shipped` — so a stalled verify halts the loop and the brain quarantines the card.
+**Resolution:** Shipped as Control phase 20.1. Added exported `detectPythonVerifyCommand(cwd, platform?)` helper to `src/cli/commands/init.ts` walking the six-rung cascade (uv.lock / pdm.lock / poetry.lock / `.venv` platform-split / `venv` platform-split / `python -m pytest` fallback). Helper splits host-aware `access()` (uses `node:path.join`) from target-aware command-string composition (explicit `sep` derived from `platform` parameter) so unit tests deterministically cover win32 + posix branches on a single CI runner — caught and fixed in adversarial review as Issue 1 MEDIUM. Wired into `detectVerifyCommand` via in-loop delegation gate (`if marker === 'pyproject.toml' || marker === 'setup.py' return helper`) preserving the original markers-array order — caught the Makefile-vs-pyproject precedence scope creep in adversarial review as Issue 2 MEDIUM. `InitResult` extended with `verifyCommandFallback: boolean` set by exact-string compare to `'python -m pytest'`; `attachInit` action callback prints a one-line stdout note when true. `docs/quickstart.md § 3` table replaced with multi-row ladder. Suite 544 → 559 (+15: 11 helper unit tests + 4 integration). Typecheck clean. Pattern precedent: n=2 of pure-helper extraction for testable CLI contracts (Phase 18 = n=1); ADR filing deferred by operator decision — recorded in impl doc.
 
 ---
 
@@ -205,10 +194,10 @@ Phase 7 (docs bundle) [COMPLETE]                      │
 Phase 8 (observation closure) [COMPLETE]              │
 Phase 9 (init gitignore) [COMPLETE]                   ←── follow-up from Phase 7's LOW-1 finding
 Phase 10 (daemon UI token UX) [COMPLETE]              ←── from 2026-05-15 omniforge dogfood
-Phase 11 (init verify venv awareness) [OUTSTANDING]   ←── from 2026-05-15 omniforge dogfood (P2)
+Phase 11 (init verify venv awareness) [COMPLETE]      ←── from 2026-05-15 omniforge dogfood (P2)
 ```
 
-Phase 11 is the sole active item. (Phase 18 carry-forward `daemon --browser` flag closed WONT-DO; not represented here.)
+All Relay phases 1-11 resolved. (Phase 18 carry-forward `daemon --browser` flag closed WONT-DO; not represented here.)
 
 ---
 
