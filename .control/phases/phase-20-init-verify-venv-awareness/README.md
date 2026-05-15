@@ -46,7 +46,8 @@ All must be verified before `/phase-close` advances:
 If this phase's changes need to be undone: `git reset --hard phase-19-control-room-ui-closed` then force-push if applicable. No state outside git (no migrations, no external resources created). Existing projects' `.conductor/config.yaml` files are not rewritten by this change — only fresh `conductor init` runs see the new ladder.
 
 ## ADRs decided in this phase
-- None yet. The platform-switch helper (`process.platform`-driven `.venv` path resolution) is a one-helper-one-call-site pattern; not ADR-worthy unless a second site adopts it.
+- None filed, but the pure-helper-extraction pattern for testable CLI contracts reached **n=2** here (Phase 18's `formatDaemonStartedMessage` = n=1; this phase's `detectPythonVerifyCommand` = n=2). STATE.md's "Recent decisions" criterion for ADR promotion has fired. Operator decision (2026-05-15): defer ADR filing as a separate work-item rather than bundle into Phase 20's scope. Pattern + n-count recorded durably in `.relay/implemented/init-verify-command-not-venv-aware-for-python.md` § Caveats. Re-evaluate at n=3.
+- The platform-switch helper (`process.platform`-driven `.venv` path resolution) remains a one-helper-one-call-site pattern; not ADR-worthy unless a second site adopts it.
 
 ## Deferred to Phase 21 (or later)
 
