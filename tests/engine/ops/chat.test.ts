@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import matter from 'gray-matter';
 import { chat } from '../../../src/engine/ops/chat.js';
+import { readChatLog } from '../../../src/engine/state/chat_log.js';
 import type { Card } from '../../../src/engine/types.js';
 import type { ModelAdapter, AdapterCapabilities } from '../../../src/adapters/adapter.js';
 import type { OperationRequest, OperationResponse } from '../../../src/engine/operation.js';
@@ -43,6 +44,7 @@ class FakeAdapter implements ModelAdapter {
 }
 
 let repo: string;
+const CARD_ID = 'card-1';
 
 beforeEach(async () => {
   repo = await mkdtemp(join(tmpdir(), 'chat-'));
@@ -51,38 +53,52 @@ beforeEach(async () => {
 
 afterEach(async () => { await rm(repo, { recursive: true, force: true }); });
 
-describe('chat op', () => {
-  it('appends user message and reply under a Chat heading', async () => {
-    const cardPath = join(repo, '.conductor', 'cards', 'card-1.md');
-    await writeFile(cardPath, matter.stringify('Body.', {
-      id: 'card-1', title: 'Test', kind: 'issue', column: 'discovered',
-      phase: 'unassigned', priority: 1, autonomy: 'inherit', model_overrides: {},
-      created: '2026-05-07T00:00:00Z', source: 'test', labels: [], blocked_by: [],
-    }));
-    const card: Card = await readCard(cardPath);
-    const adapter = new FakeAdapter('Sure.');
-    const result = await chat({ repo, card, message: 'How does X work?', adapter, model: 'model-1' });
-    expect(result.reply).toContain('Sure.');
-    const updated = await readFile(cardPath, 'utf-8');
-    expect(updated).toContain('## Chat');
-    expect(updated).toContain('**you:** How does X work?');
-    expect(updated).toContain('**assistant:**');
-    expect(updated).toContain('Sure.');
+async function makeCard(): Promise<Card> {
+  const cardPath = join(repo, '.conductor', 'cards', `${CARD_ID}.md`);
+  await writeFile(cardPath, matter.stringify('Body.', {
+    id: CARD_ID, title: 'Test', kind: 'issue', column: 'discovered',
+    phase: 'unassigned', priority: 1, autonomy: 'inherit', model_overrides: {},
+    created: '2026-05-07T00:00:00Z', source: 'test', labels: [], blocked_by: [],
+  }));
+  return readCard(cardPath);
+}
+
+describe('chat op (Phase 21: sibling JSONL substrate)', () => {
+  it('persists user + assistant turns to .conductor/cards/<id>.chat.jsonl', async () => {
+    const card = await makeCard();
+    const before = await readFile(card.path, 'utf8');
+    const result = await chat({ repo, card, message: 'How does X work?', adapter: new FakeAdapter('Sure.'), model: 'model-1' });
+    expect(result.reply).toBe('Sure.');
+
+    // Card body byte-identical (no `## Chat` heading; no `**you:**` lines)
+    expect(await readFile(card.path, 'utf8')).toBe(before);
+
+    // JSONL has 2 records: user, assistant
+    const turns = await readChatLog(repo, CARD_ID);
+    expect(turns.map((t) => t.role)).toEqual(['user', 'assistant']);
+    expect(turns[0].text).toBe('How does X work?');
+    expect(turns[1].text).toBe('Sure.');
   });
 
-  it('appends to existing Chat section without duplicating the heading', async () => {
-    const cardPath = join(repo, '.conductor', 'cards', 'card-2.md');
-    await writeFile(cardPath, matter.stringify('Body.\n\n## Chat\n\n**you:** earlier\n\n**assistant:** earlier reply\n', {
-      id: 'card-2', title: 'T', kind: 'issue', column: 'discovered',
-      phase: 'unassigned', priority: 1, autonomy: 'inherit', model_overrides: {},
-      created: '2026-05-07T00:00:00Z', source: 'test', labels: [], blocked_by: [],
-    }));
-    const card: Card = await readCard(cardPath);
-    await chat({ repo, card, message: 'follow-up', adapter: new FakeAdapter('ok.'), model: 'model-1' });
-    const updated = await readFile(cardPath, 'utf-8');
-    const headings = updated.match(/^## Chat$/gm) ?? [];
-    expect(headings.length).toBe(1);
-    expect(updated).toContain('earlier');
-    expect(updated).toContain('follow-up');
+  it('does not produce a `## Chat` heading in card body even on repeated calls', async () => {
+    const card = await makeCard();
+    await chat({ repo, card, message: 'first', adapter: new FakeAdapter('reply1'), model: 'model-1' });
+    await chat({ repo, card, message: 'second', adapter: new FakeAdapter('reply2'), model: 'model-1' });
+    const after = await readFile(card.path, 'utf8');
+    expect(after).not.toContain('## Chat');
+  });
+
+  it('two parallel chat() calls produce 4 well-formed turns (lines well-formed; pairing may interleave)', async () => {
+    const card = await makeCard();
+    await Promise.all([
+      chat({ repo, card, message: 'A', adapter: new FakeAdapter('rA'), model: 'model-1' }),
+      chat({ repo, card, message: 'B', adapter: new FakeAdapter('rB'), model: 'model-1' }),
+    ]);
+    const turns = await readChatLog(repo, CARD_ID);
+    expect(turns).toHaveLength(4);
+    const userTexts = turns.filter((t) => t.role === 'user').map((t) => t.text).sort();
+    const asstTexts = turns.filter((t) => t.role === 'assistant').map((t) => t.text).sort();
+    expect(userTexts).toEqual(['A', 'B']);
+    expect(asstTexts).toEqual(['rA', 'rB']);
   });
 });

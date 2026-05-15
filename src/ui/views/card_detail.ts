@@ -122,6 +122,21 @@ export async function renderCardDetail(
     chatLog.scrollTop = chatLog.scrollHeight;
   }
 
+  // Phase 21: replay persisted chat history on render so chat is visible
+  // across reloads (closes #22). Fetch is non-fatal — chat panel renders
+  // empty if RPC fails; error logged to stream pane.
+  try {
+    const history = await rpc.call<{ turns: Array<{ ts: string; role: 'user' | 'assistant'; text: string }> }>(
+      'card_chat_history',
+      { cardId },
+    );
+    for (const t of history.turns) {
+      appendMsg(t.role, t.text);
+    }
+  } catch (err) {
+    appendEvent(`✗ chat history fetch failed: ${(err as Error).message}`, 'error');
+  }
+
   chatForm.addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const text = chatInput.value.trim();

@@ -265,7 +265,7 @@ describe('rpc methods', () => {
     }
   });
 
-  it('chat appends a turn to the card body', async () => {
+  it('chat persists turns to sibling JSONL artifact, NOT card body (#22)', async () => {
     const repo = setupRepo();
     const adapter = new SmartMockAdapter(repo);
     const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime(), adapter };
@@ -274,7 +274,122 @@ describe('rpc methods', () => {
     expect(typeof result.reply).toBe('string');
     expect(result.reply.length).toBeGreaterThan(0);
     const reread = await methods.card_get(ctx, { id }) as { body: string };
-    expect(reread.body).toContain('Hello?');
+    // Card body must NOT contain chat turns or `## Chat` heading (Phase 21).
+    expect(reread.body).not.toContain('Hello?');
+    expect(reread.body).not.toContain('## Chat');
+    // Chat history surfaced via the dedicated RPC.
+    const history = await methods.card_chat_history(ctx, { cardId: id }) as { turns: Array<{ role: string; text: string }> };
+    expect(history.turns).toHaveLength(2);
+    expect(history.turns[0]).toMatchObject({ role: 'user', text: 'Hello?' });
+    expect(history.turns[1].role).toBe('assistant');
+  });
+
+  it('card_chat_history returns { turns: [] } for a fresh card with no chat', async () => {
+    const repo = setupRepo();
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    const { id } = await methods.card_new(ctx, { slug: 'fresh', title: 'Fresh', kind: 'issue', body: 'Body.' });
+    const res = await methods.card_chat_history(ctx, { cardId: id }) as { turns: unknown[] };
+    expect(res.turns).toEqual([]);
+  });
+
+  it('card_get strips legacy `## Chat` block from returned body (read-side fix; on-disk unchanged)', async () => {
+    const repo = setupRepo();
+    const adapter = new SmartMockAdapter(repo);
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime(), adapter };
+    // Seed a polluted card with `## Chat` block in body (simulates a pre-Phase-21 card).
+    const fs = await import('node:fs/promises');
+    const cardPath = join(repo, '.conductor', 'cards', '2026-05-15-legacy.md');
+    await fs.writeFile(cardPath, `---
+id: 2026-05-15-legacy
+title: Legacy
+kind: issue
+column: discovered
+phase: unassigned
+priority: 1
+autonomy: inherit
+model_overrides: {}
+created: 2026-05-15T00:00:00Z
+source: user
+labels: []
+blocked_by: []
+---
+
+# Original Issue
+
+Body content.
+
+---
+
+## Chat
+
+**you:** legacy q
+
+**assistant:** legacy reply
+`, 'utf8');
+    const reread = await methods.card_get(ctx, { id: '2026-05-15-legacy' }) as { body: string };
+    // Returned body must not contain `## Chat`
+    expect(reread.body).not.toContain('## Chat');
+    expect(reread.body).not.toContain('legacy q');
+    // On-disk body untouched (defensive)
+    const onDisk = await fs.readFile(cardPath, 'utf8');
+    expect(onDisk).toContain('## Chat');
+  });
+
+  it('card_get strip preserves mid-body sections after `## Chat` (non-greedy regex)', async () => {
+    const repo = setupRepo();
+    const adapter = new SmartMockAdapter(repo);
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime(), adapter };
+    // Pre-Phase-21 sequence: Work (analyze + plan appended), Chat (chat appended),
+    // Work again (analyze + plan v2 appended AFTER `## Chat`).
+    const fs = await import('node:fs/promises');
+    const cardPath = join(repo, '.conductor', 'cards', '2026-05-15-rerun.md');
+    await fs.writeFile(cardPath, `---
+id: 2026-05-15-rerun
+title: Rerun
+kind: issue
+column: discovered
+phase: unassigned
+priority: 1
+autonomy: inherit
+model_overrides: {}
+created: 2026-05-15T00:00:00Z
+source: user
+labels: []
+blocked_by: []
+---
+
+# Original Issue
+
+Body content.
+
+## Analysis
+
+v1 analysis text.
+
+## Implementation Plan
+
+v1 plan text.
+
+## Chat
+
+**you:** mid-body chat
+
+**assistant:** reply
+
+## Analysis
+
+v2 analysis text.
+
+## Implementation Plan
+
+v2 plan text.
+`, 'utf8');
+    const reread = await methods.card_get(ctx, { id: '2026-05-15-rerun' }) as { body: string };
+    // `## Chat` block stripped
+    expect(reread.body).not.toContain('mid-body chat');
+    // But `## Implementation Plan` v2 (after `## Chat`) preserved — non-greedy regex bounded
+    expect(reread.body).toContain('v2 plan text');
+    expect(reread.body).toContain('v2 analysis text');
   });
 
   it('run_artifact_get returns { text } when artifact exists', async () => {

@@ -86,4 +86,31 @@ describe('Phase 21 end-to-end: card-body persistence decoupling', () => {
     // Original body content preserved (frontmatter `column` change is permitted)
     expect(afterBody).toContain(beforeBody.split('\n')[0]);
   });
+
+  it('chat() persists turns to sibling JSONL; card body byte-identical; card_chat_history surfaces them', async () => {
+    const cardId = '2026-05-16-p21-chat';
+    const repo = seedRepo(cardId);
+    const cardPath = join(repo, '.conductor', 'cards', `${cardId}.md`);
+
+    const beforeBody = readFileSync(cardPath, 'utf8');
+
+    // Stub adapter for the chat op
+    const adapter = new MockAdapter([
+      'Hello back! **markdown** in reply.',
+      'Another reply.',
+    ]);
+    const ctx = { repo, config: ProjectConfigSchema.parse({ routing: { default: 'mock' } }), runtime: new InMemoryRuntime(), adapter };
+
+    await methods.chat(ctx, { cardId, message: 'First question' });
+    await methods.chat(ctx, { cardId, message: 'Second question' });
+
+    // Card body byte-identical
+    expect(readFileSync(cardPath, 'utf8')).toBe(beforeBody);
+
+    // History surfaces 4 turns (2 user + 2 assistant)
+    const history = await methods.card_chat_history(ctx, { cardId }) as { turns: Array<{ role: string; text: string }> };
+    expect(history.turns).toHaveLength(4);
+    expect(history.turns.filter((t) => t.role === 'user').map((t) => t.text)).toEqual(['First question', 'Second question']);
+    expect(history.turns[1].text).toContain('markdown');
+  });
 });

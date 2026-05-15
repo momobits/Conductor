@@ -22,6 +22,7 @@ import {
   CostShowParams,
 } from './schema.js';
 import { readRunArtifact } from '../agent/run_artifact.js';
+import { readChatLog } from '../engine/state/chat_log.js';
 import { trackerPull } from '../engine/ops/tracker_pull.js';
 import { makeTrackerAdapter } from '../trackers/factory.js';
 import { listRuns, pruneRuns, replayRun } from '../agent/runlog_store.js';
@@ -71,7 +72,16 @@ async function card_new(ctx: MethodContext, raw: unknown) {
 async function card_get(ctx: MethodContext, raw: unknown) {
   const p = CardGetParams.parse(raw);
   const card = await readCard(join(cardsDir(ctx.repo), `${p.id}.md`));
-  return { frontmatter: card.frontmatter, body: card.body, path: card.path };
+  // Phase 21: strip any legacy `## Chat` block from the returned body so it
+  // doesn't render alongside the chat panel (closes #22 "two Chat headings").
+  // On-disk body is NOT modified — this is a read-side render fix only.
+  // Non-greedy + lookahead bounds the strip to exactly the Chat section so a
+  // mid-body `## Chat` (chat-then-rerun-Work sequence) doesn't lose later
+  // `## Analysis` / `## Implementation Plan` sections.
+  const body = card.body
+    .replace(/\n?##\s+Chat\b[\s\S]*?(?=\n##\s+|$)/, '')
+    .trimEnd() + '\n';
+  return { frontmatter: card.frontmatter, body, path: card.path };
 }
 
 async function card_list(ctx: MethodContext, raw: unknown) {
@@ -345,6 +355,12 @@ async function run_artifact_get(ctx: MethodContext, raw: unknown) {
   return { text };
 }
 
+async function card_chat_history(ctx: MethodContext, raw: unknown) {
+  const p = CardChatHistoryParams.parse(raw);
+  const turns = await readChatLog(ctx.repo, p.cardId);
+  return { turns };
+}
+
 export const methods = {
   card_new,
   card_get,
@@ -373,6 +389,7 @@ export const methods = {
   run_prune,
   cost_show,
   run_artifact_get,
+  card_chat_history,
 } satisfies Record<string, Handler<unknown, unknown>>;
 
 export type MethodName = keyof typeof methods;
