@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm, copyFile } from 'node:fs/promises';
+import { mkdtemp, rm, copyFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { plan } from '../../../src/engine/ops/plan.js';
-import { readCard, appendSection } from '../../../src/engine/state/card.js';
+import { readCard } from '../../../src/engine/state/card.js';
+import { readRunArtifact } from '../../../src/agent/run_artifact.js';
 import { MockAdapter } from '../../../src/adapters/mock.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -12,20 +13,20 @@ const fixturePath = join(here, '..', '..', 'fixtures', 'sample-card.md');
 
 let tmp: string;
 let cardPath: string;
+const ANALYSIS = 'Root cause is X. Blast radius is Y.';
 
 beforeEach(async () => {
   tmp = await mkdtemp(join(tmpdir(), 'conductor-plan-'));
   cardPath = join(tmp, 'sample.md');
   await copyFile(fixturePath, cardPath);
-  await appendSection(cardPath, 'Analysis', 'Root cause is X. Blast radius is Y.');
 });
 
 afterEach(async () => {
   await rm(tmp, { recursive: true, force: true });
 });
 
-describe('plan', () => {
-  it('appends an Implementation Plan section to the card body', async () => {
+describe('plan (Phase 21: in-memory analysis + dual-write)', () => {
+  it('persists output to .conductor/runs/<runId>/plan.md AND appends `## Implementation Plan` to card body (compat shim)', async () => {
     const adapter = new MockAdapter();
     adapter.push({
       text: '### Step 1\nWHAT: ...\nHOW: ...\nWHY: ...\nRISK: ...\nVERIFY: ...\nROLLBACK: ...',
@@ -34,33 +35,49 @@ describe('plan', () => {
     });
 
     const card = await readCard(cardPath);
-    const result = await plan({ card, adapter, model: 'claude-opus-4-7' });
+    const result = await plan({ card, adapter, model: 'claude-opus-4-7', analysis: ANALYSIS, repo: tmp, runId: 'r1' });
 
+    // Artifact substrate (primary)
+    expect(await readRunArtifact(tmp, 'r1', 'plan')).toContain('Step 1');
+    // Compatibility shim: body still gets `## Implementation Plan`
     const updated = await readCard(cardPath);
     expect(updated.body).toContain('## Implementation Plan');
     expect(updated.body).toContain('Step 1');
     expect(result.tokens).toBe(120);
   });
 
-  it('includes the analysis section in the prompt', async () => {
+  it('reads analysis from in-memory PlanArgs.analysis (no card.body extractSection regex)', async () => {
     const adapter = new MockAdapter();
     adapter.push({ text: 'plan', inputTokens: 1, outputTokens: 1 });
 
     const card = await readCard(cardPath);
-    await plan({ card, adapter, model: 'claude-opus-4-7' });
+    await plan({ card, adapter, model: 'claude-opus-4-7', analysis: ANALYSIS, repo: tmp, runId: 'r2' });
 
     expect(adapter.lastRequest?.user).toContain('Root cause is X');
   });
 
-  it('throws if the card has no Analysis section', async () => {
-    const fresh = join(tmp, 'fresh.md');
-    await copyFile(fixturePath, fresh);
-    const card = await readCard(fresh);
+  it('passes adversarial analysis with H2 subsections in full (#21 regression)', async () => {
+    const analysisWithH2 =
+      '## Validation\nproblem still exists\n\n## Root Cause\ndeep cause text\n\n## Blast Radius\nfar reach\n';
+    const adapter = new MockAdapter();
+    adapter.push({ text: 'plan', inputTokens: 1, outputTokens: 1 });
+
+    const card = await readCard(cardPath);
+    await plan({ card, adapter, model: 'claude-opus-4-7', analysis: analysisWithH2, repo: tmp, runId: 'r-21' });
+
+    // Pre-Phase-21 extractSection would truncate at the first `## ` subheading.
+    // Post-Phase-21 in-memory hand-off passes the full text intact.
+    expect(adapter.lastRequest?.user).toContain('## Root Cause');
+    expect(adapter.lastRequest?.user).toContain('## Blast Radius');
+  });
+
+  it('throws preserved error when analysis is empty', async () => {
     const adapter = new MockAdapter();
     adapter.push({ text: 'plan' });
-    await expect(plan({ card, adapter, model: 'claude-opus-4-7' })).rejects.toThrow(
-      /no Analysis section/,
-    );
+    const card = await readCard(cardPath);
+    await expect(
+      plan({ card, adapter, model: 'claude-opus-4-7', analysis: '', repo: tmp, runId: 'r3' }),
+    ).rejects.toThrow(/no Analysis section/);
   });
 
   it('system prompt instructs the model not to invent CLI surface', async () => {
@@ -68,19 +85,19 @@ describe('plan', () => {
     adapter.push({ text: 'plan', inputTokens: 1, outputTokens: 1 });
 
     const card = await readCard(cardPath);
-    await plan({ card, adapter, model: 'claude-opus-4-7' });
+    await plan({ card, adapter, model: 'claude-opus-4-7', analysis: ANALYSIS, repo: tmp, runId: 'r4' });
 
     const sys = adapter.lastRequest?.system ?? '';
     expect(sys).toMatch(/grounding/i);
     expect(sys).toMatch(/do NOT invent|do not invent/i);
   });
 
-  it('system prompt requires a Resolved decisions preamble and a scan-first rule', async () => {
+  it('system prompt requires a Resolved decisions preamble and a scan-first rule (Phase 5 invariant)', async () => {
     const adapter = new MockAdapter();
     adapter.push({ text: 'plan', inputTokens: 1, outputTokens: 1 });
 
     const card = await readCard(cardPath);
-    await plan({ card, adapter, model: 'claude-opus-4-7' });
+    await plan({ card, adapter, model: 'claude-opus-4-7', analysis: ANALYSIS, repo: tmp, runId: 'r5' });
 
     const sys = adapter.lastRequest?.system ?? '';
     expect(sys).toMatch(/Resolved decisions from analysis/);
@@ -88,7 +105,7 @@ describe('plan', () => {
     expect(sys).toMatch(/\[need:\][^]*defect/);
   });
 
-  it('preserves preamble + steps when the model emits the new output shape', async () => {
+  it('preserves preamble + steps when the model emits the new output shape (Phase 5 H3-under-H2 body position)', async () => {
     const adapter = new MockAdapter();
     adapter.push({
       text: [
@@ -108,8 +125,10 @@ describe('plan', () => {
     });
 
     const card = await readCard(cardPath);
-    await plan({ card, adapter, model: 'claude-opus-4-7' });
+    await plan({ card, adapter, model: 'claude-opus-4-7', analysis: ANALYSIS, repo: tmp, runId: 'r6' });
 
+    // Phase 5 invariant: H3 preamble nested under H2 `## Implementation Plan`
+    // in the card body. Preserved by the dual-write compat shim.
     const updated = await readCard(cardPath);
     expect(updated.body).toContain('## Implementation Plan');
     expect(updated.body).toContain('### Resolved decisions from analysis');
@@ -123,14 +142,7 @@ describe('plan', () => {
   });
 
   it('does not emit [need:] for decisions the analysis already resolved (T1-1 regression)', async () => {
-    const fresh = join(tmp, 'health-card.md');
-    await copyFile(fixturePath, fresh);
-    await appendSection(
-      fresh,
-      'Analysis',
-      'Decision: use path `/health` (the endpoint must be served at /health).',
-    );
-    const card = await readCard(fresh);
+    const analysis = 'Decision: use path `/health` (the endpoint must be served at /health).';
 
     const adapter = new MockAdapter();
     adapter.push({
@@ -158,9 +170,10 @@ describe('plan', () => {
       outputTokens: 120,
     });
 
-    await plan({ card, adapter, model: 'claude-opus-4-7' });
+    const card = await readCard(cardPath);
+    await plan({ card, adapter, model: 'claude-opus-4-7', analysis, repo: tmp, runId: 'r7' });
 
-    const updated = await readCard(fresh);
+    const updated = await readCard(cardPath);
     expect(updated.body).toContain('### Resolved decisions from analysis');
     expect(updated.body).toContain('Path: `/health`');
     expect(updated.body).not.toMatch(/\[need:[^\]]*path[^\]]*\]/i);

@@ -112,6 +112,15 @@ export const ChatParams = z.object({
   message: z.string().min(1),
 });
 
+export const RunArtifactGetParams = z.object({
+  runId: z.string().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/, 'runId must match [a-zA-Z0-9_-]+'),
+  op: z.enum(['analyze', 'plan']),
+});
+
+export const CardChatHistoryParams = z.object({
+  cardId: z.string().min(1).max(128).regex(/^[a-zA-Z0-9._-]+$/, 'cardId must match [a-zA-Z0-9._-]+'),
+});
+
 export const ConductorStartParams = z.object({});
 export const ConductorStopParams = z.object({});
 export const ConductorStatusParams = z.object({});

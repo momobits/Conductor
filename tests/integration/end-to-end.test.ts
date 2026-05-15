@@ -57,9 +57,10 @@ describe('end-to-end: discovered -> approved', () => {
     // 6. Verify final state
     const card = await readCard(cardPath);
     expect(card.frontmatter.column).toBe('approved');
-    expect(card.body).toContain('## Analysis');
+    // Phase 21: analyze stops appending to card body; plan still appends (dual-write compat shim).
+    // The `Root cause: middleware` text is now in `.conductor/runs/<runId>/analyze.md`, not body.
+    expect(card.body).not.toContain('## Analysis');
     expect(card.body).toContain('## Implementation Plan');
-    expect(card.body).toContain('Root cause: middleware');
     expect(card.body).toContain('Add expiry check');
   });
 });

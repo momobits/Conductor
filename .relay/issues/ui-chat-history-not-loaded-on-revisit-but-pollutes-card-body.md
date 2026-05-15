@@ -4,6 +4,8 @@
 *Source: Phase 21 Playwright behavior test of card chat against omniforge.*
 *Severity: P2 — visible history loss + dossier pollution.*
 
+> Grouped into [ui-work-card-output-persisted-into-card-body](ui-work-card-output-persisted-into-card-body.md) run on 2026-05-16. See [ui-work-card-output-persisted-into-card-body](ui-work-card-output-persisted-into-card-body.md) for closure status and per-entry obligation (closure: full).
+
 ## Problem statement
 
 Sending a chat message on a card detail page appends both user and assistant turns into the **card body markdown file** as a `## Chat` section with `**you:**` / `**assistant:**` lines. But the card-detail view's chat-log `<div id="chat-log">` is **always rendered empty** on page load — it does not parse the body's `## Chat` section back into chat turns.

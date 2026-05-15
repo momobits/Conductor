@@ -6,12 +6,14 @@
 
 import type { ModelAdapter } from '../../adapters/adapter.js';
 import type { Card } from '../types.js';
-import { appendSection } from '../state/card.js';
+import { RunArtifactWriter } from '../../agent/run_artifact.js';
 
 export interface AnalyzeArgs {
   card: Card;
   adapter: ModelAdapter;
   model: string;
+  repo: string;
+  runId: string;
 }
 
 export interface AnalyzeResult {
@@ -32,7 +34,7 @@ Output a single Markdown block with sections: Validation, Root Cause,
 Blast Radius, Approach. Be specific. Cite file:line where you can.`.trim();
 
 export async function analyze(args: AnalyzeArgs): Promise<AnalyzeResult> {
-  const { card, adapter, model } = args;
+  const { card, adapter, model, repo, runId } = args;
 
   const userPrompt = [
     `Card: ${card.frontmatter.id}`,
@@ -51,7 +53,10 @@ export async function analyze(args: AnalyzeArgs): Promise<AnalyzeResult> {
     user: userPrompt,
   });
 
-  await appendSection(card.path, 'Analysis', resp.text);
+  // Phase 21: persist to per-run artifact substrate instead of appending
+  // `## Analysis` to the card body. Card body stays user-owned dossier.
+  const artifacts = new RunArtifactWriter({ repo, runId });
+  await artifacts.write('analyze', resp.text);
 
   return {
     text: resp.text,

@@ -6,12 +6,16 @@
 
 import type { ModelAdapter } from '../../adapters/adapter.js';
 import type { Card } from '../types.js';
-import { appendSection, extractSection } from '../state/card.js';
+import { appendSection } from '../state/card.js';
+import { RunArtifactWriter } from '../../agent/run_artifact.js';
 
 export interface PlanArgs {
   card: Card;
   adapter: ModelAdapter;
   model: string;
+  analysis: string;
+  repo: string;
+  runId: string;
 }
 
 export interface PlanResult {
@@ -59,10 +63,12 @@ block in the user message; a "[need:]" for a decision the analysis
 already resolved is a defect.`.trim();
 
 export async function plan(args: PlanArgs): Promise<PlanResult> {
-  const { card, adapter, model } = args;
+  const { card, adapter, model, analysis, repo, runId } = args;
 
-  const analysis = extractSection(card.body, 'Analysis');
-  if (!analysis) {
+  // Phase 21: analysis is now passed in-memory by the caller (TaskAgent),
+  // not extracted via regex from card.body. Sidesteps the `## ` subheading
+  // collision that broke the analyze→plan handoff under the old contract.
+  if (!analysis || !analysis.trim()) {
     throw new Error(`Card ${card.frontmatter.id} has no Analysis section; run analyze first.`);
   }
 
@@ -81,6 +87,16 @@ export async function plan(args: PlanArgs): Promise<PlanResult> {
     user: userPrompt,
   });
 
+  // Phase 21: persist to per-run artifact substrate (primary substrate).
+  const artifacts = new RunArtifactWriter({ repo, runId });
+  await artifacts.write('plan', resp.text);
+
+  // Compatibility shim: also append `## Implementation Plan` to card body so
+  // the deferred-scope review op (review.ts:41 reads via extractSection and
+  // throws if missing) continues to work for the planned→approved transition
+  // until the follow-up issue migrates review to the substrate. Removes the
+  // ## Analysis + ## Chat appends (~50 lines vs ~114 pre-Phase-21); full
+  // close-out of the body-bloat anti-pattern awaits the deferred refactor.
   await appendSection(card.path, 'Implementation Plan', resp.text);
 
   return {

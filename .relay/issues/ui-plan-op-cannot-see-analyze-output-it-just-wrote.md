@@ -4,6 +4,8 @@
 *Source: Phase 21 Playwright behavior test of "Work this card" against omniforge `2026-05-12-t6-imported`.*
 *Severity: P1 — the auto loop breaks on the first card it tries to plan.*
 
+> Grouped into [ui-work-card-output-persisted-into-card-body](ui-work-card-output-persisted-into-card-body.md) run on 2026-05-16. See [ui-work-card-output-persisted-into-card-body](ui-work-card-output-persisted-into-card-body.md) for closure status and per-entry obligation (closure: full).
+
 ## Problem statement
 
 A single `work_card` invocation runs analyze → plan back-to-back. The `analyze` op writes its output into the card body as a `## Analysis` section (see related issue). The `plan` op then runs, and is supposed to consume that analysis to produce a step-by-step plan. **In practice the plan op cannot parse the analysis it just wrote**, and emits a placeholder plan whose first two steps are literally:

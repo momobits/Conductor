@@ -1,11 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { TaskAgent } from '../../src/agent/task_agent.js';
 import { MockAdapter } from '../../src/adapters/mock.js';
 import { ProjectConfigSchema } from '../../src/config/schema.js';
 import type { TaskEvent } from '../../src/agent/events.js';
+import { readRunArtifact } from '../../src/agent/run_artifact.js';
 
 function setupRepo(): { repo: string; cardId: string } {
   const repo = mkdtempSync(join(tmpdir(), 'conductor-agent-'));
@@ -62,6 +63,35 @@ describe('TaskAgent', () => {
     if (complete.kind === 'complete') {
       expect(complete.finalColumn).toBe('planned');
     }
+  });
+
+  it('Phase 21: work_card on discovered persists analyze.md + plan.md artifacts; analyze section NOT appended to card body', async () => {
+    const { repo, cardId } = setupRepo();
+    const cardPath = join(repo, '.conductor', 'cards', `${cardId}.md`);
+    const before = readFileSync(cardPath, 'utf8');
+    const adapter = new MockAdapter([
+      'Analysis text from model',
+      '### Resolved decisions from analysis\n(none)\n\n### Step 1.1\nWHAT: do thing',
+    ]);
+    const config = ProjectConfigSchema.parse({});
+    const agent = new TaskAgent({ repo, cardId, adapter, config });
+    for await (const _ of agent.run()) { /* drain */ }
+
+    // analyze.md exists in run-dir
+    expect(await readRunArtifact(repo, agent.runId, 'analyze')).toBe('Analysis text from model');
+    // plan.md exists in run-dir
+    expect(await readRunArtifact(repo, agent.runId, 'plan')).toContain('### Step 1.1');
+
+    // Card body: no `## Analysis` (analyze stopped appending in Phase 21)
+    const after = readFileSync(cardPath, 'utf8');
+    expect(after).not.toContain('## Analysis');
+    // Card body: `## Implementation Plan` IS present (plan dual-writes for review compat)
+    expect(after).toContain('## Implementation Plan');
+    // Frontmatter `column` changed from discovered → planned (transition); body otherwise grew by plan section only
+    const beforeBody = before.split('---').slice(2).join('---');
+    const afterBody = after.split('---').slice(2).join('---');
+    // The afterBody contains the original body + only the plan section; no analyze append.
+    expect(afterBody).toContain(beforeBody.trim());
   });
 
   it('emits halt when an op refuses to advance (review NEEDS-CHANGES)', async () => {

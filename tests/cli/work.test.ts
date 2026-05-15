@@ -47,7 +47,8 @@ describe('runWork', () => {
 
     const card = await readCard(join(tmp, '.conductor', 'cards', `${id}.md`));
     expect(card.frontmatter.column).toBe('planned');
-    expect(card.body).toContain('## Analysis');
+    // Phase 21: analyze no longer appends to card body; plan still does (dual-write compat shim).
+    expect(card.body).not.toContain('## Analysis');
     expect(card.body).toContain('## Implementation Plan');
   });
 

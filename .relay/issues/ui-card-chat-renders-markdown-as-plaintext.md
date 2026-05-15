@@ -4,6 +4,8 @@
 *Source: Phase 21 Playwright dogfood of Control Room UI against omniforge.*
 *Severity: P2 — broken rendering of LLM output the user reads.*
 
+> Grouped into [ui-work-card-output-persisted-into-card-body](ui-work-card-output-persisted-into-card-body.md) run on 2026-05-16. See [ui-work-card-output-persisted-into-card-body](ui-work-card-output-persisted-into-card-body.md) for closure status and per-entry obligation (closure: full).
+
 ## Problem statement
 
 On the card detail view, the chat assistant returns markdown-formatted text (bold, italics, lists). The UI inserts it via `textContent`, so the formatting characters render as literal asterisks/underscores.

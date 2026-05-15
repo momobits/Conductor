@@ -18,8 +18,10 @@ import {
   ConductorStartParams, ConductorStopParams, ConductorStatusParams, ConductorSetAutonomyParams,
   TrackerPullParams,
   RunListParams, RunReplayParams, RunPruneParams,
+  RunArtifactGetParams, CardChatHistoryParams,
   CostShowParams,
 } from './schema.js';
+import { readRunArtifact } from '../agent/run_artifact.js';
 import { trackerPull } from '../engine/ops/tracker_pull.js';
 import { makeTrackerAdapter } from '../trackers/factory.js';
 import { listRuns, pruneRuns, replayRun } from '../agent/runlog_store.js';
@@ -337,6 +339,12 @@ async function cost_show(ctx: MethodContext, raw: unknown) {
   return getCostSummary({ runtime: ctx.runtime, config: ctx.config });
 }
 
+async function run_artifact_get(ctx: MethodContext, raw: unknown) {
+  const p = RunArtifactGetParams.parse(raw);
+  const text = await readRunArtifact(ctx.repo, p.runId, p.op);
+  return { text };
+}
+
 export const methods = {
   card_new,
   card_get,
@@ -364,6 +372,7 @@ export const methods = {
   run_replay,
   run_prune,
   cost_show,
+  run_artifact_get,
 } satisfies Record<string, Handler<unknown, unknown>>;
 
 export type MethodName = keyof typeof methods;

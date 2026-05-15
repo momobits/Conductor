@@ -86,13 +86,27 @@ export class TaskAgent {
       case 'discovered': {
         yield await this.emit({ kind: 'op_start', cardId: this.cardId, operation: 'analyze', model: modelFor(card, 'analyze') });
         const t0 = Date.now();
-        await analyze({ card, adapter: this.adapter, model: modelFor(card, 'analyze') });
+        // Phase 21: capture analyze return value for in-memory hand-off to plan.
+        const analyzeRes = await analyze({
+          card,
+          adapter: this.adapter,
+          model: modelFor(card, 'analyze'),
+          repo: this.repo,
+          runId: this.runId,
+        });
         yield await this.emit({ kind: 'op_complete', cardId: this.cardId, operation: 'analyze', durationMs: Date.now() - t0 });
 
-        const c2 = await readCard(cardPath);
-        yield await this.emit({ kind: 'op_start', cardId: this.cardId, operation: 'plan', model: modelFor(c2, 'plan') });
+        // No re-read of card: analyze no longer mutates body.
+        yield await this.emit({ kind: 'op_start', cardId: this.cardId, operation: 'plan', model: modelFor(card, 'plan') });
         const t1 = Date.now();
-        await planOp({ card: c2, adapter: this.adapter, model: modelFor(c2, 'plan') });
+        await planOp({
+          card,
+          adapter: this.adapter,
+          model: modelFor(card, 'plan'),
+          analysis: analyzeRes.text,
+          repo: this.repo,
+          runId: this.runId,
+        });
         yield await this.emit({ kind: 'op_complete', cardId: this.cardId, operation: 'plan', durationMs: Date.now() - t1 });
 
         let halted = false;

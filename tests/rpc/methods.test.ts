@@ -276,4 +276,32 @@ describe('rpc methods', () => {
     const reread = await methods.card_get(ctx, { id }) as { body: string };
     expect(reread.body).toContain('Hello?');
   });
+
+  it('run_artifact_get returns { text } when artifact exists', async () => {
+    const repo = setupRepo();
+    const { RunArtifactWriter } = await import('../../src/agent/run_artifact.js');
+    await new RunArtifactWriter({ repo, runId: 'r1' }).write('analyze', 'ANALYZED');
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    const res = await methods.run_artifact_get(ctx, { runId: 'r1', op: 'analyze' }) as { text: string | null };
+    expect(res).toEqual({ text: 'ANALYZED' });
+  });
+
+  it('run_artifact_get returns { text: null } when artifact missing', async () => {
+    const repo = setupRepo();
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    const res = await methods.run_artifact_get(ctx, { runId: 'never-ran', op: 'analyze' }) as { text: string | null };
+    expect(res).toEqual({ text: null });
+  });
+
+  it('run_artifact_get rejects path-traversal in runId', async () => {
+    const repo = setupRepo();
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    await expect(methods.run_artifact_get(ctx, { runId: '../escape', op: 'analyze' })).rejects.toThrow();
+  });
+
+  it('run_artifact_get rejects unknown op values', async () => {
+    const repo = setupRepo();
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    await expect(methods.run_artifact_get(ctx, { runId: 'r1', op: 'review' })).rejects.toThrow();
+  });
 });

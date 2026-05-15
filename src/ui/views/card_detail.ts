@@ -85,6 +85,31 @@ export async function renderCardDetail(
   const streamEl = root.querySelector<HTMLElement>('#stream')!;
   const workBtn = root.querySelector<HTMLButtonElement>('#work-btn')!;
 
+  // Phase 21: artifact panel renders analyze.md + plan.md as the run progresses.
+  const article = root.querySelector<HTMLElement>('.body')!;
+  const artifactsEl = document.createElement('section');
+  artifactsEl.className = 'ops-artifacts';
+  article.appendChild(artifactsEl);
+
+  async function renderArtifact(runId: string, op: 'analyze' | 'plan'): Promise<void> {
+    try {
+      const r = await rpc.call<{ text: string | null }>('run_artifact_get', { runId, op });
+      if (!r.text) return;
+      const section = document.createElement('details');
+      section.className = `op-artifact op-${op}`;
+      section.open = true;
+      const summary = document.createElement('summary');
+      summary.textContent = op;
+      section.appendChild(summary);
+      const body = document.createElement('div');
+      body.innerHTML = renderMarkdown(r.text);
+      section.appendChild(body);
+      artifactsEl.appendChild(section);
+    } catch (err) {
+      appendEvent(`✗ artifact fetch failed (${op}): ${(err as Error).message}`, 'error');
+    }
+  }
+
   const chatLog = root.querySelector<HTMLElement>('#chat-log')!;
   const chatForm = root.querySelector<HTMLFormElement>('#chat-form')!;
   const chatInput = root.querySelector<HTMLInputElement>('#chat-input')!;
@@ -134,12 +159,18 @@ export async function renderCardDetail(
 
   const unsub = stream.on((e: DaemonEventEnvelope) => {
     if (e.kind !== 'task-event') return;
-    const ev = e as DaemonEventEnvelope & { cardId: string; event: { kind: string; operation?: string; from?: string; to?: string; reason?: string; message?: string } };
+    const ev = e as DaemonEventEnvelope & { cardId: string; runId?: string; event: { kind: string; operation?: string; from?: string; to?: string; reason?: string; message?: string } };
     if (ev.cardId !== cardId) return;
     const evt = ev.event;
     switch (evt.kind) {
       case 'op_start': appendEvent(`▸ ${evt.operation}`); break;
-      case 'op_complete': appendEvent(`✓ ${evt.operation}`); break;
+      case 'op_complete': {
+        appendEvent(`✓ ${evt.operation}`);
+        if (ev.runId && (evt.operation === 'analyze' || evt.operation === 'plan')) {
+          renderArtifact(ev.runId, evt.operation);
+        }
+        break;
+      }
       case 'transition': appendEvent(`→ ${evt.from} → ${evt.to}`); break;
       case 'transition_request': {
         appendEvent(`? ${evt.from} → ${evt.to} (awaiting approval)`, 'halt');
