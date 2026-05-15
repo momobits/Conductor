@@ -50,7 +50,11 @@ function tile(c: CardSummary): string {
   return `
     <a class="card-tile" data-id="${escape(c.frontmatter.id)}" href="#/card/${escape(c.frontmatter.id)}" draggable="true">
       <div class="title">${escape(c.frontmatter.title)}</div>
-      <div class="meta">${escape(c.frontmatter.kind)} · ${escape(c.frontmatter.phase)} · p${c.frontmatter.priority}</div>
+      <div class="meta">
+        <span>${escape(c.frontmatter.kind)}</span>
+        <span>${escape(c.frontmatter.phase)}</span>
+        <span>p${c.frontmatter.priority}</span>
+      </div>
     </a>
   `;
 }
@@ -66,18 +70,30 @@ export async function renderBoard(rpc: RpcClient, root: HTMLElement): Promise<{ 
       verifying: [], shipped: [], archived: [],
     };
     for (const c of cards) grouped[c.frontmatter.column].push(c);
+    const total = cards.length;
     root.innerHTML = `
-      <div class="board">
-        ${COLUMNS.map((col) => {
-          const policy = policyForExit(config, col);
-          const badge = policy ? policyBadge(policy) : '';
-          return `
-            <section class="column" data-column="${col}">
-              <h3>${col}${badge}</h3>
-              <div class="column-tiles">${grouped[col].map(tile).join('')}</div>
-            </section>
-          `;
-        }).join('')}
+      <div class="board-shell">
+        <header class="board-header">
+          <h1>Board</h1>
+          <div class="board-counter"><strong>${total}</strong> cards in transit · ${COLUMNS.length} columns</div>
+        </header>
+        <div class="board">
+          ${COLUMNS.map((col, i) => {
+            const policy = policyForExit(config, col);
+            const badge = policy ? policyBadge(policy) : '';
+            const num = String(i + 1).padStart(2, '0');
+            const count = grouped[col].length;
+            return `
+              <section class="column" data-column="${col}" data-num="${num}">
+                <div class="column-head">
+                  <h3>${col} <span class="col-count">${count}</span></h3>
+                  ${badge}
+                </div>
+                <div class="column-tiles">${grouped[col].map(tile).join('')}</div>
+              </section>
+            `;
+          }).join('')}
+        </div>
       </div>
     `;
     attachDragDrop({

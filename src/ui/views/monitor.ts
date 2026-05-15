@@ -33,14 +33,9 @@ export async function renderMonitor(
     paint();
   }
 
-  function brainSummary(): string {
-    if (brain.running) return `running — card=${escape(brain.currentCard ?? '-')} iter=${brain.iteration} halts=${brain.halts}`;
-    return `idle (iter=${brain.iteration} halts=${brain.halts})`;
-  }
-
   function paint() {
     const sessionsHtml = sessions.length === 0
-      ? `<p>No active Task Agent sessions.</p>`
+      ? `<div class="empty">— no active task agent sessions —</div>`
       : `<table>
           <thead><tr><th>Card</th><th>Run</th><th>Operation</th><th>Started</th></tr></thead>
           <tbody>
@@ -54,19 +49,52 @@ export async function renderMonitor(
             `).join('')}
           </tbody>
         </table>`;
+    const runningState = brain.running ? 'true' : 'false';
+    const runningLabel = brain.running ? 'live · in transit' : 'idle · standby';
+    const logRowsHtml = brainLog.length === 0
+      ? `<div class="row"><span class="ts">--:--:--</span><span>awaiting telemetry…</span></div>`
+      : brainLog.slice(-200).map((line) => {
+          const ts = new Date().toLocaleTimeString('en-GB', { hour12: false });
+          return `<div class="row"><span class="ts">${ts}</span><span>${escape(line)}</span></div>`;
+        }).join('');
     root.innerHTML = `
       <div class="monitor">
-        <section class="brain-panel" style="border:1px solid #d0d7de; border-radius:6px; padding:0.75rem; margin-bottom:1rem;">
-          <h3>Conductor brain</h3>
-          <div class="brain-status"><strong>${brainSummary()}</strong></div>
-          <div class="brain-actions" style="margin-top:0.5rem;">
-            <button data-act="start">Start</button>
-            <button data-act="stop">Stop</button>
+        <header class="monitor-header">
+          <h1>Monitor</h1>
+          <div class="board-counter"><strong>${sessions.length}</strong> active · brain ${brain.running ? 'running' : 'idle'}</div>
+        </header>
+        <section class="brain-panel">
+          <div class="brain-info">
+            <div class="brain-lede">Section · 02 / Conductor Brain</div>
+            <h3>The brain orchestrates the queue.</h3>
+            <div class="brain-status-row">
+              <div class="brain-live" data-running="${runningState}">${runningLabel}</div>
+            </div>
+            <div class="brain-metrics">
+              <div class="brain-metric is-card">
+                <div class="label">Current card</div>
+                <div class="value">${escape(brain.currentCard ?? '—')}</div>
+              </div>
+              <div class="brain-metric">
+                <div class="label">Iteration</div>
+                <div class="value">${brain.iteration}</div>
+              </div>
+              <div class="brain-metric">
+                <div class="label">Halts</div>
+                <div class="value">${brain.halts}</div>
+              </div>
+            </div>
+            <div class="brain-actions">
+              <button data-act="start" ${brain.running ? 'disabled' : ''}>Start brain</button>
+              <button class="secondary" data-act="stop" ${brain.running ? '' : 'disabled'}>Stop</button>
+            </div>
           </div>
-          ${brainLog.length > 0 ? `<div class="brain-log" style="margin-top:0.5rem; font-family:monospace; font-size:0.85em; max-height:200px; overflow-y:auto;">${brainLog.map(escape).join('<br/>')}</div>` : ''}
+          <div class="brain-log">${logRowsHtml}</div>
         </section>
-        <h3>Active sessions</h3>
-        ${sessionsHtml}
+        <section class="sessions">
+          <h3>Active sessions</h3>
+          ${sessionsHtml}
+        </section>
       </div>
     `;
 

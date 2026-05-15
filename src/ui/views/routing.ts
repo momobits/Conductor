@@ -78,22 +78,27 @@ export async function renderRouting(rpc: RpcClient, root: HTMLElement): Promise<
   const currentMode = result.config.autonomy.default;
   root.innerHTML = `
     <div class="routing">
-      <h2>Routing</h2>
-      <div class="autonomy-picker" style="margin-bottom:1rem; padding:0.5rem; border:1px solid #d0d7de; border-radius:6px;">
-        <label for="autonomy-select"><strong>Autonomy mode:</strong></label>
-        <select id="autonomy-select" style="margin-left:0.5rem;">
+      <header class="routing-header">
+        <h1>Routing</h1>
+        <p class="lede">Section · 03 / Configuration manifest</p>
+      </header>
+      <div class="autonomy-picker">
+        <label for="autonomy-select"><strong>Autonomy</strong> · current mode</label>
+        <select id="autonomy-select">
           <option value="escort">escort — every decision to user</option>
           <option value="assist">assist — auto-approve high-confidence + low-blast</option>
           <option value="auto">auto — auto-approve any high-confidence decision</option>
           <option value="critical">critical — auto, but halt queue if confidence drops</option>
         </select>
-        <span id="autonomy-status" style="margin-left:0.5rem; color:#1a7f37;" hidden>Saved.</span>
+        <span id="autonomy-status" class="status" hidden>Saved.</span>
       </div>
-      <p>Edit <code>.conductor/config.yaml</code>. Saves are validated server-side.</p>
-      <textarea id="yaml">${escape(yaml)}</textarea>
-      <div class="actions" style="margin-top:0.5rem;">
-        <button id="save-btn">Save</button>
-        <button class="secondary" id="reload-btn">Reload</button>
+      <p class="lede">Edit <code>.conductor/config.yaml</code>. Saves are validated server-side.</p>
+      <div class="yaml-shell">
+        <textarea id="yaml" spellcheck="false">${escape(yaml)}</textarea>
+      </div>
+      <div class="actions">
+        <button id="save-btn">Commit changes</button>
+        <button class="secondary" id="reload-btn">Reload from disk</button>
       </div>
       <div class="err" id="err" hidden></div>
     </div>
@@ -106,15 +111,14 @@ export async function renderRouting(rpc: RpcClient, root: HTMLElement): Promise<
     autonomyStatus.hidden = true;
     try {
       await rpc.call('conductor_set_autonomy', { mode: autonomySelect.value });
-      autonomyStatus.textContent = 'Saved.';
-      autonomyStatus.style.color = '#1a7f37';
+      autonomyStatus.textContent = '⌁ saved';
+      autonomyStatus.dataset.state = 'ok';
       autonomyStatus.hidden = false;
-      // Refresh the YAML view so it reflects the change.
       const r = await rpc.call<{ config: ProjectConfigShape }>('config_get');
       ta.value = configToYaml(r.config);
     } catch (err) {
-      autonomyStatus.textContent = `Failed: ${(err as Error).message}`;
-      autonomyStatus.style.color = '#cf222e';
+      autonomyStatus.textContent = `failed: ${(err as Error).message}`;
+      autonomyStatus.dataset.state = 'error';
       autonomyStatus.hidden = false;
     }
   });
@@ -136,12 +140,12 @@ export async function renderRouting(rpc: RpcClient, root: HTMLElement): Promise<
     }
     try {
       await rpc.call('config_set', { config: parsed });
-      errEl.textContent = 'Saved.';
-      errEl.style.color = '#1a7f37';
+      errEl.textContent = '⌁ committed';
+      errEl.dataset.ok = 'true';
       errEl.hidden = false;
     } catch (err) {
-      errEl.textContent = `Save failed: ${(err as Error).message}`;
-      errEl.style.color = '';
+      errEl.textContent = `save failed — ${(err as Error).message}`;
+      errEl.dataset.ok = 'false';
       errEl.hidden = false;
     }
   });
@@ -150,5 +154,6 @@ export async function renderRouting(rpc: RpcClient, root: HTMLElement): Promise<
     const r = await rpc.call<{ config: ProjectConfigShape }>('config_get');
     ta.value = configToYaml(r.config);
     errEl.hidden = true;
+    delete errEl.dataset.ok;
   });
 }

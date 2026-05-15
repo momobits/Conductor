@@ -28,27 +28,46 @@ function readToken(): string | null {
   return localStorage.getItem('conductor.token');
 }
 
-function setStatus(text: string, ok: boolean) {
+function setStatus(text: string, state: 'connected' | 'disconnected' | 'failed') {
   const el = document.getElementById('status');
   if (!el) return;
-  el.textContent = text;
-  el.classList.toggle('connected', ok);
+  el.dataset.state = state;
+  const label = el.querySelector('.status-label');
+  if (label) label.textContent = text;
+  else el.textContent = text;
+}
+
+function setActiveNav() {
+  const hash = (window.location.hash || '#/board').slice(1);
+  const view = hash.split('/').filter(Boolean)[0] ?? 'board';
+  document.querySelectorAll<HTMLAnchorElement>('.app-nav a').forEach((a) => {
+    a.classList.toggle('active', a.dataset.nav === view);
+  });
 }
 
 async function bootstrap(): Promise<AppContext | null> {
   const token = readToken();
   if (!token) {
-    document.getElementById('root')!.textContent =
-      'No token. Open the URL printed by `conductor daemon start` (it now includes a `?token=` query parameter). If the daemon is already running, copy the UUID from `.conductor/auth.token` in your project and append it as `?token=<uuid>` to this URL.';
+    setStatus('no token', 'failed');
+    document.getElementById('root')!.innerHTML = `
+      <section class="empty-shell">
+        <h1>No transmission token.</h1>
+        <p>Open the URL printed by <code>conductor daemon start</code> — it now includes a <code>?token=</code> query parameter.</p>
+        <p>If the daemon is already running, copy the UUID from <code>.conductor/auth.token</code> in your project and append <code>?token=&lt;uuid&gt;</code> to this URL.</p>
+      </section>`;
     return null;
   }
   const rpc = makeClient(token);
   try {
     await rpc.call('scan');
-    setStatus('connected', true);
+    setStatus('connected', 'connected');
   } catch (err) {
-    setStatus('auth failed', false);
-    document.getElementById('root')!.textContent = `Auth failed: ${(err as Error).message}`;
+    setStatus('auth failed', 'failed');
+    document.getElementById('root')!.innerHTML = `
+      <section class="empty-shell">
+        <h1>Authentication failed.</h1>
+        <p>${(err as Error).message}</p>
+      </section>`;
     return null;
   }
   const stream = new EventStream(token);
@@ -62,6 +81,7 @@ async function dispatch(ctx: AppContext) {
   detailCleanup?.();
   detailCleanup = null;
   ctx.boardRefresh = undefined;
+  setActiveNav();
   const root = document.getElementById('root') as HTMLElement;
   const hash = (window.location.hash || '#/board').slice(1);
   const parts = hash.split('/').filter(Boolean);
@@ -99,5 +119,9 @@ async function main() {
 
 main().catch((err) => {
   console.error(err);
-  document.getElementById('root')!.textContent = `Fatal: ${err.message}`;
+  document.getElementById('root')!.innerHTML = `
+    <section class="empty-shell">
+      <h1>Fatal transmission error.</h1>
+      <p>${err.message}</p>
+    </section>`;
 });

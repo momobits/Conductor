@@ -61,7 +61,7 @@ describe('Phase 5 end-to-end', () => {
       expect.fail('Run `npm run build:ui` before this test.');
     }
     expect(r.status).toBe(200);
-    expect(await r.text()).toContain('<title>Conductor</title>');
+    expect(await r.text()).toMatch(/<title>Conductor[^<]*<\/title>/);
   });
 
   it('serves /rpc with bearer auth', async () => {

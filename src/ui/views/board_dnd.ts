@@ -38,9 +38,17 @@ export function attachDragDrop(opts: {
   });
 
   root.querySelectorAll<HTMLElement>('.column').forEach((col) => {
-    col.addEventListener('dragover', (ev) => { ev.preventDefault(); ev.dataTransfer!.dropEffect = 'move'; });
+    col.addEventListener('dragover', (ev) => {
+      ev.preventDefault();
+      ev.dataTransfer!.dropEffect = 'move';
+      col.classList.add('drag-target');
+    });
+    col.addEventListener('dragleave', (ev) => {
+      if (ev.target === col) col.classList.remove('drag-target');
+    });
     col.addEventListener('drop', async (ev) => {
       ev.preventDefault();
+      col.classList.remove('drag-target');
       const id = ev.dataTransfer?.getData('text/plain');
       if (!id) return;
       const to = col.getAttribute('data-column') as Column;
