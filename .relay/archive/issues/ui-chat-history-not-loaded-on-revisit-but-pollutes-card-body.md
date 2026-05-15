@@ -1,3 +1,5 @@
+> **ARCHIVED — RESOLVED IN GROUPED RUN** with [ui-work-card-output-persisted-into-card-body](../../implemented/ui-work-card-output-persisted-into-card-body.md). See run leader's Per-Entry Closure for closure status and obligation granularity.
+
 # Chat history persists into card body but doesn't reload into the UI on revisit
 
 *Created: 2026-05-15*

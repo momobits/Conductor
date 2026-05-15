@@ -1,3 +1,5 @@
+> **ARCHIVED — RESOLVED IN GROUPED RUN** with [ui-work-card-output-persisted-into-card-body](../../implemented/ui-work-card-output-persisted-into-card-body.md). See run leader's Per-Entry Closure for closure status and obligation granularity.
+
 # Card-detail chat replies render markdown as plaintext
 
 *Created: 2026-05-15*

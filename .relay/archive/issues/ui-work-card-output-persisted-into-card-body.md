@@ -1,3 +1,5 @@
+> **ARCHIVED** — Resolved. See [implementation doc](../../implemented/ui-work-card-output-persisted-into-card-body.md)
+
 # `work_card` permanently appends analyze/plan output into the card body file
 
 *Created: 2026-05-15*
@@ -1396,4 +1398,68 @@ All revisions are in-place in the Implementation Plan section above; no duplicat
   - **Actual**: [what was done instead]
   - **Reason**: [why the deviation was necessary]
 - Do NOT make changes beyond what the plan specifies
+
+---
+
+## Verification Report
+
+*Verified: 2026-05-16*
+
+### Implementation Status
+
+| Step | Planned | Implemented | Correct |
+|------|---------|-------------|---------|
+| 1 | `src/agent/run_artifact.ts` new module (RunArtifactWriter + readRunArtifact) | YES | YES |
+| 2 | `analyze.ts` drops `appendSection`; new `repo`/`runId` args; writes `<runId>/analyze.md` | YES | YES |
+| 3 | `plan.ts` drops `extractSection`; new `analysis`/`repo`/`runId` args; writes `<runId>/plan.md`; **dual-write `## Implementation Plan` to body (compat shim)** | YES | YES |
+| 3b | `src/engine/state/card.ts:6-12` doc comment updated to scope `appendSection` consumers | YES | YES |
+| 4 | `task_agent.ts` discovered branch: capture `analyzeRes.text`, pass to plan; drop redundant `readCard` | YES | YES |
+| 5 | RPC `run_artifact_get({ runId, op })`; Zod regex + enum boundary validation | YES | YES |
+| 6 | `card_detail.ts` SSE handler fetches `run_artifact_get` on `op_complete`; renders into `.ops-artifacts` panel | YES | YES |
+| 7 | `src/engine/state/chat_log.ts` new module (appendChatTurn + readChatLog) | YES | YES |
+| 8 | `chat.ts` drops `readCard`/`writeCard`/`CHAT_HEADING`; calls `appendChatTurn` twice per chat | YES | YES |
+| 9 | RPC `card_chat_history({ cardId })` | YES | YES |
+| 10 | `card_get` body-strip (non-greedy regex with lookahead per /relay-review fix); `card_detail.ts` replay on mount | YES | YES |
+| 11 | `appendMsg` branches on role: assistant → `renderMarkdown`, user → `textContent` | YES | YES |
+
+### Test Results
+
+- **Full suite**: `npm test` → **585/585 pass** in ~16.5s across 101 test files. Baseline 559 → 585 (+26 net new).
+- **Typecheck**: `npm run typecheck` → clean for both engine and UI tsconfigs.
+- **Targeted regression**: `npx vitest run tests/agent/ tests/engine/ops/{analyze,plan,chat}.test.ts tests/engine/state/ tests/rpc/methods.test.ts tests/integration/{phase21,end-to-end}.test.ts tests/cli/work.test.ts` → **122/122 pass** in ~8.3s.
+- **Phase 5 invariants preserved**: `/grounding/i`, `/do NOT invent/i`, `/Resolved decisions from analysis/`, H3-under-H2 body position — all locked tests green in `tests/engine/ops/plan.test.ts`.
+- **Phase 21 e2e**: `tests/integration/phase21-end-to-end.test.ts` — 2/2 pass.
+
+### Grouped Run Coverage
+
+Closure obligation: **full** for all 4 entries.
+
+| Entry | Title | Files touched | Verification evidence |
+|-------|-------|---------------|----------------------|
+| **#20** (leader) | `work_card` appends op output to card body | `src/agent/run_artifact.ts`, `src/engine/ops/analyze.ts`, `src/engine/ops/plan.ts`, `src/engine/ops/chat.ts`, `src/agent/task_agent.ts`, `src/engine/state/card.ts` | `tests/agent/task_agent.test.ts` + `tests/integration/phase21-end-to-end.test.ts` byte-identity checks. **Documented partial closure** per /relay-review's dual-write fix: analyze + chat appends gone (~50 lines saved per click); plan still appends `## Implementation Plan` as compat shim for the deferred-scope review op. Follow-up issue at /relay-resolve time will close the residual via review op migration. |
+| **#21** | `plan` op cannot parse `analyze` output via fragile regex | `src/engine/ops/plan.ts`, `src/agent/task_agent.ts` | `tests/engine/ops/plan.test.ts` "passes adversarial analysis with H2 subsections in full (#21 regression)" — plan adapter sees the full text intact. **Full closure** — `extractSection` no longer called by plan. |
+| **#22** | Chat history in body, not reloaded, two `## Chat` headings | `src/engine/state/chat_log.ts`, `src/engine/ops/chat.ts`, `src/rpc/methods.ts`, `src/ui/views/card_detail.ts` | `tests/engine/ops/chat.test.ts` byte-identity + `tests/rpc/methods.test.ts` "card_get strips legacy `## Chat` block" + "card_get strip preserves mid-body sections" (non-greedy regex per /relay-review HIGH fix) + `tests/integration/phase21-end-to-end.test.ts` chat persist+replay. **Full closure**. |
+| **#23** | Chat assistant turns render markdown as plaintext | `src/ui/views/card_detail.ts` | `appendMsg` branches: assistant → `<span class="role">assistant:</span> ${renderMarkdown(text)}` via `innerHTML`; user → `textContent`. Verified via typecheck + the markdown round-trip in phase21 e2e (`**markdown**` text survives JSONL → `card_chat_history` → DOM). **Full closure**. |
+
+### Issues Found
+
+None. All 11 plan steps implemented per the plan. Two legacy test files (`tests/cli/work.test.ts:50` and `tests/integration/end-to-end.test.ts:60`) had body-mutation assertions that needed updating to reflect the new contract — both updated in Commit A with explicit Phase 21 commentary.
+
+### Verification Fixes
+
+None — no issues required mid-verify fixes. The /relay-review APPROVED-WITH-CHANGES verdict was incorporated into the plan before implementation began; no post-implementation discoveries required additional work.
+
+### Verdict
+
+**COMPLETE** — all 11 plan steps implemented across 4 commits (b81bcd6, 8cc3bad, 3f46351, c7579d9). Full suite 585/585 green (+26 net new tests; baseline 559). Typecheck clean. Phase 5 invariants preserved. Grouped Run Coverage: 3 full closures (#21, #22, #23) + 1 documented partial closure (#20 — analyze + chat byte-clean; plan body dual-write retained as compat shim per /relay-review fix, with follow-up issue obligation tracked for /relay-resolve).
+
+### Per-Entry Closure
+
+| # | Target | Kind | Obligation | Final disposition | Citation |
+|---|--------|------|------------|-------------------|----------|
+| 1 | ui-work-card-output-persisted-into-card-body (this — run leader) | run leader | full | **closed (partial body-byte-identity per /relay-review dual-write fix)** | `src/agent/run_artifact.ts:30-78` + `src/engine/ops/analyze.ts:54-56` + `src/engine/ops/plan.ts:65-86` + `src/engine/ops/chat.ts:55-67`. Body bloat reduced from ~114 lines/click to ~50 lines/click (plan body section retained as compat shim for deferred review op). Sunset path tracked in follow-up issue (filed below). |
+| 2 | ui-plan-op-cannot-see-analyze-output-it-just-wrote | existing item | full | **closed** | `src/engine/ops/plan.ts:60-86` (extractSection removed; in-memory `analysis: string` via PlanArgs) + `tests/engine/ops/plan.test.ts` "passes adversarial analysis with H2 subsections in full (#21 regression)". |
+| 3 | ui-chat-history-not-loaded-on-revisit-but-pollutes-card-body | existing item | full | **closed** | `src/engine/state/chat_log.ts` (new substrate) + `src/engine/ops/chat.ts:55-67` (body never mutated) + `src/rpc/methods.ts:card_chat_history` (replay surface) + `src/ui/views/card_detail.ts:128-138` (replay loop) + `src/rpc/methods.ts:card_get` body-strip (legacy `## Chat` removed read-side). |
+| 4 | ui-card-chat-renders-markdown-as-plaintext | existing item | full | **closed** | `src/ui/views/card_detail.ts:appendMsg` (assistant → `renderMarkdown` via innerHTML; user → textContent). |
+| follow-up | engine-ops-review-verify-notebook-implement-still-append-to-card-body | unfiled at analysis time | linked companion | **follow-up filed** | Phase 22+ — see `.relay/issues/engine-ops-still-append-to-card-body.md` (filed at /relay-resolve). Closure obligation includes the **dual-write sunset path** for plan op (the residual ~50 lines/click that Phase 21 #20 left open due to the deferred review consumer). |
 
