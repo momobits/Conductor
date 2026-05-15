@@ -3,7 +3,7 @@
 > Single source of truth. Read this first every session. Updated at every
 > `/session-end` and by the `PreCompact` hook. Every field has a purpose -- fill each.
 
-**Last updated:** 2026-05-15 by /phase-close (Phase 20 closed; Phase 21 kicked off as TBD scaffold)
+**Last updated:** 2026-05-15 by /session-end (sid-2026-05-15-phase-20-init-verify-venv-awareness)
 **Current phase:** 21 — TBD (placeholder scaffold; next session names + populates)
 **Current step:** 21.1 (TBD)
 **Status:** ready (Phase 20 closed cleanly at tag `phase-20-init-verify-venv-awareness-closed`; active Relay backlog is empty; Phase 21 awaits a target from `/relay-discover`, dogfood pass, or fresh initiative)
@@ -35,8 +35,8 @@ Phase 21's scaffold is a bare template at `.control/phases/phase-21-tbd/`. Its R
 
 ## Git state
 - **Branch:** main
-- **Last commit:** placeholder until phase-close commit lands (will be `chore(phase-20): close phase 20, kick off phase 21`). Predecessors: `654973f` (docs(20.1) flip steps.md checkbox), `4f5ac48` (feat(20.1) detectVerifyCommand venv-aware for Python), `a862ec9` (chore(phase-19) close phase 19, kick off phase 20), `751e7cb` (docs(19.1) reflect --browser WONT-DO), `cd4c889` (docs(19.1) file Phase 19 Relay backlog + WONT-DO archival), `4a9e846` (redesign(19.1) control room ui), `46033df` (docs(state) session end for step 18.1), `289ccda` (chore(phase-18) close phase 18, kick off phase 19), `91ab212` (feat(18.1) daemon start prints token-bearing URL).
-- **Uncommitted changes:** about to land in the phase-close commit (this STATE.md update + Phase 21 scaffold files + journal entry + next.md regen + Phase 20 README's "ADRs decided in this phase" accuracy correction).
+- **Last commit:** `b685305` — chore(phase-20): close phase 20, kick off phase 21. Predecessors: `654973f` (docs(20.1) flip steps.md checkbox), `4f5ac48` (feat(20.1) detectVerifyCommand venv-aware for Python), `a862ec9` (chore(phase-19) close phase 19, kick off phase 20), `751e7cb` (docs(19.1) reflect --browser WONT-DO), `cd4c889` (docs(19.1) file Phase 19 Relay backlog + WONT-DO archival), `4a9e846` (redesign(19.1) control room ui), `46033df` (docs(state) session end for step 18.1), `289ccda` (chore(phase-18) close phase 18, kick off phase 19), `91ab212` (feat(18.1) daemon start prints token-bearing URL).
+- **Uncommitted changes:** about to land in the session-end commit (this STATE.md timestamp refresh + regenerated next.md).
 - **Last phase tag:** `phase-20-init-verify-venv-awareness-closed` (created during this `/phase-close`; predecessor `phase-19-control-room-ui-closed` at `751e7cb`).
 
 ---
