@@ -8,13 +8,18 @@
 
 ## Overall strategy
 
-Phases 1–10 (the 2026-05-12 dogfood backlog + the Phase 7 gitignore-template carry-over + the 2026-05-15 daemon-UI token UX fix) are all resolved. One new item entered the backlog this session, surfaced by the 2026-05-15 omniforge dogfood:
+Phases 1–11 (the 2026-05-12 dogfood backlog + the Phase 7 gitignore-template carry-over + the 2026-05-15 omniforge dogfood items) are all resolved. The 2026-05-15 Phase 21 Playwright dogfood of the Control Room UI against omniforge surfaced **20 active issues + 1 feature seed** that group into six naturally-bounded clusters:
 
-- **Phase 11** — `init-verify-command-not-venv-aware-for-python` (P2). `conductor init` emits a bare `pytest` for Python projects, ignoring `.venv` / `venv` / poetry / pdm / uv conventions. Default-config Python cards stall in `building` because the daemon's PATH typically has no `pytest`. Every fresh Python project hits this on first verify.
+- **Phase 12** — **Card-body persistence (P1×2, P2×2)**. The flagship dogfood-killer: `Work this card` appends op output into the card body file (114 lines from one click), the plan op can't parse the analysis it just wrote, the chat panel persists into the body and is then invisible on reload, and chat turns render markdown as raw asterisks. All four issues share the same anti-pattern (op/chat output written to card body). Structural fix: persist op output to `.conductor/runs/<runId>/`, chat to a sibling artifact; card-detail UI reads from those.
+- **Phase 13** — **Routing config destructiveness (P1, P2×4)**. The autonomy dropdown silently wipes uncommitted yaml edits; saving the textarea strips comments and resets schema-defaulted fields outside the textarea's narrow shape; the `config_get → config_set` roundtrip fails on `Infinity → null` serialization; the save-error surface renders raw zod JSON. All five touch the `src/ui/views/routing.ts` + `config_get`/`config_set` boundary.
+- **Phase 14** — **Board transition UX (P2×2)**. Drag-drop offers approval for invalid transitions then surfaces a blocking `alert()`; the `approved` column has no UI backward path. Two small surgical changes in `src/ui/views/board_dnd.ts` + `src/engine/lifecycle.ts`.
+- **Phase 15** — **Brain telemetry (P2, P3×2)**. Stop button has no `stopping…` state and races self-halting brains; a single wedge fires two `conductor-halt` events 19ms apart; brain-log row timestamps show paint time rather than event time. Three independent fixes in `src/ui/views/monitor.ts` + `src/conductor/loop.ts`.
+- **Phase 16** — **Polish & cosmetics (P2, P3×4)**. Card deeplink not-found silently renders Board; transition dialogs leak "Phase 5/6" internal copy; archived column missing policy badge; hardcoded `Vol. 18 · N° 01` edition stamp; missing favicon. Ship as one bundled docs/copy PR. (The previously-listed footer-R issue has migrated to Phase 17, see below.)
+- **Phase 17** — **Keyboard-accessible Control Room (4 designed features)**. Brainstormed (`/relay-brainstorm`) and designed (`/relay-design`) on 2026-05-15. The cross-cutting Numbered Affordances grammar now decomposes into four sibling features in strict dependency order. Phase 17 absorbs `ui-footer-r-key-affordance-not-wired` (was Phase 16 #39) entirely — feature 4 replaces the unwired hint with a real per-view footer rotation. Phase 17 also inherits the shared forward-map validator extracted by Phase 14 #29 (feature 2 is the natural consumer).
 
-The Phase 18 carry-forward (`daemon-start --browser` flag, P3) was closed **WONT-DO** by operator decision — the copy-paste URL Phase 18 prints is sufficient and platform-specific browser-launch surface is not worth the maintenance cost. Banner applied at `.relay/archive/issues/daemon-start-missing-browser-flag.md`.
+The Phase 18 carry-forward (`daemon-start --browser` flag, P3) remains closed **WONT-DO** by operator decision. No promoted features, no grouped runs in flight, no archived-supersedes mappings to re-route — five clean standalone phases plus one designed multi-feature phase.
 
-No promoted features, no grouped runs in flight, no archived-supersedes mappings to re-route. One clean standalone phase.
+**Ordering rationale.** Card-body persistence (Phase 12) is the showstopper: every UI `Work this card` click leaves a 100-line-bloated card with a placeholder plan. Routing destructiveness (Phase 13) is the second silent-data-loss class. Board / brain / polish are progressively lower-blast-radius but tight, well-scoped clusters. The keyboard phase lands last because (a) its design absorbs the cosmetic R-key item from Phase 16, and (b) its feature 2 depends structurally on the validator Phase 14 extracts.
 
 ---
 
@@ -180,6 +185,115 @@ Ship as two independent PRs or one combined cleanup PR.
 
 ---
 
+## Phase 12 — Card-body persistence (op output + chat) — ACTIVE
+
+**Why this phase first.** The 2026-05-15 Phase 21 dogfood showed every UI `Work this card` click silently appends ~100 lines of op output (analyze + plan + chat) into the card body markdown file. One click on omniforge's placeholder `2026-05-12-t6-imported.md` grew the body from 8 → 114 lines. Compounding: the plan op can't parse the analysis it just wrote because the fence-delimited handoff is fragile against its own writer; the chat panel persists turns into the body but doesn't replay them on revisit so the user sees their history vanish on F5; and chat assistant markdown renders as raw asterisks via `textContent`. The four items share a single anti-pattern (op/chat state stored in the card body) and benefit from a unified fix.
+
+**Recommended approach.** Persist op output to `.conductor/runs/<runId>/<op>.md` (already the run-log substrate); persist chat to `.conductor/cards/<id>.chat.jsonl` (sibling artifact). Card-detail UI reads both into separate panels rather than rendering them from `card.body`. Once persistence is decoupled, item #20 (plan can't see analyze) becomes auto-resolved because plan reads the analysis file directly instead of regexing the card body. Item #23 (chat markdown rendering) drops into the chat-replay loop as a small `renderMarkdown` swap for assistant turns.
+
+**Ship as one sequenced branch.** Three commits, in order: (a) op-output decoupling + plan reads-from-disk + analyze writes-to-disk; (b) chat-history sibling artifact + UI replay; (c) chat markdown rendering for assistant turns.
+
+| #  | Item                                                                                                       | File                                                                                                              | Complexity | Depends on                                              |
+|----|-----------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------|------------|---------------------------------------------------------|
+| 20 | `work_card` appends op output into card body (analyze/plan/review/etc.) — decouple to `.conductor/runs/` | [ui-work-card-output-persisted-into-card-body.md](issues/ui-work-card-output-persisted-into-card-body.md)         | L          | —                                                       |
+| 21 | `plan` op cannot parse the `analyze` output it just wrote — fence-pair mismatch                          | [ui-plan-op-cannot-see-analyze-output-it-just-wrote.md](issues/ui-plan-op-cannot-see-analyze-output-it-just-wrote.md) | M      | #20 (auto-resolved when ops use disk-based exchange)    |
+| 22 | Chat history persisted into card body but not reloaded into UI on revisit — and renders twice            | [ui-chat-history-not-loaded-on-revisit-but-pollutes-card-body.md](issues/ui-chat-history-not-loaded-on-revisit-but-pollutes-card-body.md) | M | #20 (same persistence anti-pattern, parallel fix)      |
+| 23 | Card-detail chat assistant turns render markdown as plaintext (`textContent` vs `renderMarkdown`)        | [ui-card-chat-renders-markdown-as-plaintext.md](issues/ui-card-chat-renders-markdown-as-plaintext.md)             | S          | #22 (chat-replay loop is the natural insertion point)  |
+
+---
+
+## Phase 13 — Routing config destructiveness (cluster) — ACTIVE
+
+**Why placed here.** The Routing surface is the second silent-data-loss class. Every UI yaml commit destroys two distinct things (user comments via `js-yaml`'s comment-blind `dump()`, customized non-textarea fields via zod default-filling), the autonomy dropdown wipes uncommitted yaml edits when toggled, the `config_get → config_set` roundtrip fails on `Infinity → null`, and the save-error surface renders raw zod JSON arrays. All five issues converge on `src/ui/views/routing.ts` + the `config_get` / `config_set` RPC boundary; bundling them prevents three separate visits to the same code.
+
+**Recommended approach.** Server-side merge in `config_set` (reads on-disk config, deep-merges request body over it, writes result) is the structural unblock — it kills #25 (omitted-fields reset) AND makes #26 (Infinity sentinel) survivable on the routing path AND retroactively makes `conductor_set_autonomy` safer. Comment preservation (#27) — pick Option A (heuristic preservation: re-inject leading comment block above `routing:`) for the lightest unblock, or escalate to a comment-preserving YAML AST library if dogfood reveals more comment shapes. Dropdown dirty guard (#24): compare textarea against last-loaded config; if differs, prompt or auto-merge surgically. Save-error message (#28): server returns joined `.message` strings; structured zod array goes into `error.data`.
+
+**Ship in two PRs.** PR-1: server-side merge + Infinity coercion + error-message join (the schema/RPC layer). PR-2: dropdown dirty guard + comment preservation (the routing.ts UI layer). PR-2 depends on PR-1 because the dropdown's "auto-merge surgically" implementation calls the new merge-aware `config_set`.
+
+| #  | Item                                                                                       | File                                                                                                                            | Complexity | Depends on                                          |
+|----|-------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|------------|-----------------------------------------------------|
+| 24 | Routing autonomy dropdown silently overwrites uncommitted yaml edits                       | [ui-routing-autonomy-dropdown-overwrites-uncommitted-yaml-edits.md](issues/ui-routing-autonomy-dropdown-overwrites-uncommitted-yaml-edits.md) | S      | #25 (server-side merge unblocks surgical update)   |
+| 25 | Routing yaml commit silently resets schema-defaulted fields outside the textarea          | [ui-routing-yaml-commit-silently-resets-omitted-fields-to-defaults.md](issues/ui-routing-yaml-commit-silently-resets-omitted-fields-to-defaults.md) | M | —                                                  |
+| 26 | `config_get → config_set` roundtrip fails on `Infinity → null` serialization              | [ui-config-get-set-roundtrip-fails-on-infinity-serialization.md](issues/ui-config-get-set-roundtrip-fails-on-infinity-serialization.md) | S | #25 (merge keeps Infinity on disk; coerce-on-set)  |
+| 27 | `config_set` strips all user comments from `config.yaml`                                   | [ui-config-set-strips-yaml-comments.md](issues/ui-config-set-strips-yaml-comments.md)                                          | M          | #25 (merge boundary makes preservation tractable)  |
+| 28 | Routing config save error renders raw zod JSON instead of a readable message              | [ui-routing-save-error-renders-raw-zod-json.md](issues/ui-routing-save-error-renders-raw-zod-json.md)                          | S          | —                                                  |
+
+---
+
+## Phase 14 — Board transition UX — ACTIVE
+
+**Why placed here.** Two tightly-bounded fixes in `src/ui/views/board_dnd.ts` and `src/engine/lifecycle.ts`. Both surface during normal Board use: drag a card to an invalid column → blocking `alert()`; drag from `approved` back to `planned` → no UI path (have to edit yaml frontmatter by hand). Small, surgical, well-understood. Land before Phase 17 because the keyboard feature 2 (`keyboard-board-focus-and-move`) imports the shared `board_validate.ts` module that #29's fix extracts.
+
+**Recommended approach.** Item #29: at drop time, look up the forward-map (reuse `policyForExit`'s allowed-next-column logic) + the BACKWARD set; reject visually (shake on source tile) instead of dialog + alert. Replace remaining `alert()` calls with the existing in-app status surfaces. **Extract the validator into `src/ui/views/board_validate.ts`** so Phase 17 feature 2 can import it directly. Item #30: add `'approved->planned'` to the `BACKWARD` set; rationale is sound (no work performed at `approved` yet; rollback is cheap). Optional companion `'shipped->verifying'` deferred (lower priority).
+
+**Ship as one PR.** Both touch the same drag-drop layer; #29's pre-validation logic must agree with #30's expanded BACKWARD set.
+
+| #  | Item                                                                                                | File                                                                                                                          | Complexity | Depends on |
+|----|----------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------|------------|------------|
+| 29 | Board drag-drop offers approval for transitions the server rejects; failure surfaces via `alert()` | [ui-board-dnd-invalid-transition-uses-server-error-alert.md](issues/ui-board-dnd-invalid-transition-uses-server-error-alert.md) | S         | #30 (shared validation logic). **Feeds Phase 17 #41** — the validator extract is the structural deliverable Phase 17 imports. |
+| 30 | No backward UI path out of the `approved` column (assist over-approval has no in-UI undo)         | [ui-no-backward-path-from-approved-column.md](issues/ui-no-backward-path-from-approved-column.md)                            | XS         | —          |
+
+---
+
+## Phase 15 — Brain telemetry — ACTIVE
+
+**Why placed here.** Three independent issues touching `src/ui/views/monitor.ts` and `src/conductor/loop.ts`. The Monitor view is the brain's only observability surface; tightening its telemetry should happen as a coherent pass. The Stop button race is P2 (most user-visible); the duplicate halt events and paint-time timestamps are P3 (cosmetic, but they're misleading the user about what's actually happening).
+
+**Recommended approach.** Item #31: optimistic button state on click (immediately set `disabled` + label "stopping…" before awaiting RPC); in-pill `stopping` state via `data-running="stopping"` attribute; treat self-halts as equivalent to user-initiated stop. Item #32: pick Option B from the issue — introduce `conductor-wedge` as a separate event kind from `conductor-halt`; UI handler routes wedge events to a different log row style. Cleaner contract; subscribers can count halts and wedges separately. Item #33: change `brainLog: string[]` → `brainLog: Array<{ ts: number; line: string }>`; preserve event time at push; render with `new Date(entry.ts)`.
+
+**Ship as one PR or three small commits in one branch.** All three touch the same Monitor surface; reviewing them together reduces cognitive load.
+
+| #  | Item                                                                                   | File                                                                                                                  | Complexity | Depends on |
+|----|---------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|------------|------------|
+| 31 | Monitor Stop button has no `stopping…` state; tight race window vs. self-halting brain | [ui-monitor-stop-button-no-stopping-state-and-tight-race-window.md](issues/ui-monitor-stop-button-no-stopping-state-and-tight-race-window.md) | S | —          |
+| 32 | Brain emits two `conductor-halt` events 19ms apart for a single wedge                  | [ui-brain-fires-two-halts-19ms-apart-for-single-wedge-event.md](issues/ui-brain-fires-two-halts-19ms-apart-for-single-wedge-event.md) | S | —          |
+| 33 | Brain-log row timestamps show paint time, not event time                               | [ui-brain-log-timestamps-show-paint-time-not-event-time.md](issues/ui-brain-log-timestamps-show-paint-time-not-event-time.md) | S | —          |
+
+---
+
+## Phase 16 — Polish & cosmetics — ACTIVE
+
+**Why placed here.** Five items that share no engine surface — each is a small, independent UX/copy fix. Ideal to bundle as one polish PR after the structural phases (12-15) settle. The deeplink not-found (#34) is the lone P2; the rest are P3 cosmetics. (The previously-listed footer-R issue #39 has migrated to Phase 17 — feature 4 subsumes it by rotating the footer to advertise real bindings and wiring `R` via feature 1.)
+
+**Recommended approach.** #34: try/catch around `renderCardDetail` in `src/ui/main.ts:dispatch`; on "Card file not found", render `renderEmptyShell`. #35: rewrite the two phase-referencing sentences in present-tense, no-internal-jargon copy; sweep `src/ui/**` for `Phase \d+` siblings. **Coordinate with Phase 17 #42** — `keyboard-approval-dialog-bindings` extracts both dialogs into `src/ui/lib/dialog.ts`; if Phase 17 lands first, the copy fix moves with the extracted helper. #36: pick Option B from the issue — render a `terminal` policy badge for `archived` using a dedicated class. #37: populate the `data-edition-vol` / `data-edition-no` slots at runtime from STATE.md or an `engine_state` RPC, OR (lighter) rip the stamp. #38: ship a `src/ui/favicon.svg` (16x16 viewBox, `§` glyph on `--ink-500`) + `<link rel="icon" type="image/svg+xml">` + update `scripts/build-ui.mjs`.
+
+**Ship as one bundled PR.** Five independent micro-changes; reviewing them together reduces overhead.
+
+| #  | Item                                                                              | File                                                                                                                  | Complexity | Depends on |
+|----|----------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|------------|------------|
+| 34 | Deep-link to non-existent card silently renders Board view                        | [ui-card-deeplink-not-found-silently-renders-board.md](issues/ui-card-deeplink-not-found-silently-renders-board.md)   | XS         | —          |
+| 35 | Transition approval dialogs leak internal "Phase 5/6" terminology to users        | [ui-transition-dialog-references-internal-phase-terminology.md](issues/ui-transition-dialog-references-internal-phase-terminology.md) | XS | may coordinate with Phase 17 #42 (shared dialog helper extract) |
+| 36 | Board `archived` column missing policy badge (visual inconsistency)               | [ui-archived-column-missing-policy-badge.md](issues/ui-archived-column-missing-policy-badge.md)                       | XS         | —          |
+| 37 | Masthead `Vol. 18 · N° 01` edition stamp is hardcoded and stale                   | [ui-edition-stamp-hardcoded-stale.md](issues/ui-edition-stamp-hardcoded-stale.md)                                     | XS         | —          |
+| 38 | Daemon serves no `/favicon.ico` — 404 on every page load                          | [ui-favicon-missing.md](issues/ui-favicon-missing.md)                                                                 | XS         | —          |
+
+**Migrated out**: `ui-footer-r-key-affordance-not-wired` (was #39 in this phase) → now closed by Phase 17 #43.
+
+---
+
+## Phase 17 — Keyboard-accessible Control Room (4 designed features) — ACTIVE
+
+**Status.** Brainstormed (`/relay-brainstorm`) and designed (`/relay-design`) on 2026-05-15. The single feature seed has decomposed into **4 sibling features** linked by the parent design aggregator [`ui-keyboard-accessible-board-transitions.md`](features/ui-keyboard-accessible-board-transitions.md) — see that file for the brainstorm narrative, the three approaches considered (Vim-lite / Command palette / Numbered Affordances — *selected*), the 12 decisions made, and the Feature Breakdown table.
+
+**Why placed here.** Keyboard navigation is a cross-cutting concern that interacts with every interactive surface (tiles, columns, dialogs, dropdowns, textareas). It lands after the structural phases (12–13) and after Phase 14 (which extracts the shared forward-map validator that feature #41 imports). Phase 17 absorbs the footer-R cosmetic item from Phase 16 — feature #43 replaces the unwired hint with an honest per-view rotation, and feature #40 wires `R` for real.
+
+**Recommended approach.** Strict in-order build per the feature files' Development Order sections — features #40–#43 are explicitly numbered 1-of-4 through 4-of-4 with declared dependencies. Each ships in its own commit; the bundle can ship as one PR (4 commits) or as four sequential PRs depending on review appetite.
+
+| #  | Item                                                                            | File                                                                                                          | Complexity | Depends on                                                                                              |
+|----|--------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|------------|---------------------------------------------------------------------------------------------------------|
+| 40 | **`keyboard-global-dispatcher`** — single global keydown listener in `main.ts`, form-field target check, view-switch (`1/2/3`), refresh (`R`), help-overlay hook (`?`), `Escape`. Foundation for #41–#43. | [keyboard-global-dispatcher.md](features/keyboard-global-dispatcher.md)                                       | M          | — (foundation)                                                                                          |
+| 41 | **`keyboard-board-focus-and-move`** — roving focus on Board (column `1..7`, `↑/↓`, `←/→`, `Enter`), move chord (`M`+`N`, `Shift+M`) with column-highlight + footer-banner UX. Extracts shared forward-map validator. **Closes [[ui-board-dnd-invalid-transition-uses-server-error-alert]]** (Phase 14 #29) by adopting the same validator in `board_dnd.ts`. | [keyboard-board-focus-and-move.md](features/keyboard-board-focus-and-move.md)                                 | L          | #40 (dispatcher hook). **Inherits from Phase 14 #29** — `board_validate.ts` extract is the shared substrate. |
+| 42 | **`keyboard-approval-dialog-bindings`** — extract both transition-approval dialogs into shared `src/ui/lib/dialog.ts`; add `Enter`/`Y`/`Esc`/`N` bindings; `Tab` focus trap. | [keyboard-approval-dialog-bindings.md](features/keyboard-approval-dialog-bindings.md)                         | S          | #40 (dispatcher's `dialogIsOpen` contract). **Coordinates with Phase 16 #35** — if both touch dialog copy, do the helper extract first to avoid two edits to the same line. |
+| 43 | **`keyboard-footer-rotation-and-help-overlay`** — per-view footer text rotation (preserves Phase-19 newspaper aesthetic) + `?` help overlay (native `<dialog>`, grouped per-view cheatsheet with active-view emphasis). **Closes [[ui-footer-r-key-affordance-not-wired]]** (migrated from Phase 16 #39). | [keyboard-footer-rotation-and-help-overlay.md](features/keyboard-footer-rotation-and-help-overlay.md)         | M          | #40, #41, #42 (so the overlay documents real bindings)                                                  |
+
+**Intra-phase build order (from the feature files' Development Order):** #40 → #41 → #42 → #43.
+
+**Issues absorbed by this phase:**
+- `ui-board-dnd-invalid-transition-uses-server-error-alert` (Phase 14 #29) — Phase 14's standalone fix is still the structural source; #41 imports the validator. If Phase 14 ships first, #29 closes there and Phase 17 simply consumes the module. If Phase 17 ships first, #41's validator extract closes #29 the same way.
+- `ui-footer-r-key-affordance-not-wired` (migrated from Phase 16 #39) — closed *only* by Phase 17 #43; Phase 16 will not touch the footer.
+
+---
+
 ## Cross-phase dependencies (visual)
 
 ```
@@ -195,9 +309,32 @@ Phase 8 (observation closure) [COMPLETE]              │
 Phase 9 (init gitignore) [COMPLETE]                   ←── follow-up from Phase 7's LOW-1 finding
 Phase 10 (daemon UI token UX) [COMPLETE]              ←── from 2026-05-15 omniforge dogfood
 Phase 11 (init verify venv awareness) [COMPLETE]      ←── from 2026-05-15 omniforge dogfood (P2)
+
+═══ NEW (2026-05-15 Phase 21 Playwright dogfood) ═════════════════════════════════════
+Phase 12 (card-body persistence)          [ACTIVE] ── op output + chat decoupling
+   ↓
+Phase 13 (routing config destructiveness) [ACTIVE] ── independent surface; can run parallel
+   ↓
+Phase 14 (board transition UX)            [ACTIVE] ─┬─→ Phase 17 #41 (imports board_validate.ts)
+   ↓                                                 │
+Phase 15 (brain telemetry)                [ACTIVE]   │
+   ↓                                                 │
+Phase 16 (polish & cosmetics)             [ACTIVE]   │  — #35 coordinates with Phase 17 #42 (shared dialog helper)
+   ↓                                                 │  — #39 (footer R) removed; migrated to Phase 17 #43
+Phase 17 (keyboard layer)                 [ACTIVE] ←┘
+   #40 dispatcher → #41 board keys → #42 dialog bindings → #43 footer + overlay
+                          ↑                  ↑                     ↑
+              inherits #29 validator   coordinates #35       closes #39 (migrated)
 ```
 
-All Relay phases 1-11 resolved. (Phase 18 carry-forward `daemon --browser` flag closed WONT-DO; not represented here.)
+**Practical run order:**
+
+- **Phase 12 first** (showstopper: Work-this-card workflow is broken).
+- **Phase 13 in parallel** if a second operator is available (independent surface).
+- **Phase 14 → 15 → 16** sequentially, each is small enough to fit between larger work.
+- **Phase 17** lands after Phase 14 (to consume the extracted validator) and ideally after Phase 16 (so #35's copy fix and #42's dialog extract are coordinated). Within Phase 17, the four features go in strict declared order: #40 → #41 → #42 → #43.
+
+Sequencing flexibility: Phase 17 #42 can land before Phase 16 #35 — in that case the polish PR's copy-fix is applied to the already-extracted helper, which is the simpler edit. Either ordering works; pick by who is on Control duty.
 
 ---
 

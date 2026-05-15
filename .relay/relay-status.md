@@ -10,59 +10,207 @@
 
 | Category                   | Outstanding | Resolved | Total |
 |----------------------------|-------------|----------|-------|
-| Issues (issues/)           | 1           | 0        | 1     |
-| Features (features/)       | 0           | 0        | 0     |
-| Implemented (implemented/) | —           | 18       | 18    |
+| Issues (issues/)           | 20          | 0        | 20    |
+| Features (features/)       | 4 (designed) + 1 (design aggregator) | 0 | 5 |
+| Implemented (implemented/) | —           | 20       | 20    |
 
-One new active issue entered the backlog this session: the venv-aware `init detectVerifyCommand` gap (P2, surfaced in 2026-05-15 omniforge dogfood). The Phase-18 carry-forward `--browser` flag was closed WONT-DO by operator decision (banner: `.relay/archive/issues/daemon-start-missing-browser-flag.md`). The 18 previously implemented entries (the 2026-05-12 dogfood backlog + Phase 9 carry-over + 2026-05-15 Phase 10 daemon-start fix) remain shipped and non-regressed.
+The Phase 21 Playwright dogfood of the Control Room UI against omniforge (2026-05-15) surfaced **20 active issues** (still at filed-only stage) and **1 feature seed**, which has since advanced through `/relay-brainstorm` and `/relay-design` to produce **4 child feature files** ready for `/relay-analyze`. The parent file `ui-keyboard-accessible-board-transitions.md` now functions as a design aggregator (status `DESIGN COMPLETE`) holding the Feature Breakdown table that points to the 4 children.
+
+The two items previously active or freshly closed (`init-verify-command-not-venv-aware-for-python` — Phase 20, and `ui-control-room-redesign` — Phase 19) are both shipped, archived, and non-regressed against current source; both appear under Implemented. The Phase 18 carry-forward `daemon-start-missing-browser-flag` remains closed WONT-DO.
+
+Severity distribution of the active issue backlog: **P1 ×3** (the auto-loop and silent-data-loss class), **P2 ×10** (user-visible UX gaps + config-edit destructiveness), **P3 ×7** (cosmetic / decorative). Two of the P2/P3 issues — `ui-board-dnd-invalid-transition-uses-server-error-alert` and `ui-footer-r-key-affordance-not-wired` — are now scheduled to be closed by the keyboard layer's child features (see Active Features below).
 
 ---
 
 ## Active Issues — .relay/issues/
 
-- **`init-verify-command-not-venv-aware-for-python.md`** — OUTSTANDING, P2.
-  - Evidence: `src/cli/commands/init.ts:164-182` (`detectVerifyCommand`) still returns the bare literal `'pytest'` for both `pyproject.toml` and `setup.py` markers; no `.venv` / `venv` / `poetry.lock` / `pdm.lock` / `uv.lock` ladder; no `python -m pytest` fallback. `src/engine/ops/verify.ts` runs the literal via `execa(command, { shell: true })` with no env mutation.
-  - Source: 2026-05-15 omniforge dogfood — verify op stalled a card in `building` because bare `pytest` was not on the daemon's PATH.
+### P1 — workflow-breaking or silent data loss
+
+- **`ui-plan-op-cannot-see-analyze-output-it-just-wrote.md`** — OUTSTANDING, P1.
+  - Evidence: `work_card` runs analyze→plan back-to-back; on omniforge dogfood the plan op produced a placeholder plan whose first two steps complain that analysis is missing, despite analysis being present (47 lines) in the same card body. Likely a fence-pair / section-extractor mismatch between `src/engine/ops/analyze.ts` writer and `src/engine/ops/plan.ts` reader.
+  - Linked: `[[ui-work-card-output-persisted-into-card-body]]` — same persistence-via-body anti-pattern.
+  - Source: 2026-05-15 Phase 21 dogfood.
+
+- **`ui-routing-autonomy-dropdown-overwrites-uncommitted-yaml-edits.md`** — OUTSTANDING, P1.
+  - Evidence: `src/ui/views/routing.ts:117-118` — autonomy `change` handler unconditionally re-fetches config and writes `ta.value = configToYaml(r.config)`, blowing away unsaved textarea edits with no diff check / prompt / disable.
+  - Source: 2026-05-15 Phase 21 dogfood.
+
+- **`ui-work-card-output-persisted-into-card-body.md`** — OUTSTANDING, P1.
+  - Evidence: a single click of **Work this card** on omniforge's `2026-05-12-t6-imported.md` grew the body from 8 → 114 lines, appending `## Chat`, `## Analysis` (fenced), and `## Implementation Plan` sections. Each subsequent run re-appends. `src/rpc/methods.ts:170-194` (`work_card`) → `TaskAgent.run()` writes op output back into the card body rather than `.conductor/runs/<runId>/`.
+  - Linked: `[[ui-plan-op-cannot-see-analyze-output-it-just-wrote]]`, `[[ui-chat-history-not-loaded-on-revisit-but-pollutes-card-body]]`, `[[ui-card-chat-renders-markdown-as-plaintext]]`.
+  - Source: 2026-05-15 Phase 21 dogfood.
+
+### P2 — user-visible UX gaps and config-edit destructiveness
+
+- **`ui-board-dnd-invalid-transition-uses-server-error-alert.md`** — OUTSTANDING, P2. **Planned closure**: by `keyboard-board-focus-and-move` feature (shared forward-map validator adopted by `board_dnd.ts`).
+  - Evidence: `src/ui/views/board_dnd.ts:58` — `??'manual'` policy fallback masks invalid transitions; `src/ui/views/board_dnd.ts:64` — failure surfaced via blocking `alert()`. No pre-validation against the `policyForExit` forward map.
+  - Source: 2026-05-15 Phase 21 dogfood.
+
+- **`ui-card-chat-renders-markdown-as-plaintext.md`** — OUTSTANDING, P2.
+  - Evidence: `src/ui/views/card_detail.ts:92-98` — `appendMsg()` uses `div.textContent = …`. The existing `renderMarkdown` pipeline (`src/ui/lib/markdown.ts`) is wired in for the card body but not for chat turns.
+  - Linked: `[[ui-chat-history-not-loaded-on-revisit-but-pollutes-card-body]]`.
+  - Source: 2026-05-15 Phase 21 dogfood.
+
+- **`ui-card-deeplink-not-found-silently-renders-board.md`** — OUTSTANDING, P2.
+  - Evidence: `src/ui/main.ts:80-106` (`dispatch`) — no try/catch around `renderCardDetail`. RPC throws "Card file not found" but the router-level error sink only fires on bootstrap; on hashchange the failure leaves the prior view rendered. URL changes, page does not.
+  - Source: 2026-05-15 Phase 21 dogfood.
+
+- **`ui-chat-history-not-loaded-on-revisit-but-pollutes-card-body.md`** — OUTSTANDING, P2.
+  - Evidence: `src/ui/views/card_detail.ts:64,67` — body renders via `renderMarkdown(card.body)` which paints the appended `## Chat` section; the separate `#chat-log <div>` is always empty on render — no parser pulls historical turns. Two visible `Chat` headings result.
+  - Linked: `[[ui-work-card-output-persisted-into-card-body]]`, `[[ui-card-chat-renders-markdown-as-plaintext]]`.
+  - Source: 2026-05-15 Phase 21 dogfood.
+
+- **`ui-config-get-set-roundtrip-fails-on-infinity-serialization.md`** — OUTSTANDING, P2.
+  - Evidence: `src/config/schema.ts:66-67` defaults `cost_ceilings.per_card_dollars` / `per_day_dollars` to `Number.POSITIVE_INFINITY`. `JSON.stringify` writes `Infinity` as `null`; `src/rpc/methods.ts:225-232` (`config_set`) re-parses via zod which rejects `null` for `z.number().positive()`. Confirmed via Playwright roundtrip 2026-05-15.
+  - Linked: `[[ui-routing-yaml-commit-silently-resets-omitted-fields-to-defaults]]`, `[[ui-routing-save-error-renders-raw-zod-json]]`.
+  - Source: 2026-05-15 Phase 21 dogfood.
+
+- **`ui-config-set-strips-yaml-comments.md`** — OUTSTANDING, P2.
+  - Evidence: `src/rpc/methods.ts:227` — `yamlDump(p.config, { lineWidth: 100, noRefs: true })`. `js-yaml`'s `dump()` has no comment-preserving mode; any commit destroys user-authored comments (including the multi-line preamble `conductor init` writes for new projects).
+  - Linked: `[[ui-routing-yaml-commit-silently-resets-omitted-fields-to-defaults]]`.
+  - Source: 2026-05-15 Phase 21 dogfood.
+
+- **`ui-monitor-stop-button-no-stopping-state-and-tight-race-window.md`** — OUTSTANDING, P2.
+  - Evidence: `src/ui/views/monitor.ts:101-108` — Stop click handler awaits the RPC without flipping the button to a `stopping…` state; `src/ui/views/monitor.ts:88-89` — button `disabled` driven solely by `brain.running`, no intermediate state. Server-side `conductor_stop` (`src/rpc/methods.ts:278-285`) correctly drains; the UX is the bug. Pairs with a tight race window against self-halting brains.
+  - Linked: `[[ui-brain-fires-two-halts-19ms-apart-for-single-wedge-event]]`.
+  - Source: 2026-05-15 Phase 21 dogfood.
+
+- **`ui-no-backward-path-from-approved-column.md`** — OUTSTANDING, P2.
+  - Evidence: `src/engine/lifecycle.ts:22-26` — `BACKWARD` set has `planned->discovered`, `building->approved`, `verifying->building`. Missing `approved->planned`. A card over-promoted via assist approval has no in-UI rollback path.
+  - Source: 2026-05-15 Phase 21 dogfood.
+
+- **`ui-routing-save-error-renders-raw-zod-json.md`** — OUTSTANDING, P2.
+  - Evidence: `src/ui/views/routing.ts:147` — `errEl.textContent = \`save failed — ${err.message}\`;` concatenates the server's full zod-array message verbatim. Single-line wrap renders an unreadable JSON-array string.
+  - Source: 2026-05-15 Phase 21 dogfood.
+
+- **`ui-routing-yaml-commit-silently-resets-omitted-fields-to-defaults.md`** — OUTSTANDING, P2.
+  - Evidence: `src/ui/views/routing.ts:37-73` — `yamlToConfig` constructs only `{ routing, autonomy, verify_command }`. `src/rpc/methods.ts:225-232` — `config_set` reparses via `ProjectConfigSchema` which fills missing fields with defaults, then `yamlDump` writes the full normalized object. Customized `cost_ceilings`, `confidence`, `run_log`, `brain_log`, `tracker` on disk get clobbered.
+  - Linked: `[[ui-config-get-set-roundtrip-fails-on-infinity-serialization]]`.
+  - Source: 2026-05-15 Phase 21 dogfood.
+
+### P3 — cosmetic / decorative
+
+- **`ui-archived-column-missing-policy-badge.md`** — OUTSTANDING, P3.
+  - Evidence: `src/ui/views/board.ts:34-43` — `policyForExit()` returns `null` for `archived` (no forward map entry). Visual asymmetry vs. the other six columns.
+  - Source: 2026-05-15 Phase 21 dogfood.
+
+- **`ui-brain-fires-two-halts-19ms-apart-for-single-wedge-event.md`** — OUTSTANDING, P3.
+  - Evidence: `src/conductor/loop.ts:95-99` (idle-meta-halt) and `src/conductor/loop.ts:184-185` (immediate halt) both publish `conductor-halt` for a single verify-fail-then-wedge event. Monitor renders two log rows; external SSE consumers double-count.
+  - Linked: `[[ui-monitor-stop-button-no-stopping-state-and-tight-race-window]]`.
+  - Source: 2026-05-15 Phase 21 dogfood.
+
+- **`ui-brain-log-timestamps-show-paint-time-not-event-time.md`** — OUTSTANDING, P3.
+  - Evidence: `src/ui/views/monitor.ts:54-59` — every row's timestamp uses `new Date().toLocaleTimeString(...)` at paint time, not event time. `brainLog: string[]` does not preserve event timestamps.
+  - Source: 2026-05-15 Phase 21 dogfood.
+
+- **`ui-edition-stamp-hardcoded-stale.md`** — OUTSTANDING, P3.
+  - Evidence: `src/ui/index.html:24` — `Vol. 18 · N° 01` hardcoded. `data-edition-vol` / `data-edition-no` slots exist but no `main.ts` code writes to them. Currently Phase 21.
+  - Source: 2026-05-15 Phase 21 dogfood.
+
+- **`ui-favicon-missing.md`** — OUTSTANDING, P3.
+  - Evidence: `src/ui/index.html:1-11` — no `<link rel="icon">`. Browser auto-requests `/favicon.ico`; daemon static server 404s every page load.
+  - Source: 2026-05-15 Phase 21 dogfood.
+
+- **`ui-footer-r-key-affordance-not-wired.md`** — OUTSTANDING, P3. **Planned closure**: by `keyboard-footer-rotation-and-help-overlay` feature (per-view footer rotation replaces the unwired hint; `R` is wired by the global dispatcher feature).
+  - Evidence: `src/ui/index.html:47-51` — footer reads "Press **R** to re-tune". No `keydown` listener bound to `r` anywhere in `src/ui/**`.
+  - Source: 2026-05-15 Phase 21 dogfood.
+
+- **`ui-transition-dialog-references-internal-phase-terminology.md`** — OUTSTANDING, P3.
+  - Evidence: `src/ui/views/board_dnd.ts:78` ("Phase 5 surfaces the request without an LLM-driven recommendation; that lands in Phase 6.") and `src/ui/views/card_detail.ts:30` ("Phase 6 will surface a Conductor recommendation here.") leak internal Control-side phase numbers (long-closed Phases 5/6) into user-facing dialog copy.
+  - Source: 2026-05-15 Phase 21 dogfood.
 
 ---
 
 ## Active Features — .relay/features/
 
-No active features.
+The keyboard-accessibility feature seed has been brainstormed and designed into 4 child feature files. The parent file is now a design aggregator at status `DESIGN COMPLETE`; the 4 children are ready for `/relay-analyze`.
 
----
+### Designed children (ready for /relay-analyze)
 
-## Implemented — .relay/implemented/
+- **`keyboard-global-dispatcher.md`** — DESIGNED. Build first; no dependencies. Single `window` keydown listener in `src/ui/main.ts` with form-field target check. Global keys: `1/2/3` (view-switch), `R` (refresh), `?` (help overlay; stub here, real impl in feature 4), `Escape`. Foundation for features 2–4.
+  - New module: `src/ui/lib/keys.ts`.
+  - Closes: — (no issues directly closed).
 
-All 18 entries (the 2026-05-12 dogfood backlog + Phase 9 carry-over + 2026-05-15 Phase 10 fix) remain shipped and non-regressed:
+- **`keyboard-board-focus-and-move.md`** — DESIGNED. Build second; depends on `keyboard-global-dispatcher`. Roving focus on the Board (column `1..7` to focus, `↑/↓` to traverse tiles, `←/→` to switch columns, `Enter` to open). Move chord (`M`+`N`, `Shift+M`), highlight + footer-banner UX. Shared forward-map validator extracted into `src/ui/views/board_validate.ts` and adopted by `board_dnd.ts`.
+  - New modules: `src/ui/views/board_keys.ts`, `src/ui/views/board_validate.ts`.
+  - **Closes**: `[[ui-board-dnd-invalid-transition-uses-server-error-alert]]` (shared validator in `board_dnd.ts` refuses illegal drops with a shake; no dialog, no server error alert).
 
-- `auth-token-persists-on-disk-after-daemon-stop.md` — Phase 15.1 docs sweep (`docs/operations.md § Auth token lifecycle`).
-- `brain-events-not-persisted-across-daemon-restarts.md` — Phase 14.1 (`src/daemon/brain_log.ts` BrainLogWriter, daemon-wide JSONL append).
-- `cost-show-exits-zero-when-daemon-down.md` — earlier in session.
-- `daemon-start-first-visit-ui-token-ux-broken.md` — Phase 18.1 (`src/cli/commands/daemon.ts` `formatDaemonStartedMessage` helper; `readAuthToken` wiring with try/catch wrap; `src/ui/main.ts:42` error message rewrite; `docs/quickstart.md § 6` + `docs/operations.md § Auth token lifecycle` updates; +2 helper tests).
-- `discover-no-topic-level-dedup-against-existing-cards.md` — Phase 11 (existing-cards dedup context in `src/engine/ops/discover.ts`).
-- `discover-original-issue-uses-h1-not-h2.md` — earlier in session.
-- `drift-doesnt-distinguish-staged-vs-unstaged.md` — earlier in session.
-- `drift-truncates-file-list-at-10.md` — earlier in session.
-- `init-emits-no-gitignore-template.md` — Phase 17.1 (`src/cli/commands/init.ts` `ensureGitignoreBlock`; grouped run covering `docs/operations.md § Auth token lifecycle` template correction + repo `.gitignore` correction).
-- `mcp-tools-list-requires-session-handshake-docs-gap.md` — Phase 15.1 docs sweep (`docs/mcp.md` MCP handshake section).
-- `misleading-card-not-found-for-malformed-yaml.md` — earlier in session.
-- `plan-op-leaves-need-placeholders-resolved-in-analysis.md` — Phase 13.1 (`src/engine/ops/plan.ts` SYSTEM_PROMPT preamble + scan-first defensive clause).
-- `quickstart-work-cycle-latency-estimate-understated.md` — Phase 15.1 docs sweep (`docs/quickstart.md` latency note).
-- `recommendation-event-duplicates-card-body-rationale.md` — Phase 16.1 (WAD closure, no code change; archived with WAD banner).
-- `rpc-recommend-method-semantics-docs-gap.md` — Phase 15.1 docs sweep (`docs/mcp.md` recommend RPC semantics).
-- `scan-bails-entirely-on-one-malformed-card.md` — earlier in session.
-- `transition-command-adjacency-vs-spec-override-semantics.md` — Phase 15.1 docs sweep (`src/cli/commands/transition.ts` `.description()` expanded; docs note in `docs/quickstart.md`).
-- `work-creates-run-dir-before-validating-card.md` — earlier in session.
+- **`keyboard-approval-dialog-bindings.md`** — DESIGNED. Build third; depends on `keyboard-global-dispatcher`. Extract the two duplicated transition-approval dialogs (`board_dnd.ts confirmTransition`, `card_detail.ts showTransitionDialog`) into a shared `src/ui/lib/dialog.ts` helper. Add bindings: `Enter`/`Y` approve, `Esc`/`N` cancel, primary button focused, `Tab` focus trap via native `<dialog>`.
+  - New module: `src/ui/lib/dialog.ts`.
+  - Closes: — (no issues directly closed).
 
-All 18 sources are also present at `.relay/archive/issues/` (archival banners attached at close-out). Spot-check confirms none have regressed against the current code.
+- **`keyboard-footer-rotation-and-help-overlay.md`** — DESIGNED. Build fourth; depends on features 1–3 so the overlay can document real bindings. Per-view footer text rotation (preserves the Phase-19 newspaper aesthetic — ◇ glyphs, italic tone, `<kbd>` styling). `?` opens a `<dialog>` cheatsheet grouped by view (Global · Board · Card · Routing) with the active view's section visually emphasized.
+  - New module: `src/ui/lib/footer.ts`.
+  - **Closes**: `[[ui-footer-r-key-affordance-not-wired]]` (footer text becomes honest by rotating to advertise actual bindings; `R` is wired by feature 1).
+
+### Design aggregator
+
+- **`ui-keyboard-accessible-board-transitions.md`** — DESIGN COMPLETE. Holds the brainstorm narrative (motivation, scope, three approaches considered, 12 decisions made) and the Feature Breakdown table pointing to the 4 child files. Non-actionable — represents the design phase being complete. Next: `/relay-order` folds the 4 children into the project-wide backlog.
 
 ---
 
 ## In-Progress Work
 
-The sole active issue has no pipeline sections appended yet (no `## Analysis`, no `## Implementation Plan`, no `## Adversarial Review`, no `## Verification Report`). It is filed and awaiting `/relay-order` → `/relay-analyze`.
+No active issue has any pipeline section appended (`## Analysis`, `## Implementation Plan`, `## Adversarial Review`, `## Verification Report`). All 20 issues remain at the "filed only" stage. The 4 child feature files are at status `DESIGNED` with no `## Analysis` appended; they're the natural next targets for `/relay-analyze`.
 
-| Item                                                 | File                                                                | Stage Reached | Next Step                                            |
-|------------------------------------------------------|---------------------------------------------------------------------|---------------|------------------------------------------------------|
-| init-verify-command-not-venv-aware-for-python        | `.relay/issues/init-verify-command-not-venv-aware-for-python.md`    | filed only    | Run `/relay-order`, then `/relay-analyze`            |
+| Item                                                                | File                                                                                  | Stage Reached | Next Step                                            |
+|---------------------------------------------------------------------|---------------------------------------------------------------------------------------|---------------|------------------------------------------------------|
+| ui-plan-op-cannot-see-analyze-output-it-just-wrote                  | `.relay/issues/ui-plan-op-cannot-see-analyze-output-it-just-wrote.md`                | filed only    | Run `/relay-order`, then `/relay-analyze`            |
+| ui-routing-autonomy-dropdown-overwrites-uncommitted-yaml-edits      | `.relay/issues/ui-routing-autonomy-dropdown-overwrites-uncommitted-yaml-edits.md`    | filed only    | Run `/relay-order`, then `/relay-analyze`            |
+| ui-work-card-output-persisted-into-card-body                        | `.relay/issues/ui-work-card-output-persisted-into-card-body.md`                      | filed only    | Run `/relay-order`, then `/relay-analyze`            |
+| ui-board-dnd-invalid-transition-uses-server-error-alert             | `.relay/issues/ui-board-dnd-invalid-transition-uses-server-error-alert.md`           | filed only    | Closure planned via `keyboard-board-focus-and-move` feature |
+| ui-card-chat-renders-markdown-as-plaintext                          | `.relay/issues/ui-card-chat-renders-markdown-as-plaintext.md`                        | filed only    | Run `/relay-order`, then `/relay-analyze`            |
+| ui-card-deeplink-not-found-silently-renders-board                   | `.relay/issues/ui-card-deeplink-not-found-silently-renders-board.md`                 | filed only    | Run `/relay-order`, then `/relay-analyze`            |
+| ui-chat-history-not-loaded-on-revisit-but-pollutes-card-body        | `.relay/issues/ui-chat-history-not-loaded-on-revisit-but-pollutes-card-body.md`      | filed only    | Run `/relay-order`, then `/relay-analyze`            |
+| ui-config-get-set-roundtrip-fails-on-infinity-serialization         | `.relay/issues/ui-config-get-set-roundtrip-fails-on-infinity-serialization.md`       | filed only    | Run `/relay-order`, then `/relay-analyze`            |
+| ui-config-set-strips-yaml-comments                                  | `.relay/issues/ui-config-set-strips-yaml-comments.md`                                | filed only    | Run `/relay-order`, then `/relay-analyze`            |
+| ui-monitor-stop-button-no-stopping-state-and-tight-race-window      | `.relay/issues/ui-monitor-stop-button-no-stopping-state-and-tight-race-window.md`    | filed only    | Run `/relay-order`, then `/relay-analyze`            |
+| ui-no-backward-path-from-approved-column                            | `.relay/issues/ui-no-backward-path-from-approved-column.md`                          | filed only    | Run `/relay-order`, then `/relay-analyze`            |
+| ui-routing-save-error-renders-raw-zod-json                          | `.relay/issues/ui-routing-save-error-renders-raw-zod-json.md`                        | filed only    | Run `/relay-order`, then `/relay-analyze`            |
+| ui-routing-yaml-commit-silently-resets-omitted-fields-to-defaults   | `.relay/issues/ui-routing-yaml-commit-silently-resets-omitted-fields-to-defaults.md` | filed only    | Run `/relay-order`, then `/relay-analyze`            |
+| ui-archived-column-missing-policy-badge                             | `.relay/issues/ui-archived-column-missing-policy-badge.md`                           | filed only    | Run `/relay-order`, then `/relay-analyze`            |
+| ui-brain-fires-two-halts-19ms-apart-for-single-wedge-event          | `.relay/issues/ui-brain-fires-two-halts-19ms-apart-for-single-wedge-event.md`        | filed only    | Run `/relay-order`, then `/relay-analyze`            |
+| ui-brain-log-timestamps-show-paint-time-not-event-time              | `.relay/issues/ui-brain-log-timestamps-show-paint-time-not-event-time.md`            | filed only    | Run `/relay-order`, then `/relay-analyze`            |
+| ui-edition-stamp-hardcoded-stale                                    | `.relay/issues/ui-edition-stamp-hardcoded-stale.md`                                  | filed only    | Run `/relay-order`, then `/relay-analyze`            |
+| ui-favicon-missing                                                  | `.relay/issues/ui-favicon-missing.md`                                                | filed only    | Run `/relay-order`, then `/relay-analyze`            |
+| ui-footer-r-key-affordance-not-wired                                | `.relay/issues/ui-footer-r-key-affordance-not-wired.md`                              | filed only    | Closure planned via `keyboard-footer-rotation-and-help-overlay` feature |
+| ui-transition-dialog-references-internal-phase-terminology          | `.relay/issues/ui-transition-dialog-references-internal-phase-terminology.md`        | filed only    | Run `/relay-order`, then `/relay-analyze`            |
+
+### Feature Pipeline
+
+| Item                                            | File                                                                          | Stage             | Next Step             |
+|-------------------------------------------------|-------------------------------------------------------------------------------|-------------------|-----------------------|
+| keyboard-global-dispatcher                       | `.relay/features/keyboard-global-dispatcher.md`                                | DESIGNED          | Run `/relay-analyze`  |
+| keyboard-board-focus-and-move                    | `.relay/features/keyboard-board-focus-and-move.md`                             | DESIGNED          | Run `/relay-analyze`  |
+| keyboard-approval-dialog-bindings                | `.relay/features/keyboard-approval-dialog-bindings.md`                         | DESIGNED          | Run `/relay-analyze`  |
+| keyboard-footer-rotation-and-help-overlay        | `.relay/features/keyboard-footer-rotation-and-help-overlay.md`                 | DESIGNED          | Run `/relay-analyze`  |
+| ui-keyboard-accessible-board-transitions         | `.relay/features/ui-keyboard-accessible-board-transitions.md`                  | DESIGN COMPLETE   | Run `/relay-order` (design aggregator; the 4 children are the actionable items) |
+
+---
+
+## Implemented — .relay/implemented/
+
+All 20 entries (the 2026-05-12 dogfood backlog + Phase 9 gitignore-template carry-over + 2026-05-15 omniforge dogfood + Phase 19 UI redesign + Phase 20 venv-aware verify_command) remain shipped and non-regressed against current source:
+
+- `auth-token-persists-on-disk-after-daemon-stop.md` — Phase 15.1 docs sweep.
+- `brain-events-not-persisted-across-daemon-restarts.md` — Phase 14.1 (`src/daemon/brain_log.ts`).
+- `cost-show-exits-zero-when-daemon-down.md` — earlier in session.
+- `daemon-start-first-visit-ui-token-ux-broken.md` — Phase 18.1 (`formatDaemonStartedMessage`, `readAuthToken` wiring, docs).
+- `discover-no-topic-level-dedup-against-existing-cards.md` — Phase 11.
+- `discover-original-issue-uses-h1-not-h2.md` — earlier in session.
+- `drift-doesnt-distinguish-staged-vs-unstaged.md` — earlier in session.
+- `drift-truncates-file-list-at-10.md` — earlier in session.
+- `init-emits-no-gitignore-template.md` — Phase 17.1 (sentinel-fenced `ensureGitignoreBlock`).
+- `init-verify-command-not-venv-aware-for-python.md` — Phase 20.1 (`detectPythonVerifyCommand` helper with uv/pdm/poetry/.venv/venv/`python -m pytest` ladder, platform-split).
+- `mcp-tools-list-requires-session-handshake-docs-gap.md` — Phase 15.1 docs sweep.
+- `misleading-card-not-found-for-malformed-yaml.md` — earlier in session.
+- `plan-op-leaves-need-placeholders-resolved-in-analysis.md` — Phase 13.1 (`plan.ts` SYSTEM_PROMPT preamble).
+- `quickstart-work-cycle-latency-estimate-understated.md` — Phase 15.1 docs sweep.
+- `recommendation-event-duplicates-card-body-rationale.md` — Phase 16.1 (WAD closure).
+- `rpc-recommend-method-semantics-docs-gap.md` — Phase 15.1 docs sweep.
+- `scan-bails-entirely-on-one-malformed-card.md` — earlier in session.
+- `transition-command-adjacency-vs-spec-override-semantics.md` — Phase 15.1 docs sweep.
+- `ui-control-room-redesign.md` — Phase 19.1 (full visual identity overhaul: editorial / mission-control aesthetic, design tokens, masthead, numbered nav, structured headers, drag-target highlights).
+- `work-creates-run-dir-before-validating-card.md` — earlier in session.
+
+Sources for issue-shaped items are at `.relay/archive/issues/` with archival banners attached at close-out (20 archive files matching, plus the Phase 18 carry-forward `daemon-start-missing-browser-flag.md` archived WONT-DO). The Control Room redesign was user-initiated and had no prior issue file — only the implementation doc exists. Spot-check confirms the redesign is in place (`src/ui/index.html`, `src/ui/views/{board,monitor,routing,card_detail}.ts`, `src/ui/main.ts:setActiveNav`) and `detectPythonVerifyCommand` is present at `src/cli/commands/init.ts:207`.

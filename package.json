@@ -7,7 +7,13 @@
     "conductor": "./dist/cli/index.js"
   },
   "main": "./dist/engine/index.js",
-  "files": ["dist", "examples", "docs", "README.md", "LICENSE"],
+  "files": [
+    "dist",
+    "examples",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json && npm run build:ui",
     "build:ui": "tsc -p tsconfig.ui.json && node scripts/build-ui.mjs",
@@ -21,6 +27,7 @@
     "@anthropic-ai/sdk": "^0.65.0",
     "@google/genai": "^1.0.0",
     "@modelcontextprotocol/sdk": "^1.0.0",
+    "@playwright/test": "^1.60.0",
     "chokidar": "^4.0.1",
     "commander": "^12.1.0",
     "dompurify": "^3.1.6",

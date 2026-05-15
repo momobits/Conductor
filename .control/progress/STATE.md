@@ -3,10 +3,10 @@
 > Single source of truth. Read this first every session. Updated at every
 > `/session-end` and by the `PreCompact` hook. Every field has a purpose -- fill each.
 
-**Last updated:** 2026-05-15 by /session-end (sid-2026-05-15-phase-20-init-verify-venv-awareness)
-**Current phase:** 21 — TBD (placeholder scaffold; next session names + populates)
-**Current step:** 21.1 (TBD)
-**Status:** ready (Phase 20 closed cleanly at tag `phase-20-init-verify-venv-awareness-closed`; active Relay backlog is empty; Phase 21 awaits a target from `/relay-discover`, dogfood pass, or fresh initiative)
+**Last updated:** 2026-05-15 by /session-start kickoff (sid-2026-05-15-phase-21-card-body-persistence)
+**Current phase:** 21 — Card-body persistence (op output + chat decoupling)
+**Current step:** 21.1 — bundle of Relay Phase 12 #20 + #21 + #22 + #23
+**Status:** kicked-off (Phase 21 README + steps authored; about to run `/relay-analyze` → `/relay-superplan` on the L-complexity tetra-leader Relay #20 `ui-work-card-output-persisted-into-card-body`)
 
 ---
 
@@ -19,17 +19,18 @@
 
 ## Next action
 
-**Phase 20 closed.** Relay Phase 11 (single-item venv-aware `detectVerifyCommand`) shipped as `feat(20.1)` in `4f5ac48`; tag `phase-20-init-verify-venv-awareness-closed` landed at `654973f`. Suite 559/559. **Active Relay backlog is empty** — all 20 items closed across 11 Relay phases (the 2026-05-12 dogfood backlog + Phase 9 gitignore-template carry-over + 2026-05-15 omniforge dogfood's two items, of which one shipped as Phase 18 and one as Phase 20; Phase 18's `--browser` flag carry-forward was closed WONT-DO mid-Phase-19).
+**Phase 21 active — Relay Phase 12 #20 (card-body persistence) is the showstopper.** A 2026-05-15 Playwright dogfood of the Control Room UI against omniforge surfaced 20 new issues + a keyboard-accessibility feature seed; `/relay-scan` + `/relay-order` ran and grouped the backlog into six Relay phases. Top item: **`ui-work-card-output-persisted-into-card-body.md`** (P1, **L**-complexity). Every UI `Work this card` click silently appends ~100 lines of op output to the card body markdown; one click on omniforge's placeholder grew the body from 8 → 114 lines.
 
-Three recommended next-session paths:
+Pipeline:
 
-1. **Fresh discovery sweep** — `/relay-discover` to scan the codebase for new TODOs / drift / latent gaps surfaced since Phases 13-20 expanded the daemon (brain log, token-URL print), plan op (SYSTEM_PROMPT preamble), config schema (`brain_log` block), init flow (gitignore generator, venv-aware verify_command), CLI surface (daemon-start helper extraction, Python-detect helper extraction), and UI (Control Room redesign). May produce zero or several new items.
+1. `/relay-analyze` on `ui-work-card-output-persisted-into-card-body.md` (Agent(Explore) for landscape scan; main session reads spec + ≤5 affected sources).
+2. `/relay-superplan` (L-item ⇒ 5 parallel Agent(Plan) calls in one message; synthesize from strategy summaries).
+3. `/relay-review` (adversarial; pause for operator only if verdict is APPROVED-WITH-CHANGES or REJECTED).
+4. Implement per finalized plan — 3 commits in order: op-output decoupling → chat sibling artifact → chat markdown rendering. Closes Relay #20 + #21 + #22 + #23 (Phase 12 bundle).
+5. `/relay-verify` (pipe vitest through `2>&1 | tail -50`; dispatch general-purpose agent if loop > 3 iters).
+6. `/relay-resolve` (single-pass; commit at end).
 
-2. **Dogfood pass** — run `conductor work <card>` against a real card on a project. The Phase 18 + Phase 20 items both came from 2026-05-15 omniforge dogfood; the pattern is the source of high-signal issues. With Phase 20's fix, the verify loop should now succeed on first run for Python projects with `.venv` / poetry / pdm / uv; worth confirming + watching for other rough edges.
-
-3. **File the deferred ADR for pure-helper extraction** — separate work-item. The pattern (Phase 18 `formatDaemonStartedMessage` = n=1; Phase 20 `detectPythonVerifyCommand` = n=2) reached STATE.md's "Recent decisions" promotion threshold. Operator deferred filing during Phase 20 to keep that phase's scope narrow. Filing now would be a small `docs(adr)` commit producing `.control/architecture/decisions/0001-pure-helper-extraction-for-testable-cli-contracts.md` (or whatever next number; check `.control/architecture/decisions/` for current count).
-
-Phase 21's scaffold is a bare template at `.control/phases/phase-21-tbd/`. Its README and steps need authoring once the next item is chosen.
+Phase 21 README + steps authored at `.control/phases/phase-21-card-body-persistence/`. Bundle Relay Phase 12's four items in a single Control step (21.1) since they share the persistence-via-body anti-pattern and ordering rationale says "ship as one sequenced branch."
 
 ---
 
