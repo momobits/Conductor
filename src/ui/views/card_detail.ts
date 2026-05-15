@@ -117,7 +117,14 @@ export async function renderCardDetail(
   function appendMsg(role: 'user' | 'assistant', text: string) {
     const div = document.createElement('div');
     div.className = `msg ${role}`;
-    div.textContent = `${role === 'user' ? 'you:' : 'assistant:'} ${text}`;
+    if (role === 'assistant') {
+      // Phase 21: render assistant markdown via the same DOMPurify-sanitized
+      // helper used for card body. User input stays as textContent (XSS-safe
+      // defense against accidental markdown injection in user-typed content).
+      div.innerHTML = `<span class="role">assistant:</span> ${renderMarkdown(text)}`;
+    } else {
+      div.textContent = `you: ${text}`;
+    }
     chatLog.appendChild(div);
     chatLog.scrollTop = chatLog.scrollHeight;
   }
