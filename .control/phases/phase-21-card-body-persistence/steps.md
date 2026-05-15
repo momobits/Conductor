@@ -1,6 +1,6 @@
 # Phase 21 Steps
 
-- [ ] 21.1 — Decouple op output from card body; plan op reads analyze output from disk; chat persisted to sibling artifact with UI replay; chat assistant turns render markdown.
+- [x] 21.1 — Decouple op output from card body; plan op reads analyze output from disk; chat persisted to sibling artifact with UI replay; chat assistant turns render markdown.
 
 ## Step detail
 
