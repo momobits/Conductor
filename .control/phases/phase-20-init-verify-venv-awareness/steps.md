@@ -1,6 +1,6 @@
 # Phase 20 Steps
 
-- [ ] 20.1 — Make `detectVerifyCommand` venv-aware for Python (uv / pdm / poetry / `.venv` / `venv` / `python -m pytest` fallback)
+- [x] 20.1 — Make `detectVerifyCommand` venv-aware for Python (uv / pdm / poetry / `.venv` / `venv` / `python -m pytest` fallback)
 
 ## Step detail
 
