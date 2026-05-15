@@ -3,7 +3,7 @@
 > Single source of truth. Read this first every session. Updated at every
 > `/session-end` and by the `PreCompact` hook. Every field has a purpose -- fill each.
 
-**Last updated:** 2026-05-15 by /phase-close (Phase 18 closed; Phase 19 scaffolded)
+**Last updated:** 2026-05-15 by /session-end (session sid-2026-05-15-phase-18-daemon-ui-token-url)
 **Current phase:** 19 — TBD (placeholder scaffold; next session names + populates)
 **Current step:** 19.1 (TBD)
 **Status:** ready (Phase 18 closed cleanly; Phase 19 scaffolded with one carry-forward item: Edit B --browser flag deferred)
@@ -35,9 +35,9 @@ Phase 19's scaffold is a bare template at `.control/phases/phase-19-tbd/` with o
 
 ## Git state
 - **Branch:** main
-- **Last commit:** `91ab212` — feat(18.1): daemon start prints token-bearing URL; fix UI bootstrap error + docs. Predecessors: `476ac76` (docs(state) session end for step 17.1), `c5f2302` (feat(17.1) init writes idempotent .gitignore block), `1e5ce9c` (Phase 16 close), `cc98b8f` (feat(16.1) T3-2 WAD close), `ee37b9e` (chore(phase-15) close), `340775d` (feat(15.1) docs bundle), `3c7dc8f` (chore(phase-14) close), `68e6d14` (feat(14.1) brain log), `f7d973d` (chore(phase-13) close), `5e0c389` (feat(13.1) plan SYSTEM_PROMPT preamble).
-- **Uncommitted changes:** about to land in the phase-18-close commit (this STATE.md write + phase-19 scaffold with carry-forward + next.md regen + journal entry).
-- **Last phase tag:** `phase-18-daemon-ui-token-url-closed` (created at `91ab212` during this `/phase-close`).
+- **Last commit:** `289ccda` — chore(phase-18): close phase 18, kick off phase 19. Predecessors: `91ab212` (feat(18.1) daemon start prints token-bearing URL; fix UI bootstrap error + docs), `476ac76` (docs(state) session end for step 17.1), `c5f2302` (feat(17.1) init writes idempotent .gitignore block), `1e5ce9c` (Phase 16 close), `cc98b8f` (feat(16.1) T3-2 WAD close), `ee37b9e` (chore(phase-15) close), `340775d` (feat(15.1) docs bundle), `3c7dc8f` (chore(phase-14) close), `68e6d14` (feat(14.1) brain log), `5e0c389` (feat(13.1) plan SYSTEM_PROMPT preamble).
+- **Uncommitted changes:** about to land in the session-end commit (this STATE.md timestamp refresh + journal session-end entry + next.md regen).
+- **Last phase tag:** `phase-18-daemon-ui-token-url-closed` (created at `91ab212` during this session's `/phase-close`).
 
 ---
 
