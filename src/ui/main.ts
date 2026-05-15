@@ -39,7 +39,7 @@ async function bootstrap(): Promise<AppContext | null> {
   const token = readToken();
   if (!token) {
     document.getElementById('root')!.textContent =
-      'No token. Start daemon and open the URL printed by `conductor daemon start --browser`.';
+      'No token. Open the URL printed by `conductor daemon start` (it now includes a `?token=` query parameter). If the daemon is already running, copy the UUID from `.conductor/auth.token` in your project and append it as `?token=<uuid>` to this URL.';
     return null;
   }
   const rpc = makeClient(token);

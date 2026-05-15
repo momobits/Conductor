@@ -124,7 +124,8 @@ Times scale with card body size. A 4-page analysis prompt sits at the upper end 
 
 ```bash
 conductor daemon start
-# open the URL printed (http://127.0.0.1:7180 by default)
+# Prints: Daemon up at http://127.0.0.1:7180/?token=<uuid> (pid=12345)
+# Open that exact URL in your browser.
 ```
 
 The UI gives you:
@@ -134,7 +135,7 @@ The UI gives you:
 - **Monitor** — table of active TaskAgent sessions
 - **Routing** — in-place editor for `.conductor/config.yaml` with server-side validation on save
 
-Auth: the first visit gets a token via URL param; subsequent visits use `localStorage`.
+**Auth**: the printed URL embeds a fresh bearer token from `.conductor/auth.token`. The first visit captures the token from the query parameter and caches it in `localStorage`; subsequent visits use the cached value. The token rotates on every `daemon start`, so if you restart the daemon, re-open the new URL printed in the terminal (or your cached `localStorage` entry will fail with "Auth failed" and you can copy-paste again).
 
 When done: `conductor daemon stop`.
 

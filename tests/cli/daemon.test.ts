@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runDaemonStart, runDaemonStop, runDaemonStatus } from '../../src/cli/commands/daemon.js';
+import { runDaemonStart, runDaemonStop, runDaemonStatus, formatDaemonStartedMessage } from '../../src/cli/commands/daemon.js';
 import { readPidFile, readEndpointFile } from '../../src/daemon/pidfile.js';
 import { readAuthToken } from '../../src/daemon/auth.js';
 
@@ -67,5 +67,25 @@ describe('daemon CLI', () => {
   it('stop on a non-running daemon returns ok with not-running flag', async () => {
     const result = await runDaemonStop({ cwd: repo });
     expect(result).toEqual({ stopped: false, reason: 'not-running' });
+  });
+});
+
+describe('formatDaemonStartedMessage', () => {
+  it('embeds /?token=<uuid> into the URL when token is present', () => {
+    const msg = formatDaemonStartedMessage({
+      url: 'http://127.0.0.1:7180',
+      token: 'abcd1234-5678-90ab-cdef-1234567890ab',
+      pid: 12345,
+    });
+    expect(msg).toBe('Daemon up at http://127.0.0.1:7180/?token=abcd1234-5678-90ab-cdef-1234567890ab (pid=12345)');
+  });
+
+  it('falls back to bare URL when token is undefined', () => {
+    const msg = formatDaemonStartedMessage({
+      url: 'http://127.0.0.1:7180',
+      token: undefined,
+      pid: 12345,
+    });
+    expect(msg).toBe('Daemon up at http://127.0.0.1:7180 (pid=12345)');
   });
 });

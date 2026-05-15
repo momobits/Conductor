@@ -4,6 +4,7 @@
 
 import type { Command } from 'commander';
 import { startDaemon, stopDaemon, statusDaemon, type DaemonHandle } from '../../daemon/index.js';
+import { readAuthToken } from '../../daemon/auth.js';
 
 export interface RunDaemonStartArgs {
   cwd: string;
@@ -15,6 +16,11 @@ export async function runDaemonStart(args: RunDaemonStartArgs): Promise<DaemonHa
   return startDaemon({ repo: args.cwd, port: args.port });
   // foreground/detach is the responsibility of the CLI wrapper; tests pass
   // foreground:false but call shutdown in their teardown.
+}
+
+export function formatDaemonStartedMessage(args: { url: string; token: string | undefined; pid: number }): string {
+  const urlWithToken = args.token ? `${args.url}/?token=${args.token}` : args.url;
+  return `Daemon up at ${urlWithToken} (pid=${args.pid})`;
 }
 
 export async function runDaemonStop(args: { cwd: string }) {
@@ -37,8 +43,16 @@ export function attachDaemon(program: Command): void {
         port: Number.parseInt(opts.port, 10),
         foreground: !opts.detach,
       });
+      let token: string | undefined;
+      try {
+        token = await readAuthToken(process.cwd());
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error(`Warning: could not read auth.token; UI will require manual token entry. (${(e as Error).message})`);
+        token = undefined;
+      }
       // eslint-disable-next-line no-console
-      console.log(`Daemon up at ${handle.url} (pid=${process.pid})`);
+      console.log(formatDaemonStartedMessage({ url: handle.url, token, pid: process.pid }));
       if (!opts.detach) {
         await new Promise<void>((resolve) => {
           process.on('SIGINT', () => resolve());

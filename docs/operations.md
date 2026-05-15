@@ -157,6 +157,11 @@ HTTP `/rpc` and MCP transports.
   rather than a stale-but-recoverable token.
 - **Rotated on next start**. Any token captured before the daemon stop
   is invalidated when the next daemon starts.
+- **Exposed via daemon start stdout**. `conductor daemon start` prints
+  `Daemon up at <url>/?token=<uuid> (pid=NNNN)` — the URL is
+  copy-pasteable into a browser for first-visit UI auth. The token in
+  the printed URL matches the file contents; both rotate together on
+  every start.
 
 **Gitignore your auth token.** `conductor init` writes (or extends)
 your project's `.gitignore` with the Conductor runtime-artifact
