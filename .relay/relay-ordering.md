@@ -8,9 +8,13 @@
 
 ## Overall strategy
 
-Phases 1–9 (the 2026-05-12 dogfood backlog + the Phase 7 gitignore-template carry-over) are all resolved as of 2026-05-14. One new item filed today from the 2026-05-15 omniforge dogfood — `daemon-start-first-visit-ui-token-ux-broken`. That P2 quality issue blocks the first-visit UX of the web UI (token-less URL print + nonexistent `--browser` flag cited by the UI), and is filed here as Phase 10.
+Phases 1–10 (the 2026-05-12 dogfood backlog + the Phase 7 gitignore-template carry-over + the 2026-05-15 daemon-UI token UX fix) are all resolved. One new item entered the backlog this session, surfaced by the 2026-05-15 omniforge dogfood:
 
-Single-item phase. No cross-cutting dependencies on prior phases; no other active items to bundle with. Touches 2 source files (`src/cli/commands/daemon.ts`, `src/ui/main.ts`) + 1 docs page (`docs/quickstart.md`) + tests; multi-edit shape (A primary, B/C/D supporting).
+- **Phase 11** — `init-verify-command-not-venv-aware-for-python` (P2). `conductor init` emits a bare `pytest` for Python projects, ignoring `.venv` / `venv` / poetry / pdm / uv conventions. Default-config Python cards stall in `building` because the daemon's PATH typically has no `pytest`. Every fresh Python project hits this on first verify.
+
+The Phase 18 carry-forward (`daemon-start --browser` flag, P3) was closed **WONT-DO** by operator decision — the copy-paste URL Phase 18 prints is sufficient and platform-specific browser-launch surface is not worth the maintenance cost. Banner applied at `.relay/archive/issues/daemon-start-missing-browser-flag.md`.
+
+No promoted features, no grouped runs in flight, no archived-supersedes mappings to re-route. One clean standalone phase.
 
 ---
 
@@ -164,6 +168,29 @@ Ship as two independent PRs or one combined cleanup PR.
 
 ---
 
+## Phase 11 — `init` verify_command Python venv awareness
+
+**Status:** OUTSTANDING — next up.
+
+| # | Item | File | Complexity | Depends on |
+|---|---|---|---|---|
+| 19 | `detectVerifyCommand` Python branch becomes venv- and tool-runner-aware (uv / pdm / poetry / `.venv` / `venv` / `python -m pytest` fallback); platform-split path joins; optional init-time stdout note when on the fallback branch | [init-verify-command-not-venv-aware-for-python.md](issues/init-verify-command-not-venv-aware-for-python.md) | M | — |
+
+**Why placed here:** highest-severity active item (P2). The current bare-`pytest` literal breaks the default-config Python verify loop on every fresh project where the daemon was started outside an activated venv — which is the dominant convention (`python -m venv .venv`, poetry, pdm, uv). Surface area is well-scoped: one helper in `src/cli/commands/init.ts` (the marker ladder), a `process.platform` branch for win32/posix path joins, an optional one-line stdout note when falling back to `python -m pytest`, and a docs touch in `docs/quickstart.md § 3` to replace the single row with the new detection ladder. No new dependencies; no run-time behavior change for non-Python projects.
+
+**Recommended approach (from the issue's "Proposed fix" + planner notes):**
+
+1. Restructure `detectVerifyCommand` so the Python branch fires a ladder of checks (most-specific → least-specific): `uv.lock` → `uv run pytest`; `pdm.lock` → `pdm run pytest`; `poetry.lock` → `poetry run pytest`; `.venv/{Scripts,bin}/python(.exe)` → explicit venv-Python `-m pytest`; `venv/{Scripts,bin}/python(.exe)` → same shape with unprefixed venv dir; otherwise `python -m pytest` (replacing the bare `pytest` literal — strictly safer fallback).
+2. Use `process.platform === 'win32'` to choose between `Scripts/python.exe` and `bin/python`. Use `node:path` `join`/`sep` for the constructed verify-command string; do not hard-code separators.
+3. Update `tests/cli/init.test.ts`: 2-3 existing Python-detection tests need their assertions updated to expect the new defaults (no longer bare `pytest`). Add new cases for each ladder rung (`.venv`-win32, `.venv`-posix, `venv`-win32, `venv`-posix, `poetry.lock`, `pdm.lock`, `uv.lock`, `python -m pytest` fallback). Stub `process.platform` per `vi.spyOn(process, 'platform', 'get')` pattern.
+4. Update `docs/quickstart.md § 3`'s verify_command sniff table — replace the single `pyproject.toml | setup.py → pytest` row with the ladder, noting the platform split.
+5. Optional but low-cost: at init time, when on the `python -m pytest` fallback branch, emit a one-line stdout note (mirrors the shape of Phase 9's gitignore-block stdout signal). Keeps the workaround discoverable without forcing the user to read docs.
+6. Out-of-scope deferrals filed in the issue (record here so the planner sees them up front): Conda env detection (low value, deferred to follow-up if dogfood signals); `Makefile + pyproject.toml` ordering nit (orthogonal; separate issue if confirmed); examples/`.conductor/config.yaml` venv comment block (polish, optional).
+
+**Severity calibration recap.** P2: not P1 (workaround is a one-line config edit, no data loss, daemon/MCP/CLI/UI continue working); not P3 (fires on every first Python card; workaround non-obvious without reading source). Verify is on the autonomous-loop critical path — `approved → building → verifying → shipped` — so a stalled verify halts the loop and the brain quarantines the card.
+
+---
+
 ## Cross-phase dependencies (visual)
 
 ```
@@ -178,7 +205,10 @@ Phase 7 (docs bundle) [COMPLETE]                      │
 Phase 8 (observation closure) [COMPLETE]              │
 Phase 9 (init gitignore) [COMPLETE]                   ←── follow-up from Phase 7's LOW-1 finding
 Phase 10 (daemon UI token UX) [COMPLETE]              ←── from 2026-05-15 omniforge dogfood
+Phase 11 (init verify venv awareness) [OUTSTANDING]   ←── from 2026-05-15 omniforge dogfood (P2)
 ```
+
+Phase 11 is the sole active item. (Phase 18 carry-forward `daemon --browser` flag closed WONT-DO; not represented here.)
 
 ---
 
@@ -188,13 +218,3 @@ Phase 10 (daemon UI token UX) [COMPLETE]              ←── from 2026-05-15 
 - **S** — single file, <50 lines changed, may add 1-2 regression tests
 - **M** — 2-4 files, 50-200 lines, requires new typed surface or refactor of a shared helper, 3-5 regression tests
 - **L** — new module + wiring, config schema change, integration test extension
-
----
-
----
-
-> **🎉 Phase 10 closed — 2026-05-15**
->
-> Single-item phase resolved end-to-end. Active backlog is empty again.
-> Next session opens with a fresh `/relay-scan`, `/relay-discover`, or
-> direct `/relay-new-issue` filing.

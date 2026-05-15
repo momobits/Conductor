@@ -8,19 +8,21 @@
 
 ## Summary
 
-| Category | Outstanding | Resolved | Total |
-|----------|-------------|----------|-------|
-| Issues (issues/) | 0 | 0 | 0 |
-| Features (features/) | 0 | 0 | 0 |
-| Implemented (implemented/) | — | 18 | 18 |
+| Category                   | Outstanding | Resolved | Total |
+|----------------------------|-------------|----------|-------|
+| Issues (issues/)           | 1           | 0        | 1     |
+| Features (features/)       | 0           | 0        | 0     |
+| Implemented (implemented/) | —           | 18       | 18    |
 
-Phase 10 (daemon-start UI token URL fix) resolved 2026-05-15 in the same session that filed it: `conductor daemon start` now prints a token-bearing URL, the UI bootstrap error message and quickstart/operations docs all describe the real recovery path. The 17 entries from Phases 1–9 plus the new Phase 10 item total 18 resolved. Active backlog is empty again; next session opens with a fresh `/relay-scan` or `/relay-discover` pass.
+One new active issue entered the backlog this session: the venv-aware `init detectVerifyCommand` gap (P2, surfaced in 2026-05-15 omniforge dogfood). The Phase-18 carry-forward `--browser` flag was closed WONT-DO by operator decision (banner: `.relay/archive/issues/daemon-start-missing-browser-flag.md`). The 18 previously implemented entries (the 2026-05-12 dogfood backlog + Phase 9 carry-over + 2026-05-15 Phase 10 daemon-start fix) remain shipped and non-regressed.
 
 ---
 
 ## Active Issues — .relay/issues/
 
-No active issues.
+- **`init-verify-command-not-venv-aware-for-python.md`** — OUTSTANDING, P2.
+  - Evidence: `src/cli/commands/init.ts:164-182` (`detectVerifyCommand`) still returns the bare literal `'pytest'` for both `pyproject.toml` and `setup.py` markers; no `.venv` / `venv` / `poetry.lock` / `pdm.lock` / `uv.lock` ladder; no `python -m pytest` fallback. `src/engine/ops/verify.ts` runs the literal via `execa(command, { shell: true })` with no env mutation.
+  - Source: 2026-05-15 omniforge dogfood — verify op stalled a card in `building` because bare `pytest` was not on the daemon's PATH.
 
 ---
 
@@ -59,4 +61,8 @@ All 18 sources are also present at `.relay/archive/issues/` (archival banners at
 
 ## In-Progress Work
 
-No items in progress. Run **`/relay-scan`** + **`/relay-order`** at the start of the next session, or **`/relay-discover`** to scan the codebase for new gaps.
+The sole active issue has no pipeline sections appended yet (no `## Analysis`, no `## Implementation Plan`, no `## Adversarial Review`, no `## Verification Report`). It is filed and awaiting `/relay-order` → `/relay-analyze`.
+
+| Item                                                 | File                                                                | Stage Reached | Next Step                                            |
+|------------------------------------------------------|---------------------------------------------------------------------|---------------|------------------------------------------------------|
+| init-verify-command-not-venv-aware-for-python        | `.relay/issues/init-verify-command-not-venv-aware-for-python.md`    | filed only    | Run `/relay-order`, then `/relay-analyze`            |
