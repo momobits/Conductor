@@ -1,6 +1,6 @@
 # Phase 22 Steps
 
-- [ ] 22.1 — Server-side merge in `config_set` (Relay #25 leader; grouped run with #26 Infinity coercion + #28 zod-error joined message).
+- [x] 22.1 — Server-side merge in `config_set` (Relay #25 leader; grouped run with #26 Infinity coercion + #28 zod-error joined message).
 
 ## Step detail
 
