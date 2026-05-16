@@ -4,6 +4,8 @@
 *Source: Phase 21 Playwright behavior test of routing RPC roundtrip.*
 *Severity: P2 — programmatic clients of the config RPC cannot read-then-write.*
 
+> Grouped into [ui-routing-yaml-commit-silently-resets-omitted-fields-to-defaults](ui-routing-yaml-commit-silently-resets-omitted-fields-to-defaults.md) run on 2026-05-16. See [ui-routing-yaml-commit-silently-resets-omitted-fields-to-defaults](ui-routing-yaml-commit-silently-resets-omitted-fields-to-defaults.md) for closure status and per-entry obligation (closure: full).
+
 ## Problem statement
 
 `config_get` returns the daemon's parsed `ProjectConfig`. Two fields in the schema default to `Number.POSITIVE_INFINITY`:

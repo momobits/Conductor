@@ -63,8 +63,15 @@ export const ProjectConfigSchema = z
     verify_command: z.string().default('npm test'),
     cost_ceilings: z
       .object({
-        per_card_dollars: z.number().positive().default(Number.POSITIVE_INFINITY),
-        per_day_dollars: z.number().positive().default(Number.POSITIVE_INFINITY),
+        // Phase 22: accept `null` as a synonym for Infinity. JSON serialization
+        // emits Infinity as `null`; this preprocess transforms it back at parse
+        // time so config_get → JSON → config_set round-trips cleanly. Closes #26.
+        per_card_dollars: z
+          .preprocess((v) => (v === null ? Number.POSITIVE_INFINITY : v), z.number().positive())
+          .default(Number.POSITIVE_INFINITY),
+        per_day_dollars: z
+          .preprocess((v) => (v === null ? Number.POSITIVE_INFINITY : v), z.number().positive())
+          .default(Number.POSITIVE_INFINITY),
         halt_on_breach: z.boolean().default(false),
       })
       .default({}),

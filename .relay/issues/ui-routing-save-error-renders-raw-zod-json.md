@@ -4,6 +4,8 @@
 *Source: Phase 21 Playwright dogfood of Control Room UI against omniforge.*
 *Severity: P2 — usability of the validation feedback path.*
 
+> Grouped into [ui-routing-yaml-commit-silently-resets-omitted-fields-to-defaults](ui-routing-yaml-commit-silently-resets-omitted-fields-to-defaults.md) run on 2026-05-16. See [ui-routing-yaml-commit-silently-resets-omitted-fields-to-defaults](ui-routing-yaml-commit-silently-resets-omitted-fields-to-defaults.md) for closure status and per-entry obligation (closure: full).
+
 ## Problem statement
 
 When `config_set` returns a validation error, the Routing view prints the error string verbatim. Because the server forwards the zod-formatted error array as the JSON-RPC message text, the user sees something like:
