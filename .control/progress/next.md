@@ -1,7 +1,7 @@
 # Next session kickoff
 
-> Auto-generated from `.control/progress/STATE.md` at 2026-05-16T11:32:22Z by
-> `.claude/hooks/regenerate-next-md.sh`. Edit STATE.md's "Next action"
+> Auto-generated from `.control/progress/STATE.md` at 2026-05-16T20:43:41Z by
+> `.claude/hooks/regenerate-next-md.ps1`. Edit STATE.md's "Next action"
 > or "Notes for next session" to influence this prompt; **do not edit
 > next.md by hand** -- it's overwritten on every session end.
 
@@ -16,57 +16,58 @@ see a structured `[control:state]` block instead of doing them by hand.
 
 ## Next action
 
-**Phase 25 active — Relay Phase 17 (keyboard layer, 4 designed features) is the next target.** Phase 24 closed cleanly (tag `phase-24-board-transition-ux-closed`); the `board_validate.ts` substrate Phase 17 feature #41 was designed to consume is now in place. Suite at 666/666 (modulo a known pre-existing parallel-runner flake on `tests/conductor/loop.test.ts > Daemon shutdown stops the conductor brain` — passes in isolation).
+**Phase 26 active â€” Relay Phase 16 polish bundle (4 XS items) is the next target.** Phase 25 closed cleanly (tag `phase-25-keyboard-layer-closed`); the entire Phase 17 keyboard layer shipped across 5 steps including the smoke-surfaced 25.5 ergonomics revision (QWERTYU column keys + A refresh, replacing the original 1â€“7 + R scheme). Suite at 734/734 (modulo the known pre-existing parallel-runner flake on `tests/conductor/loop.test.ts > Daemon shutdown stops the conductor brain` â€” passed during phase-close).
 
-Phase 25 has **4 steps** in strict declared order, mapping 1:1 to Relay Phase 17's 4 features:
-- **25.1 — `keyboard-global-dispatcher`** (#40, M-complexity, foundation)
-- **25.2 — `keyboard-board-focus-and-move`** (#41, L-complexity, consumes `board_validate.ts`)
-- **25.3 — `keyboard-approval-dialog-bindings`** (#42, S-complexity)
-- **25.4 — `keyboard-footer-rotation-and-help-overlay`** (#43, M-complexity, closes the migrated [[ui-footer-r-key-affordance-not-wired]])
+Phase 26 has **4 steps** mapping 1:1 to remaining Relay Phase 16 items:
+- **26.1 â€” `ui-card-deeplink-not-found-silently-renders-board`** (#34, P2, XS â€” try/catch around renderCardDetail; render empty-shell on CARD_NOT_FOUND)
+- **26.2 â€” `ui-archived-column-missing-policy-badge`** (#36, P3, XS â€” render `terminal` badge for archived column)
+- **26.3 â€” `ui-edition-stamp-hardcoded-stale`** (#37, P3, XS â€” runtime-populate OR rip; decide during analysis)
+- **26.4 â€” `ui-favicon-missing`** (#38, P3, XS â€” ship `src/ui/favicon.svg` + `<link rel="icon">` + build-ui asset copy)
 
-Each feature is a designed spec at `.relay/features/keyboard-*.md`. The bundle ships as 4 commits (one per feature) plus step-close commits.
+Phase 16 #35 was closed in Phase 25.3's grouped run (transition-dialog phase-terminology copy fix bundled with the shared dialog extract). Phase 16 #39 (footer-R) was migrated to Phase 17 and closed by 25.4's grouped run. All four remaining items ship as one bundled PR (the relay-ordering recommends bundling per the "Polish & cosmetics" cluster).
 
-Top item: **`.relay/features/keyboard-global-dispatcher.md`** (Phase 17 #40). It installs the single global keydown listener in `main.ts`, the form-field-target check that prevents shortcuts from hijacking textareas, and the `ctx.boardKeyHandler` hook that step 25.2 consumes. Foundation for the entire cluster — must land first.
+Top item: **`.relay/issues/ui-card-deeplink-not-found-silently-renders-board.md`** (P2, the only non-cosmetic). Starts the pipeline: `/relay-analyze ui-card-deeplink-not-found-silently-renders-board.md`.
 
-Pipeline (per step; repeated 4× for steps 25.1 → 25.4):
+Pipeline (per step; repeated 4Ã— for steps 26.1 â†’ 26.4):
 
-1. `/relay-analyze` on the feature file (Agent(Explore) landscape scan; main session reads feature spec + ≤5 affected sources).
-2. `/relay-plan` (single-pass for S/M complexity; consider `/relay-superplan` for the L-complexity 25.2).
+1. `/relay-analyze` on the issue file.
+2. `/relay-plan` (single-pass; all four are XS).
 3. `/relay-review` (adversarial; pause for operator only if APPROVED-WITH-CHANGES or REJECTED).
 4. Implement per finalized plan.
-5. `/relay-verify` (full suite + targeted UI tests).
+5. `/relay-verify` (full suite + targeted UI tests where applicable).
 6. `/relay-resolve` (single-pass; commit at end).
 
-Phase 25 README + steps authored at `.control/phases/phase-25-keyboard-layer/`.
+Phase 26 README + steps authored at `.control/phases/phase-26-polish-bundle/`.
 
-**After Phase 25**: 6 active items remain in `.relay/issues/` — Phase 15 (brain telemetry, #31-#33), Phase 16 (polish, #34-#38; #35 dialog copy may coordinate with 25.3 / 25.4), plus the Phase 21 follow-up `engine-ops-still-append-to-card-body`. Phase 16's bundle is a natural Phase-26 candidate; Phase 15's brain-telemetry cluster fits after.
+**After Phase 26**: 4 active items remain in `.relay/issues/` â€” Phase 15 brain-telemetry cluster (#31, #32, #33 in `src/ui/views/monitor.ts` + `src/conductor/loop.ts`) plus the Phase 21 follow-up `engine-ops-still-append-to-card-body`. Phase 15 is the natural Phase-27 candidate.
+
 
 ## Notes for next session
 
-Phase 25 (`keyboard-layer`) closes Relay Phase 17 — 4 designed features ready for implementation in strict declared order:
+Phase 26 (`polish-bundle`) closes Relay Phase 16 â€” 4 XS items, all independent, ship as one bundled PR:
 
-- **25.1 — `keyboard-global-dispatcher`** (#40, M, foundation): install single global keydown listener; form-field target check; `1/2/3` view-switch; `R` refresh; `?` help hook; `Escape`. Provides `ctx.boardKeyHandler` hook for step 25.2.
-- **25.2 — `keyboard-board-focus-and-move`** (#41, L): roving focus on Board (`1..7`, arrows, `Enter`); move chord (`M`+`N`, `Shift+M`); **consumes `src/ui/views/board_validate.ts`** (Phase 24 substrate) for client-side pre-validation parity with drag-drop. Module-scope focus state survives SSE re-renders via `syncFocusAfterRepaint()`.
-- **25.3 — `keyboard-approval-dialog-bindings`** (#42, S): extract both transition dialogs into shared `src/ui/lib/dialog.ts`; add `Enter`/`Y`/`Esc`/`N` bindings + `Tab` focus trap.
-- **25.4 — `keyboard-footer-rotation-and-help-overlay`** (#43, M): per-view footer text rotation; `?` opens a native `<dialog>` help overlay with grouped cheatsheet. Closes the migrated [[ui-footer-r-key-affordance-not-wired]].
+- **26.1 â€” `ui-card-deeplink-not-found-silently-renders-board`** (#34, P2, XS): try/catch around `renderCardDetail` in `src/ui/main.ts dispatch()`; render empty-shell on `CARD_NOT_FOUND` with the bad id surfaced.
+- **26.2 â€” `ui-archived-column-missing-policy-badge`** (#36, P3, XS): render a `terminal` policy badge for the `archived` column. `policyForExit` currently returns `null` for the terminal column â†’ no badge rendered â†’ visual inconsistency with the other six.
+- **26.3 â€” `ui-edition-stamp-hardcoded-stale`** (#37, P3, XS): masthead `Vol. 18 Â· NÂ° 01` is hardcoded. Decision-time pick: runtime-populate from STATE.md/RPC OR rip the stamp.
+- **26.4 â€” `ui-favicon-missing`** (#38, P3, XS): ship `src/ui/favicon.svg` (16x16, `Â§` glyph, `--ink-500` background) + `<link rel="icon">` + update `scripts/build-ui.mjs`.
 
-Each feature is a designed spec at `.relay/features/keyboard-*.md`. Approach: per step, run the full pipeline (/relay-analyze → /relay-plan → /relay-review → implement → /relay-verify → /relay-resolve), with `/relay-superplan` considered for the L-complexity 25.2.
+Pipeline per step (all XS): `/relay-analyze` â†’ `/relay-plan` (single-pass) â†’ `/relay-review` â†’ implement â†’ `/relay-verify` â†’ `/relay-resolve`. Bundle as one PR per the relay-ordering's "Polish & cosmetics" cluster recommendation. Top item: `.relay/issues/ui-card-deeplink-not-found-silently-renders-board.md`.
 
-Pattern precedent recap (cite if a future ADR session writes one — all currently at deferred status):
-- **Pure-helper extraction for testable contracts** (n=7 — Phase 18 `formatDaemonStartedMessage`, Phase 20 `detectPythonVerifyCommand`, Phase 21 substrate helpers, Phase 22 `deepMergeConfig`/`isPlainObject`, Phase 23 `replaceAutonomyDefault` + `preserveYamlComments`, Phase 24 `nextColumn` + `isLegalTransition`). Promotion threshold long fired.
-- **JSONL/markdown-writer with prune-at-boot** (n=3 — `RunLogWriter`, `BrainLogWriter` Phase 6, `RunArtifactWriter` + `ChatLogWriter` Phase 21). Promotion threshold fired.
-- **In-memory hand-off between same-run ops via typed args** (Phase 21 `PlanArgs.analysis`). Single instance through Phase 24.
-- **Schema-layer JSON sentinel coercion via `z.preprocess`** (Phase 22 `null → Infinity` on `cost_ceilings`). Single instance.
-- **Shared validator module extracted for cross-feature consumption** (Phase 24 `board_validate.ts` — designed explicitly to serve a not-yet-built downstream feature, Phase 17 #41). NEW variant; n=1. Phase 25.2 will exercise the cross-feature consumption pattern when it imports `board_validate.ts`; if a third independent site adopts the pattern, it warrants its own ADR. Watch through Phase 25-26.
+Pattern precedent recap (cite if a future ADR session writes one â€” all currently at deferred status):
+- **Pure-helper extraction for testable contracts** (n=14 after Phase 25 â€” Phase 25 added `isInFormField`, `handleKey`, `decideBoardAction`, `resolveArrowAcross`, `selectBody`, `selectFooterShortcuts`, `formatFooterHtml`). Promotion threshold long fired.
+- **Shared module designed for cross-feature consumption** (n=3 â€” Phase 24 `board_validate.ts`, Phase 25.3 `src/ui/lib/dialog.ts` consumed by 3 callers, Phase 25.4 `src/ui/lib/footer.ts` consumed by 2 callers). Promotion threshold fired.
+- **JSONL/markdown-writer with prune-at-boot** (n=3). Promotion threshold fired.
+- **In-memory hand-off between same-run ops via typed args** (Phase 21 `PlanArgs.analysis`). Single instance.
+- **Schema-layer JSON sentinel coercion via `z.preprocess`** (Phase 22). Single instance.
 
-ADR filing remains deferred per operator decision. Pure-helper-extraction is the strongest candidate if a future session authorizes it: candidate slug `0001-pure-helper-extraction-for-testable-cli-contracts.md` (verify next number against `.control/architecture/decisions/`).
+ADR filing remains deferred per operator decision. Two strongest candidates: pure-helper-extraction (slug `0001-pure-helper-extraction-for-testable-cli-contracts.md`) and shared-module-for-cross-feature-consumption (slug `0002-shared-module-cross-feature-consumption.md` â€” verify next numbers against `.control/architecture/decisions/`).
 
-Carry-forward into Phase 25: Phase 24's Deferred section was empty (`<none yet>` placeholder only, lacks em-dash); the Phase 25 README's `## Why this phase exists` section keeps its `<Fill in during phase kickoff.>` placeholder and should be authored at the Phase 25 start.
+Carry-forward into Phase 26: Phase 25's Deferred section was empty (`<none yet>` placeholder; lacks em-dash). The Phase 26 README's `## Why this phase exists` section keeps its `<Fill in during phase kickoff.>` placeholder and should be authored at the Phase 26 start.
 
-Phase 25 also has a coordination point with Phase 16 #35 (`ui-transition-dialog-references-internal-phase-terminology`): step 25.3 extracts both transition-approval dialogs into `src/ui/lib/dialog.ts`. If #35 lands first (Phase 26 candidate), 25.3's extract adopts the cleaned copy; if 25.3 lands first, #35 edits the extracted helper. Either order works.
+After Phase 26: 4 active items remain â€” Phase 15 (brain telemetry, #31, #32, #33 in `src/ui/views/monitor.ts` + `src/conductor/loop.ts`) plus the Phase 21 follow-up `engine-ops-still-append-to-card-body`. Phase 15's brain-telemetry cluster is a natural Phase 27 candidate (3 independent fixes; bundle as one PR).
 
-After Phase 25: 6 active items remain — Phase 15 (brain telemetry, #31-#33), Phase 16 (polish, #34-#38), plus the Phase 21 follow-up `engine-ops-still-append-to-card-body`. Phase 16's polish bundle is a natural Phase 26 candidate; Phase 15's brain-telemetry cluster fits after.
+Phase 25.2's `boardInMoveMode` dispatcher gate (in `src/ui/lib/keys.ts`) is now structurally inert after the 25.5 ergonomics revision (column keys are letters now, no collision with view-switch `1/2/3`). Kept defensively. Low-priority cleanup candidate for a future session; not blocking any new work.
 
-Known flake (pre-existing through Phase 24): `tests/conductor/loop.test.ts > Daemon shutdown stops the conductor brain` times out at 5000ms under full-suite parallel load but passes cleanly in isolation at ~810ms. Touches no Phase 24 surface; not a regression. Watch through Phase 25; if it manifests again, consider filing as a bounded investigation (relay-config.md notes Chokidar polling at 50ms / 100ms stability — the daemon shutdown path involves multiple async cleanups that may race under load).
+Known flake (pre-existing through Phase 25): `tests/conductor/loop.test.ts > Daemon shutdown stops the conductor brain` times out at 5000ms under full-suite parallel load but passes cleanly in isolation. Touches no Phase 25 surface; not a regression. Passed during the Phase 25 close-out test run. Watch through Phase 26.
 
-Notebook step is skipped per `relay-config.md § Notebook Setup` (TypeScript-only project).
+Notebook step is skipped per `relay-config.md Â§ Notebook Setup` (TypeScript-only project).
