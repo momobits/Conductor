@@ -3,7 +3,7 @@
 > Single source of truth. Read this first every session. Updated at every
 > `/session-end` and by the `PreCompact` hook. Every field has a purpose -- fill each.
 
-**Last updated:** 2026-05-16 by /phase-close (sid-2026-05-16-phases-23-24-25-keyboard-layer)
+**Last updated:** 2026-05-16 by /session-end (sid-2026-05-16-phase-25-keyboard-layer)
 **Current phase:** 26 — Polish bundle (Relay Phase 16, 4 items)
 **Current step:** 26.1 — Relay Phase 16 #34 (`ui-card-deeplink-not-found-silently-renders-board`)
 **Status:** kicked-off (Phase 25 closed cleanly at tag `phase-25-keyboard-layer-closed`; 5 steps shipped including the smoke-surfaced 25.5 ergonomics revision (QWERTYU column keys + A refresh); Phase 26 scaffold authored with 4 steps mapping to remaining Relay Phase 16 items (#34, #36, #37, #38 — #35 closed by 25.3 grouped run, #39 closed by 25.4 grouped run); session-end at 734 tests / 13 Control phase tags placed; ready to resume with `/relay-analyze ui-card-deeplink-not-found-silently-renders-board.md`)
