@@ -16,6 +16,7 @@
 import type { RpcClient } from '../api.js';
 import { shakeTile } from './board_dnd.js';
 import { confirmTransition } from '../lib/dialog.js';
+import { updateFooter } from '../lib/footer.js';
 import { isLegalTransition, nextColumn, type Column } from './board_validate.js';
 
 const COLUMNS: readonly Column[] = [
@@ -128,15 +129,6 @@ export function attachBoardKeys(opts: BoardKeysOpts): BoardKeysHandle {
   let moveMode = false;
   let disposed = false;
 
-  const footerEl = document.querySelector<HTMLElement>('.app-footer .footer-text');
-  const originalFooterHtml = footerEl?.innerHTML ?? '';
-
-  function setFooterText(text?: string): void {
-    if (!footerEl) return;
-    if (text === undefined) footerEl.innerHTML = originalFooterHtml;
-    else footerEl.textContent = text;
-  }
-
   function readCounts(): Record<Column, number> {
     const out = {} as Record<Column, number>;
     for (const col of COLUMNS) {
@@ -192,7 +184,7 @@ export function attachBoardKeys(opts: BoardKeysOpts): BoardKeysHandle {
     moveMode = true;
     opts.root.querySelector<HTMLElement>('.board-shell')?.setAttribute('data-move-mode', 'true');
     applyLegalTargets(focused.column);
-    setFooterText('◇ Move → press column 01–07 · Esc cancel ◇');
+    updateFooter('board', '◇ Move → press column <kbd>01–07</kbd> · <kbd>Esc</kbd> cancel ◇');
     return true;
   }
 
@@ -200,7 +192,7 @@ export function attachBoardKeys(opts: BoardKeysOpts): BoardKeysHandle {
     moveMode = false;
     opts.root.querySelector<HTMLElement>('.board-shell')?.removeAttribute('data-move-mode');
     clearLegalTargets();
-    setFooterText();
+    updateFooter('board');
   }
 
   function flashDeny(col: Column): void {
@@ -393,7 +385,6 @@ export function attachBoardKeys(opts: BoardKeysOpts): BoardKeysHandle {
     disposed = true;
     try { exitMoveMode(); } catch { /* best-effort */ }
     try { clearFocusDom(); } catch { /* best-effort */ }
-    try { setFooterText(); } catch { /* best-effort */ }
     focused = null;
     moveMode = false;
   }

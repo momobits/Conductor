@@ -75,6 +75,16 @@ describe('handleKey — view switching', () => {
     expect(ctx.navigateTo).not.toHaveBeenCalled();
     expect(handler).toHaveBeenCalled();
   });
+  it('Escape on card view (no dialog) navigates back to board', () => {
+    const ctx = stubCtx({ currentView: () => 'card' });
+    expect(handleKey(makeEvent('Escape'), ctx)).toBe(true);
+    expect(ctx.navigateTo).toHaveBeenCalledWith('board');
+  });
+  it('Escape on board view (no dialog) is no-op (regression pin)', () => {
+    const ctx = stubCtx({ currentView: () => 'board' });
+    expect(handleKey(makeEvent('Escape'), ctx)).toBe(false);
+    expect(ctx.navigateTo).not.toHaveBeenCalled();
+  });
 });
 
 describe('handleKey — refresh (R)', () => {

@@ -1331,3 +1331,67 @@ dialog .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top
   0%, 100% { color: var(--mute-2); }
   50%      { color: var(--paper-2); }
 }
+
+/* ====================================================================
+   PHASE 25.4 — HELP OVERLAY
+   Grouped cheatsheet rendered by lib/footer.ts openHelpOverlay().
+   Active-view section gets a signal-color left rule + bold heading.
+   The base `dialog` styles (:795-836) cover modal + backdrop.
+   ==================================================================== */
+
+.help-overlay {
+  min-width: 360px;
+  max-width: 520px;
+}
+
+.help-overlay h3 {
+  margin-bottom: 18px;
+}
+
+.help-overlay section {
+  margin-bottom: 16px;
+}
+
+.help-overlay section h4 {
+  color: var(--paper-2);
+  font-weight: 500;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-cap);
+  margin: 0 0 8px;
+  padding-left: 0;
+  border-left: 0;
+}
+
+.help-overlay section[data-active-section="true"] h4 {
+  font-weight: 700;
+  color: var(--paper);
+  border-left: 2px solid var(--signal);
+  padding-left: 10px;
+}
+
+.help-overlay dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 14px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--paper-2);
+}
+
+.help-overlay dt {
+  margin: 0;
+}
+
+.help-overlay dd {
+  margin: 0;
+}
+
+.help-overlay footer {
+  margin-top: 20px;
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+  color: var(--mute-2);
+  font-size: 10px;
+  text-align: center;
+}

@@ -9,6 +9,7 @@ import { renderBoard } from './views/board.js';
 import { EventStream } from './events.js';
 import { renderCardDetail } from './views/card_detail.js';
 import { installGlobalKeys, type KeyContext, type ViewName } from './lib/keys.js';
+import { updateFooter, openHelpOverlay } from './lib/footer.js';
 
 interface AppContext {
   rpc: RpcClient;
@@ -65,25 +66,6 @@ function flashStatusDot(): void {
   dot.addEventListener('animationend', () => {
     dot.classList.remove('flash');
   }, { once: true });
-}
-
-async function openStubHelpOverlay(): Promise<void> {
-  const existing = document.querySelector<HTMLDialogElement>(
-    'dialog.help-overlay-stub[open]'
-  );
-  if (existing) { existing.close(); return; }
-  const dlg = document.createElement('dialog');
-  dlg.className = 'help-overlay-stub';
-  dlg.innerHTML = `
-    <div style="padding:1rem; min-width:24ch;">
-      <p>Shortcuts (full overlay arrives with the help-overlay feature).</p>
-      <form method="dialog"><button autofocus>Close</button></form>
-    </div>`;
-  document.body.appendChild(dlg);
-  dlg.showModal();
-  return new Promise<void>((resolve) => {
-    dlg.addEventListener('close', () => { dlg.remove(); resolve(); }, { once: true });
-  });
 }
 
 async function bootstrap(): Promise<AppContext | null> {
@@ -161,11 +143,13 @@ async function dispatch(ctx: AppContext) {
   } else {
     root.innerHTML = '<p>Unknown view.</p>';
   }
+  updateFooter(currentViewName());
 }
 
 async function main() {
   const ctx = await bootstrap();
   if (!ctx) return;
+  updateFooter(currentViewName());
   await dispatch(ctx);
   ctx.stream.on((e) => {
     if (e.kind === 'cards-changed' || e.kind === 'state-changed' || e.kind === 'session-end') {
@@ -175,7 +159,7 @@ async function main() {
 
   const keyCtx: KeyContext = {
     refreshCurrentView: async () => { flashStatusDot(); await ctx.refreshCurrentView(); },
-    openHelpOverlay: openStubHelpOverlay,
+    openHelpOverlay: () => openHelpOverlay(currentViewName()),
     navigateTo: (v) => { window.location.hash = `#/${v}`; },
     get boardKeyHandler() { return ctx.boardKeyHandler; },
     boardInMoveMode: () => ctx.boardInMoveMode(),

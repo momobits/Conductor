@@ -36,6 +36,10 @@ export function handleKey(ev: KeyboardEvent, ctx: KeyContext): boolean {
       dlg?.close();
       return true;
     }
+    if (ctx.currentView() === 'card') {
+      ctx.navigateTo('board');
+      return true;
+    }
     return false;
   }
 
