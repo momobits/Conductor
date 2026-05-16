@@ -7,6 +7,7 @@
 //   auto:   fires immediately
 
 import type { RpcClient } from '../api.js';
+import { isLegalTransition } from './board_validate.js';
 
 type Column = 'discovered' | 'planned' | 'approved' | 'building' | 'verifying' | 'shipped' | 'archived';
 type Policy = 'manual' | 'assist' | 'auto';
@@ -52,16 +53,28 @@ export function attachDragDrop(opts: {
       const id = ev.dataTransfer?.getData('text/plain');
       if (!id) return;
       const to = col.getAttribute('data-column') as Column;
-      const fromCol = root.querySelector<HTMLElement>(`.card-tile[data-id="${cssEscape(id)}"]`)?.closest('.column');
+      const sourceTile = root.querySelector<HTMLElement>(`.card-tile[data-id="${cssEscape(id)}"]`);
+      const fromCol = sourceTile?.closest('.column');
       const from = fromCol?.getAttribute('data-column') as Column | undefined;
       if (!from || !to || from === to) return;
+      // Closes Relay #29: client-side pre-validation against the lifecycle.
+      // Mirrors canTransition via the shared board_validate module. Illegal
+      // drops shake the source tile and abort — no dialog, no server call,
+      // no alert.
+      if (!isLegalTransition(from, to)) {
+        if (sourceTile) shakeTile(sourceTile);
+        return;
+      }
       const policy = (config.autonomy.transitions[`${from}_to_${to}`] ?? 'manual') as Policy;
       const proceed = await confirmTransition(id, from, to, policy);
       if (!proceed) return;
       try {
         await rpc.call('transition', { id, to });
       } catch (err) {
-        alert(`Transition failed: ${(err as Error).message}`);
+        // Defense in depth: client validator should prevent server-side
+        // rejections, but log if one slips through (config race or schema
+        // drift). Closes Relay #29's alert path.
+        console.warn('[board_dnd] transition rejected by server:', (err as Error).message);
       }
       await onDropped();
     });
@@ -94,4 +107,12 @@ function cssEscape(s: string): string {
 }
 function escape(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+}
+
+/** Brief shake animation on a tile to indicate a rejected drop. CSS rule
+ *  in src/ui/app.css; class is auto-removed on animationend so repeated
+ *  shakes re-trigger cleanly. */
+function shakeTile(tile: HTMLElement): void {
+  tile.classList.add('shake');
+  tile.addEventListener('animationend', () => tile.classList.remove('shake'), { once: true });
 }

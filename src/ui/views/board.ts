@@ -5,6 +5,7 @@
 
 import type { RpcClient } from '../api.js';
 import { attachDragDrop } from './board_dnd.js';
+import { nextColumn } from './board_validate.js';
 
 const COLUMNS = [
   'discovered', 'planned', 'approved', 'building',
@@ -33,11 +34,9 @@ function policyBadge(policy: 'manual' | 'assist' | 'auto'): string {
 
 function policyForExit(config: ProjectConfigShape, from: Column): 'manual' | 'assist' | 'auto' | null {
   // Show the badge for the forward-exit transition only (the most common move).
-  const forwardMap: Partial<Record<Column, Column>> = {
-    discovered: 'planned', planned: 'approved', approved: 'building',
-    building: 'verifying', verifying: 'shipped', shipped: 'archived',
-  };
-  const next = forwardMap[from];
+  // Forward map lives in the shared board_validate module (single source of
+  // truth for drag-drop validation and Phase 17 keyboard validation).
+  const next = nextColumn(from);
   if (!next) return null;
   return config.autonomy.transitions[`${from}_to_${next}`] ?? 'manual';
 }

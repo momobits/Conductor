@@ -477,6 +477,20 @@ main#root.page {
   border-color: var(--halt);
   cursor: not-allowed;
 }
+
+/* Phase 24: brief shake on a card tile to indicate a rejected drop.
+ * Triggered by board_dnd.ts:shakeTile when isLegalTransition(from, to)
+ * returns false. Self-clears via animationend listener so repeated
+ * shakes re-trigger cleanly. Phase 17 #41 will extend with move-mode
+ * pulse / deny / dim rules using the same animation idiom. */
+.card-tile.shake {
+  animation: shake 220ms ease-in-out;
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-3px); }
+  40%, 80% { transform: translateX(3px); }
+}
 .column.drag-blocked::after {
   content: 'NO TRANSITION';
   position: absolute;
