@@ -1,6 +1,6 @@
 # Phase 23 Steps
 
-- [ ] 23.1 — Routing PR-2 (Relay #24 dropdown dirty guard + #27 comment preservation).
+- [x] 23.1 — Routing PR-2 (Relay #24 dropdown dirty guard + #27 comment preservation).
 
 ## Step detail
 

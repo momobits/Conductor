@@ -1,8 +1,12 @@
+> **ARCHIVED — RESOLVED IN GROUPED RUN** with [ui-routing-autonomy-dropdown-overwrites-uncommitted-yaml-edits](../../implemented/ui-routing-autonomy-dropdown-overwrites-uncommitted-yaml-edits.md). See run leader's Per-Entry Closure for closure status and obligation granularity.
+
 # `config_set` strips all user comments from `config.yaml`
 
 *Created: 2026-05-15*
 *Source: Phase 21 Playwright behavior test of routing flow against omniforge.*
 *Severity: P2 — silent removal of user-authored documentation in their own config file.*
+
+> Grouped into [ui-routing-autonomy-dropdown-overwrites-uncommitted-yaml-edits.md](ui-routing-autonomy-dropdown-overwrites-uncommitted-yaml-edits.md) run on 2026-05-16. See that file for closure status and per-entry obligation.
 
 ## Problem statement
 
