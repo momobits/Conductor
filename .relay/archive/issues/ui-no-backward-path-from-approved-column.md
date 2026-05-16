@@ -1,8 +1,12 @@
+> **ARCHIVED — RESOLVED IN GROUPED RUN** with [ui-board-dnd-invalid-transition-uses-server-error-alert](../../implemented/ui-board-dnd-invalid-transition-uses-server-error-alert.md). See run leader's Per-Entry Closure for closure status and obligation granularity.
+
 # No backward UI path out of the `approved` column
 
 *Created: 2026-05-15*
 *Source: Phase 21 Playwright behavior test of forward / backward drag transitions.*
 *Severity: P2 — workflow gap: accidental forward move into `approved` is irrecoverable via UI.*
+
+> Grouped into [ui-board-dnd-invalid-transition-uses-server-error-alert.md](ui-board-dnd-invalid-transition-uses-server-error-alert.md) run on 2026-05-16. See that file for closure status and per-entry obligation.
 
 ## Problem statement
 

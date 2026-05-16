@@ -1,6 +1,6 @@
 # Phase 24 Steps
 
-- [ ] 24.1 — Board transition UX (Relay #29 forward-map validator extract + alert removal; #30 backward path approved→planned).
+- [x] 24.1 — Board transition UX (Relay #29 forward-map validator extract + alert removal; #30 backward path approved→planned).
 
 ## Step detail
 
