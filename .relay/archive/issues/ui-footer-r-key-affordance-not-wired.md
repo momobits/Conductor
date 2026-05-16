@@ -1,8 +1,12 @@
 # Footer advertises "Press R to re-tune" but no handler exists
 
+> **ARCHIVED — RESOLVED IN GROUPED RUN** with [keyboard-footer-rotation-and-help-overlay.md](../features/keyboard-footer-rotation-and-help-overlay.md). See run leader's Per-Entry Closure for closure status and obligation granularity.
+
 *Created: 2026-05-15*
 *Source: Phase 21 Playwright dogfood of Control Room UI against omniforge.*
 *Severity: P3 — false affordance in user-visible chrome.*
+
+> Grouped into [keyboard-footer-rotation-and-help-overlay.md](../features/keyboard-footer-rotation-and-help-overlay.md) run on 2026-05-16. See [keyboard-footer-rotation-and-help-overlay.md](../features/keyboard-footer-rotation-and-help-overlay.md) for closure status and per-entry obligation.
 
 ## Problem statement
 
