@@ -1,6 +1,6 @@
 # Phase 25 Steps
 
-- [ ] 25.1 — Feature 1 of 4: `keyboard-global-dispatcher` — install single global keydown listener; form-field target check; view-switch (`1/2/3`); refresh (`R`); help-overlay hook (`?`); `Escape`. Foundation for 25.2-25.4.
+- [x] 25.1 — Feature 1 of 4: `keyboard-global-dispatcher` — install single global keydown listener; form-field target check; view-switch (`1/2/3`); refresh (`R`); help-overlay hook (`?`); `Escape`. Foundation for 25.2-25.4.
 - [ ] 25.2 — Feature 2 of 4: `keyboard-board-focus-and-move` — roving focus on Board (`1..7`, arrows, `Enter`); move chord (`M`+`N`, `Shift+M`); column-highlight + footer-banner UX. Consumes `board_validate.ts` (Phase 24 substrate); also closes the validator-adoption obligation that the Phase 14 closure deferred to Phase 17 #41's spec.
 - [ ] 25.3 — Feature 3 of 4: `keyboard-approval-dialog-bindings` — extract both transition-approval dialogs into shared `src/ui/lib/dialog.ts`; add `Enter`/`Y`/`Esc`/`N` bindings + `Tab` focus trap.
 - [ ] 25.4 — Feature 4 of 4: `keyboard-footer-rotation-and-help-overlay` — per-view footer text rotation (preserves Phase-19 newspaper aesthetic) + `?` help overlay (native `<dialog>`, grouped per-view cheatsheet with active-view emphasis). Closes [[ui-footer-r-key-affordance-not-wired]] (migrated from Phase 16 #39).

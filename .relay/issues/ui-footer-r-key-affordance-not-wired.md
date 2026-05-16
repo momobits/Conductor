@@ -34,3 +34,11 @@ Option A is small (a few lines in `main.ts` calling each view's existing `refres
 
 - If A is chosen, sweep the rest of the UI for other keyboard shortcuts at the same time — there are none today, so a single "re-tune" hotkey sets the precedent.
 - If B is chosen, note that the footer styling was a deliberate Phase-19 aesthetic choice; the rewrite should keep the "◇" glyphs and italic tone.
+
+---
+
+## Resolution status — partial (2026-05-16)
+
+Half-closed by Phase 25 step 25.1 (`keyboard-global-dispatcher`, impl doc at [`keyboard-global-dispatcher.md`](../implemented/keyboard-global-dispatcher.md)). The `R` key now triggers `refreshCurrentView()` on every view, with a brief status-dot flash as visual confirmation. The footer text claim is now true on Board / Monitor / Routing / Card detail.
+
+**Still active:** the footer text is still hard-coded in `src/ui/index.html:47-51`. Phase 25 step 25.4 (feature #43 `keyboard-footer-rotation-and-help-overlay`) will replace the static footer with per-view rotation, closing the issue fully. This file stays in `.relay/issues/` until 25.4 lands; it will be archived at that resolution.
