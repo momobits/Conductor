@@ -6,29 +6,29 @@ import {
   type Shortcut,
 } from '../../src/ui/lib/footer.js';
 
-describe('selectFooterShortcuts', () => {
-  it('Board picks: 1–7 focus, M move, R re-tune, ? shortcuts', () => {
+describe('selectFooterShortcuts (Phase 25.5: Q–U columns, A refresh)', () => {
+  it('Board picks: Q–U focus, M move, A re-tune, ? shortcuts', () => {
     const picks = selectFooterShortcuts('board');
-    expect(picks.map((s) => s.key)).toEqual(['1–7', 'M', 'R', '?']);
+    expect(picks.map((s) => s.key)).toEqual(['Q–U', 'M', 'A', '?']);
     expect(picks[0]?.scope).toBe('board');
   });
 
-  it('Card picks: Esc back (card-scoped), R re-tune, ? shortcuts', () => {
+  it('Card picks: Esc back (card-scoped), A re-tune, ? shortcuts', () => {
     const picks = selectFooterShortcuts('card');
-    expect(picks.map((s) => s.key)).toEqual(['Esc', 'R', '?']);
+    expect(picks.map((s) => s.key)).toEqual(['Esc', 'A', '?']);
     expect(picks[0]?.label).toBe('back to Board');
     expect(picks[0]?.scope).toBe('card');
   });
 
-  it('Monitor picks: R re-tune, 1 Board, ? shortcuts (all global)', () => {
+  it('Monitor picks: A re-tune, 1 Board, ? shortcuts (all global)', () => {
     const picks = selectFooterShortcuts('monitor');
-    expect(picks.map((s) => s.key)).toEqual(['R', '1', '?']);
+    expect(picks.map((s) => s.key)).toEqual(['A', '1', '?']);
     expect(picks.every((s) => s.scope === 'global')).toBe(true);
   });
 
   it('Routing picks: same as Monitor (no view-scoped bindings)', () => {
     const picks = selectFooterShortcuts('routing');
-    expect(picks.map((s) => s.key)).toEqual(['R', '1', '?']);
+    expect(picks.map((s) => s.key)).toEqual(['A', '1', '?']);
   });
 
   it('accepts a custom SHORTCUTS array for test isolation', () => {

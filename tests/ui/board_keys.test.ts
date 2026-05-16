@@ -28,22 +28,34 @@ function state(over: Partial<BoardKeyState> = {}): BoardKeyState {
   return { focused: null, moveMode: false, counts: EMPTY_COUNTS, ...over };
 }
 
-describe('decideBoardAction — column focus', () => {
-  it('1..7 → focus-column with correct index', () => {
+describe('decideBoardAction — column focus (Phase 25.5 letter remap)', () => {
+  it('Q W E R T Y U → focus-column with correct index', () => {
+    const letters = ['q', 'w', 'e', 'r', 't', 'y', 'u'];
+    letters.forEach((letter, i) => {
+      expect(decideBoardAction(ev(letter), state()))
+        .toEqual({ kind: 'focus-column', columnIndex: i });
+    });
+  });
+  it('uppercase Q W E R T Y U also focus columns (case-insensitive)', () => {
+    expect(decideBoardAction(ev('Q'), state()))
+      .toEqual({ kind: 'focus-column', columnIndex: 0 });
+    expect(decideBoardAction(ev('U'), state()))
+      .toEqual({ kind: 'focus-column', columnIndex: 6 });
+  });
+  it('1..7 (the pre-25.5 column keys) → noop (released for view-switch)', () => {
     for (let i = 1; i <= 7; i++) {
-      expect(decideBoardAction(ev(String(i)), state()))
-        .toEqual({ kind: 'focus-column', columnIndex: i - 1 });
+      expect(decideBoardAction(ev(String(i)), state())).toEqual({ kind: 'noop' });
     }
   });
-  it('0/8/9 → noop', () => {
-    for (const k of ['0', '8', '9']) {
+  it('other letters and digits → noop', () => {
+    for (const k of ['0', '8', '9', 'i', 'o', 'p', 'z']) {
       expect(decideBoardAction(ev(k), state())).toEqual({ kind: 'noop' });
     }
   });
-  it('Ctrl+1, Meta+1, Alt+1 → noop (modifier hygiene)', () => {
-    expect(decideBoardAction(ev('1', { ctrlKey: true }), state())).toEqual({ kind: 'noop' });
-    expect(decideBoardAction(ev('1', { metaKey: true }), state())).toEqual({ kind: 'noop' });
-    expect(decideBoardAction(ev('1', { altKey:  true }), state())).toEqual({ kind: 'noop' });
+  it('Ctrl+Q, Meta+Q, Alt+Q → noop (modifier hygiene)', () => {
+    expect(decideBoardAction(ev('q', { ctrlKey: true }), state())).toEqual({ kind: 'noop' });
+    expect(decideBoardAction(ev('q', { metaKey: true }), state())).toEqual({ kind: 'noop' });
+    expect(decideBoardAction(ev('q', { altKey:  true }), state())).toEqual({ kind: 'noop' });
   });
 });
 
@@ -89,12 +101,24 @@ describe('decideBoardAction — M / Shift+M edge cases', () => {
   });
 });
 
-describe('decideBoardAction — move mode', () => {
+describe('decideBoardAction — move mode (Phase 25.5 letter remap)', () => {
   const moveState = state({ focused: { column: 'planned', index: 0, id: 'P-1' }, moveMode: true });
-  it('1..7 → attempt-move with toIndex 0..6', () => {
+  it('Q W E R T Y U → attempt-move with toIndex 0..6', () => {
+    const letters = ['q', 'w', 'e', 'r', 't', 'y', 'u'];
+    letters.forEach((letter, i) => {
+      expect(decideBoardAction(ev(letter), moveState))
+        .toEqual({ kind: 'attempt-move', toIndex: i });
+    });
+  });
+  it('uppercase letters also attempt-move (case-insensitive)', () => {
+    expect(decideBoardAction(ev('Q'), moveState))
+      .toEqual({ kind: 'attempt-move', toIndex: 0 });
+    expect(decideBoardAction(ev('U'), moveState))
+      .toEqual({ kind: 'attempt-move', toIndex: 6 });
+  });
+  it('1..7 (pre-25.5 attempt keys) → exit-move-mode (unmodified single chars exit)', () => {
     for (let i = 1; i <= 7; i++) {
-      expect(decideBoardAction(ev(String(i)), moveState))
-        .toEqual({ kind: 'attempt-move', toIndex: i - 1 });
+      expect(decideBoardAction(ev(String(i)), moveState)).toEqual({ kind: 'exit-move-mode' });
     }
   });
   it('8 → exit-move-mode (per spec: any other unmodified key exits)', () => {
@@ -103,15 +127,15 @@ describe('decideBoardAction — move mode', () => {
   it('Escape → exit-move-mode', () => {
     expect(decideBoardAction(ev('Escape'), moveState)).toEqual({ kind: 'exit-move-mode' });
   });
-  it('printable char → exit-move-mode (spec: any other key exits)', () => {
+  it('non-column printable char → exit-move-mode (spec: any other key exits)', () => {
     expect(decideBoardAction(ev('x'), moveState)).toEqual({ kind: 'exit-move-mode' });
     expect(decideBoardAction(ev('?'), moveState)).toEqual({ kind: 'exit-move-mode' });
   });
   it('Shift alone → noop (chord prefix, must NOT exit)', () => {
     expect(decideBoardAction(ev('Shift'), moveState)).toEqual({ kind: 'noop' });
   });
-  it('Ctrl+1 in move mode → noop (modifier-bearing skipped)', () => {
-    expect(decideBoardAction(ev('1', { ctrlKey: true }), moveState)).toEqual({ kind: 'noop' });
+  it('Ctrl+Q in move mode → noop (modifier-bearing skipped)', () => {
+    expect(decideBoardAction(ev('q', { ctrlKey: true }), moveState)).toEqual({ kind: 'noop' });
   });
 });
 

@@ -68,7 +68,7 @@ export function handleKey(ev: KeyboardEvent, ctx: KeyContext): boolean {
       if (ev.key === '2') { ctx.navigateTo('monitor'); return true; }
       if (ev.key === '3') { ctx.navigateTo('routing'); return true; }
     }
-    if (ev.key === 'r' || ev.key === 'R') {
+    if (ev.key === 'a' || ev.key === 'A') {
       void ctx.refreshCurrentView();
       return true;
     }

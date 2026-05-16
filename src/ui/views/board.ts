@@ -14,6 +14,12 @@ const COLUMNS = [
 ] as const;
 type Column = typeof COLUMNS[number];
 
+// Phase 25.5: column header labels match the keyboard hotkeys (QWERTY top
+// row, left half). Drives `.column[data-num]::before { content: attr(data-num) }`
+// at app.css:326-339. Originally '01'..'07'; remapped during smoke since the
+// 1..7 digit hotkeys collided with the dispatcher's 1/2/3 view-switch.
+const COLUMN_LETTERS = ['Q', 'W', 'E', 'R', 'T', 'Y', 'U'] as const;
+
 interface CardSummary {
   frontmatter: {
     id: string; title: string; kind: string; column: Column;
@@ -85,7 +91,7 @@ export async function renderBoard(
           ${COLUMNS.map((col, i) => {
             const policy = policyForExit(config, col);
             const badge = policy ? policyBadge(policy) : '';
-            const num = String(i + 1).padStart(2, '0');
+            const num = COLUMN_LETTERS[i] ?? '';
             const count = grouped[col].length;
             return `
               <section class="column" data-column="${col}" data-num="${num}">

@@ -23,10 +23,10 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { key: '1',     label: 'Board',                  scope: 'global' },
   { key: '2',     label: 'Monitor',                scope: 'global' },
   { key: '3',     label: 'Routing',                scope: 'global' },
-  { key: 'R',     label: 're-tune (refresh)',      scope: 'global' },
+  { key: 'A',     label: 're-tune (refresh)',      scope: 'global' },
   { key: '?',     label: 'shortcuts',              scope: 'global' },
   { key: 'Esc',   label: 'close dialog',           scope: 'global' },
-  { key: '1–7',   label: 'focus column',           scope: 'board' },
+  { key: 'Q–U',   label: 'focus column',           scope: 'board' },
   { key: '↑ ↓',   label: 'focus tile',             scope: 'board' },
   { key: '← →',   label: 'switch column',          scope: 'board' },
   { key: 'Enter', label: 'open card',              scope: 'board' },
@@ -41,12 +41,12 @@ export function selectFooterShortcuts(
   all: readonly Shortcut[] = SHORTCUTS,
 ): readonly Shortcut[] {
   if (view === 'board') {
-    return pickByKeys(all, ['1–7', 'M', 'R', '?']);
+    return pickByKeys(all, ['Q–U', 'M', 'A', '?']);
   }
   if (view === 'card') {
-    return pickByKeys(all, ['Esc', 'R', '?'], 'card');
+    return pickByKeys(all, ['Esc', 'A', '?'], 'card');
   }
-  return pickByKeys(all, ['R', '1', '?']);
+  return pickByKeys(all, ['A', '1', '?']);
 }
 
 function pickByKeys(

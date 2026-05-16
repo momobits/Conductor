@@ -1,7 +1,7 @@
-# Phase 25 — Keyboard-accessible Control Room (4 designed features)
+# Phase 25 — Keyboard-accessible Control Room (4 designed features + 1 smoke-surfaced ergonomics revision)
 
 **Dependencies:** Phase 24 closed (`phase-24-board-transition-ux-closed`)
-**Estimated duration:** ~3-4 sessions (M + L + S + M complexity across 4 features)
+**Estimated duration:** ~3-4 sessions (M + L + S + M complexity across 4 features) + 1 in-phase patch (Step 25.5, surfaced during smoke of 25.1-25.4)
 
 ## Goal
 Close out Relay Phase 17 — the keyboard layer designed via `/relay-brainstorm` + `/relay-design` on 2026-05-15. Make every interactive surface of the Control Room reachable from the keyboard without mouse interaction: view switching, board navigation + transitions, approval dialogs, and a discoverable per-view footer + help overlay.
@@ -23,13 +23,14 @@ See `steps.md` for the detailed checklist.
 ## Done criteria
 All must be verified before `/phase-close` advances:
 
-- [ ] All items in `steps.md` checked off, each with a commit reference
+- [ ] All items in `steps.md` checked off, each with a commit reference (5 steps total after the 25.5 ergonomics revision)
 - [ ] `.control/issues/OPEN/` contains no items tagged `phase:25-blocker`
-- [ ] Automated tests pass: `npm test` (baseline 666 from Phase 24; expect ≥ 666 modulo the known flake)
+- [ ] Automated tests pass: `npm test` (baseline 666 from Phase 24; expect ≥ 666 modulo the known flake; landed at 729 after 25.4, same count after 25.5 with assertions remapped to letters)
 - [ ] Global dispatcher regression test: single keydown listener installed; form-field targets bypass shortcut routing
-- [ ] Board key navigation regression test: column digits focus tiles; arrow keys walk; `M` enters move mode; illegal targets shake via the shared `board_validate.ts` `isLegalTransition`
+- [ ] Board key navigation regression test: column letters (`Q W E R T Y U`) focus tiles; arrow keys walk; `M` enters move mode; illegal targets shake via the shared `board_validate.ts` `isLegalTransition`
 - [ ] Dialog bindings regression test: `Enter`/`Y` confirm; `Esc`/`N` cancel; `Tab` focus trap loops
 - [ ] Footer rotation + help overlay regression test: per-view footer text updates on view change; `?` opens the help overlay; `Esc` closes it
+- [ ] Refresh binding regression test: `A` (post-25.5 remap) triggers `refreshCurrentView()` + status-dot flash; `R` no longer bound (released for column 4 focus)
 - [ ] Smoke test: each feature walked end-to-end against the running daemon
 - [ ] Working tree is clean
 - [ ] All commits follow the `<type>(<phase>.<step>): <subject>` convention

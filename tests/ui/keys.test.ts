@@ -87,24 +87,30 @@ describe('handleKey — view switching', () => {
   });
 });
 
-describe('handleKey — refresh (R)', () => {
-  it('R (uppercase) triggers refreshCurrentView', () => {
+describe('handleKey — refresh (A — Phase 25.5 remap from R)', () => {
+  it('A (uppercase) triggers refreshCurrentView', () => {
     const ctx = stubCtx();
-    expect(handleKey(makeEvent('R'), ctx)).toBe(true);
+    expect(handleKey(makeEvent('A'), ctx)).toBe(true);
     expect(ctx.refreshCurrentView).toHaveBeenCalled();
   });
-  it('r (lowercase) also triggers refreshCurrentView', () => {
+  it('a (lowercase) also triggers refreshCurrentView', () => {
     const ctx = stubCtx();
-    expect(handleKey(makeEvent('r'), ctx)).toBe(true);
+    expect(handleKey(makeEvent('a'), ctx)).toBe(true);
     expect(ctx.refreshCurrentView).toHaveBeenCalled();
   });
-  it('does NOT fire R when typing in a form field', () => {
+  it('does NOT fire A when typing in a form field', () => {
     const ctx = stubCtx();
-    expect(handleKey(makeEvent('r', { tagName: 'INPUT' }), ctx)).toBe(false);
+    expect(handleKey(makeEvent('a', { tagName: 'INPUT' }), ctx)).toBe(false);
     expect(ctx.refreshCurrentView).not.toHaveBeenCalled();
   });
-  it('does NOT fire R when a dialog is open', () => {
+  it('does NOT fire A when a dialog is open', () => {
     const ctx = stubCtx({ dialogIsOpen: vi.fn().mockReturnValue(true) });
+    expect(handleKey(makeEvent('a'), ctx)).toBe(false);
+    expect(ctx.refreshCurrentView).not.toHaveBeenCalled();
+  });
+  it('R (the pre-25.5 refresh key) no longer triggers refresh — released for board column 4', () => {
+    const ctx = stubCtx();
+    expect(handleKey(makeEvent('R'), ctx)).toBe(false);
     expect(handleKey(makeEvent('r'), ctx)).toBe(false);
     expect(ctx.refreshCurrentView).not.toHaveBeenCalled();
   });

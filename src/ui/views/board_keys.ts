@@ -29,6 +29,20 @@ const COL_INDEX: Readonly<Record<Column, number>> = {
   verifying: 4, shipped: 5, archived: 6,
 };
 
+/** QWERTY top-row column hotkeys (Phase 25.5 ergonomics revision: replaces
+ *  the original 1..7 mapping which collided with view-switch 1/2/3). Maps
+ *  the lowercase key to a 0-based column index. */
+const COLUMN_LETTER_INDEX: Readonly<Record<string, number>> = {
+  q: 0, w: 1, e: 2, r: 3, t: 4, y: 5, u: 6,
+};
+
+function columnIndexForLetter(key: string): number | null {
+  const lower = key.toLowerCase();
+  if (lower.length !== 1) return null;
+  const idx = COLUMN_LETTER_INDEX[lower];
+  return idx === undefined ? null : idx;
+}
+
 type Policy = 'manual' | 'assist' | 'auto';
 interface ProjectConfigShape {
   autonomy: { transitions: Record<string, Policy> };
@@ -74,8 +88,11 @@ export function decideBoardAction(ev: KeyboardEvent, state: BoardKeyState): Boar
 
   if (state.moveMode) {
     if (ev.key === 'Escape') return { kind: 'exit-move-mode' };
-    if (noMods && /^[1-7]$/.test(ev.key)) {
-      return { kind: 'attempt-move', toIndex: Number(ev.key) - 1 };
+    if (noMods) {
+      const colIdx = columnIndexForLetter(ev.key);
+      if (colIdx !== null) {
+        return { kind: 'attempt-move', toIndex: colIdx };
+      }
     }
     if (noMods && (ev.key.length === 1 || ev.key === 'Tab' || ev.key === 'Enter')) {
       return { kind: 'exit-move-mode' };
@@ -83,8 +100,11 @@ export function decideBoardAction(ev: KeyboardEvent, state: BoardKeyState): Boar
     return { kind: 'noop' };
   }
 
-  if (noMods && /^[1-7]$/.test(ev.key)) {
-    return { kind: 'focus-column', columnIndex: Number(ev.key) - 1 };
+  if (noMods) {
+    const colIdx = columnIndexForLetter(ev.key);
+    if (colIdx !== null) {
+      return { kind: 'focus-column', columnIndex: colIdx };
+    }
   }
   if (noMods && ev.key === 'ArrowUp')    return { kind: 'move-within', delta: -1 };
   if (noMods && ev.key === 'ArrowDown')  return { kind: 'move-within', delta: 1 };
@@ -184,7 +204,7 @@ export function attachBoardKeys(opts: BoardKeysOpts): BoardKeysHandle {
     moveMode = true;
     opts.root.querySelector<HTMLElement>('.board-shell')?.setAttribute('data-move-mode', 'true');
     applyLegalTargets(focused.column);
-    updateFooter('board', '◇ Move → press column <kbd>01–07</kbd> · <kbd>Esc</kbd> cancel ◇');
+    updateFooter('board', '◇ Move → press column <kbd>Q–U</kbd> · <kbd>Esc</kbd> cancel ◇');
     return true;
   }
 
