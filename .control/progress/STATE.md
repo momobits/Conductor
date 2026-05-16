@@ -3,10 +3,10 @@
 > Single source of truth. Read this first every session. Updated at every
 > `/session-end` and by the `PreCompact` hook. Every field has a purpose -- fill each.
 
-**Last updated:** 2026-05-16 by /phase-close (Phase 24 → Phase 25 transition)
+**Last updated:** 2026-05-16 by /session-end (sid-2026-05-16-phases-23-and-24-grouped-runs)
 **Current phase:** 25 — Keyboard-accessible Control Room (Relay Phase 17: 4 designed features)
 **Current step:** 25.1 — Relay Phase 17 #40 (`keyboard-global-dispatcher`)
-**Status:** kicked-off (Phase 24 closed cleanly at tag `phase-24-board-transition-ux-closed`; Phase 25 scaffold authored with 4 steps mapping to features #40-#43 in strict declared order; `board_validate.ts` substrate available for step 25.2)
+**Status:** kicked-off (Phase 24 closed cleanly at tag `phase-24-board-transition-ux-closed`; Phase 25 scaffold authored with 4 steps mapping to features #40-#43 in strict declared order; `board_validate.ts` substrate available for step 25.2; session-end at 666 tests / 12 Control phase tags placed; ready to resume with `/relay-analyze keyboard-global-dispatcher.md`)
 
 ---
 
