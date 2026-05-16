@@ -16,6 +16,32 @@ function escape(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 }
 
+/** Surgical in-place patch of the `autonomy.default:` line inside a YAML string.
+ *  Anchors to the canonical `configToYaml` shape: `autonomy:` flush-left, then
+ *  `  default: <value>` at two-space indent. Returns `null` on unrecognized
+ *  shapes so the caller can skip the textarea update rather than mis-patch.
+ *  Used by the autonomy dropdown's change handler to flip modes without
+ *  destroying the user's uncommitted edits elsewhere in the textarea. */
+export function replaceAutonomyDefault(yaml: string, mode: string): string | null {
+  const lines = yaml.split('\n');
+  let inAutonomy = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? '';
+    if (/^autonomy:\s*$/.test(line)) {
+      inAutonomy = true;
+      continue;
+    }
+    if (inAutonomy && /^[^\s#]/.test(line)) {
+      break;
+    }
+    if (inAutonomy && /^\s+default:\s*\S+\s*$/.test(line)) {
+      lines[i] = line.replace(/(default:\s*)\S+/, (_match, p1: string) => p1 + mode);
+      return lines.join('\n');
+    }
+  }
+  return null;
+}
+
 function configToYaml(config: ProjectConfigShape): string {
   // Hand-roll a minimal YAML dump so we don't need js-yaml in the browser.
   // The server will validate the result, so format quirks become 32602
@@ -114,8 +140,13 @@ export async function renderRouting(rpc: RpcClient, root: HTMLElement): Promise<
       autonomyStatus.textContent = '⌁ saved';
       autonomyStatus.dataset.state = 'ok';
       autonomyStatus.hidden = false;
-      const r = await rpc.call<{ config: ProjectConfigShape }>('config_get');
-      ta.value = configToYaml(r.config);
+      // Surgical patch instead of destructive re-fetch: replace only the
+      // autonomy.default line in the textarea, preserving any uncommitted
+      // edits elsewhere. Closes Relay #24.
+      const patched = replaceAutonomyDefault(ta.value, autonomySelect.value);
+      if (patched !== null) {
+        ta.value = patched;
+      }
     } catch (err) {
       autonomyStatus.textContent = `failed: ${(err as Error).message}`;
       autonomyStatus.dataset.state = 'error';
