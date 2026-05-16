@@ -217,6 +217,65 @@ describe('rpc methods', () => {
     ).rejects.toThrow();
   });
 
+  it('config_set preserves disk-resident customizations on partial commit (#25)', async () => {
+    const repo = setupRepo();
+    const fs = await import('node:fs/promises');
+    // Pre-seed disk with a customized cost_ceilings block.
+    await fs.writeFile(
+      join(repo, '.conductor', 'config.yaml'),
+      `routing:
+  default: claude-sonnet-4-6
+  functions: {}
+verify_command: npm test
+cost_ceilings:
+  per_card_dollars: 0.5
+  halt_on_breach: true
+`,
+      'utf8',
+    );
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    // Send a partial body (textarea-shape: routing + autonomy + verify_command only).
+    const partialBody = {
+      routing: { default: 'gpt-5', functions: {} },
+      autonomy: {
+        default: 'auto',
+        transitions: {
+          discovered_to_planned: 'auto',
+          planned_to_approved: 'assist',
+          approved_to_building: 'manual',
+          building_to_verifying: 'auto',
+          verifying_to_shipped: 'assist',
+          shipped_to_archived: 'manual',
+        },
+      },
+      verify_command: 'npm run verify',
+    };
+    await methods.config_set(ctx, { config: partialBody });
+    // Disk-resident cost_ceilings customizations MUST survive the commit.
+    const result = await methods.config_get(ctx, {}) as { config: { cost_ceilings: { per_card_dollars: number; halt_on_breach: boolean }; routing: { default: string } } };
+    expect(result.config.cost_ceilings.per_card_dollars).toBe(0.5);
+    expect(result.config.cost_ceilings.halt_on_breach).toBe(true);
+    // And the patched fields landed on disk.
+    expect(result.config.routing.default).toBe('gpt-5');
+  });
+
+  it('config_set roundtrip with Infinity defaults works without scrubbing (#26)', async () => {
+    const repo = setupRepo();
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    // First commit a baseline so disk exists.
+    await methods.config_set(ctx, {
+      config: { routing: { default: 'claude-sonnet-4-6', functions: {} } },
+    });
+    // Read full config; this returns Infinity in-process, but JSON serialization
+    // over the wire would convert it to null. Simulate the wire round-trip.
+    const { config } = await methods.config_get(ctx, {}) as { config: unknown };
+    const wire = JSON.parse(JSON.stringify(config));
+    // Re-commit the wire-form (which has cost_ceilings.per_card_dollars: null).
+    // Should succeed without -32602 invalid_type rejection.
+    const result = await methods.config_set(ctx, { config: wire });
+    expect(result).toEqual({ ok: true });
+  });
+
   it('config_set publishes config-changed on the bus', async () => {
     const repo = setupRepo();
     const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };

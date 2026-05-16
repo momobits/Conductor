@@ -5,7 +5,8 @@
 // boundary and calls into the engine.
 
 import { join } from 'node:path';
-import type { ProjectConfig } from '../config/schema.js';
+import { z } from 'zod';
+import { ProjectConfigSchema, type ProjectConfig } from '../config/schema.js';
 import type { RuntimeStore } from '../daemon/runtime.js';
 import type { EventBus } from '../daemon/event_bus.js';
 import {
@@ -13,7 +14,7 @@ import {
   TransitionParams, ScanParams, OrderParams, DiscoverParams,
   ExerciseNewParams, ExerciseFileParams,
   WorkCardParams, WorkNextParams, RecommendParams,
-  ConfigGetParams, ConfigSetParams, SessionStatusParams,
+  ConfigGetParams, SessionStatusParams,
   ChatParams,
   ConductorStartParams, ConductorStopParams, ConductorStatusParams, ConductorSetAutonomyParams,
   TrackerPullParams,
@@ -235,13 +236,60 @@ async function config_get(ctx: MethodContext, raw: unknown) {
 }
 
 async function config_set(ctx: MethodContext, raw: unknown) {
-  const p = ConfigSetParams.parse(raw);
-  const yaml = yamlDump(p.config, { lineWidth: 100, noRefs: true });
+  // Phase 22: bypass ConfigSetParams.parse (which would fill schema defaults
+  // for omitted top-level fields and clobber disk-resident customizations).
+  // Shape-check the wrapper but keep the inner config as Partial.
+  const raw_params = z.object({ config: z.record(z.unknown()) }).parse(raw);
+  const partial = raw_params.config;
+  // Read disk baseline (full ProjectConfig with defaults filled from on-disk state).
+  let disk: ProjectConfig;
+  try {
+    disk = await loadProjectConfig(join(ctx.repo, '.conductor', 'config.yaml'));
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') {
+      disk = ProjectConfigSchema.parse({});
+    } else {
+      throw err;
+    }
+  }
+  // Deep-merge user's partial over disk baseline (patch wins per-field; omitted
+  // fields preserve disk state). Closes Relay #25.
+  const merged = deepMergeConfig(disk, partial);
+  // Re-validate merged result via strict schema (catches user input type errors
+  // such as routing.default: 123 without scrubbing disk state).
+  const validated = ProjectConfigSchema.parse(merged);
+  const yaml = yamlDump(validated, { lineWidth: 100, noRefs: true });
   await writeFile(join(ctx.repo, '.conductor', 'config.yaml'), yaml, 'utf-8');
-  // Update daemon's in-memory copy so subsequent calls in this session use it.
-  Object.assign(ctx.config, p.config);
+  // Align daemon's in-memory copy with merged disk state.
+  Object.assign(ctx.config, validated);
   ctx.bus?.publish({ kind: 'config-changed' });
   return { ok: true as const };
+}
+
+/** Deep-merge a partial config patch over a fully-parsed baseline. Plain-object
+ *  pairs are shallow-merged at the second level; arrays and primitives are
+ *  replaced wholesale (patch wins). The `tracker` discriminatedUnion is replaced
+ *  wholesale when `kind` differs so fields don't cross-pollinate between variants.
+ *  Used by config_set to preserve on-disk customizations the textarea doesn't model. */
+function deepMergeConfig(base: ProjectConfig, patch: Record<string, unknown>): ProjectConfig {
+  const out: Record<string, unknown> = { ...base };
+  for (const [key, patchVal] of Object.entries(patch)) {
+    const baseVal = (base as Record<string, unknown>)[key];
+    if (isPlainObject(patchVal) && isPlainObject(baseVal)) {
+      if (key === 'tracker' && (patchVal as { kind?: string }).kind !== (baseVal as { kind?: string }).kind) {
+        out[key] = patchVal;
+      } else {
+        out[key] = { ...baseVal, ...patchVal };
+      }
+    } else {
+      out[key] = patchVal;
+    }
+  }
+  return out as ProjectConfig;
+}
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
 async function session_status(ctx: MethodContext, raw: unknown) {
