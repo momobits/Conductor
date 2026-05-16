@@ -8,12 +8,14 @@ import { makeClient, type RpcClient } from './api.js';
 import { renderBoard } from './views/board.js';
 import { EventStream } from './events.js';
 import { renderCardDetail } from './views/card_detail.js';
+import { installGlobalKeys, type KeyContext, type ViewName } from './lib/keys.js';
 
 interface AppContext {
   rpc: RpcClient;
   token: string;
   stream: EventStream;
-  boardRefresh?: () => Promise<void>;
+  refreshCurrentView: () => Promise<void>;
+  boardKeyHandler: ((ev: KeyboardEvent) => boolean) | null;
 }
 
 function readToken(): string | null {
@@ -45,6 +47,44 @@ function setActiveNav() {
   });
 }
 
+function currentViewName(): ViewName {
+  const hash = (window.location.hash || '#/board').slice(1);
+  const view = hash.split('/').filter(Boolean)[0] ?? 'board';
+  return (view === 'board' || view === 'monitor' || view === 'routing' || view === 'card')
+    ? view
+    : 'board';
+}
+
+function flashStatusDot(): void {
+  const dot = document.querySelector<HTMLElement>('#status .status-dot');
+  if (!dot) return;
+  dot.classList.remove('flash');
+  void dot.offsetWidth;
+  dot.classList.add('flash');
+  dot.addEventListener('animationend', () => {
+    dot.classList.remove('flash');
+  }, { once: true });
+}
+
+async function openStubHelpOverlay(): Promise<void> {
+  const existing = document.querySelector<HTMLDialogElement>(
+    'dialog.help-overlay-stub[open]'
+  );
+  if (existing) { existing.close(); return; }
+  const dlg = document.createElement('dialog');
+  dlg.className = 'help-overlay-stub';
+  dlg.innerHTML = `
+    <div style="padding:1rem; min-width:24ch;">
+      <p>Shortcuts (full overlay arrives with the help-overlay feature).</p>
+      <form method="dialog"><button autofocus>Close</button></form>
+    </div>`;
+  document.body.appendChild(dlg);
+  dlg.showModal();
+  return new Promise<void>((resolve) => {
+    dlg.addEventListener('close', () => { dlg.remove(); resolve(); }, { once: true });
+  });
+}
+
 async function bootstrap(): Promise<AppContext | null> {
   const token = readToken();
   if (!token) {
@@ -72,7 +112,11 @@ async function bootstrap(): Promise<AppContext | null> {
   }
   const stream = new EventStream(token);
   stream.start();
-  return { rpc, token, stream };
+  return {
+    rpc, token, stream,
+    refreshCurrentView: async () => {},
+    boardKeyHandler: null,
+  };
 }
 
 let detailCleanup: (() => void) | null = null;
@@ -80,7 +124,8 @@ let detailCleanup: (() => void) | null = null;
 async function dispatch(ctx: AppContext) {
   detailCleanup?.();
   detailCleanup = null;
-  ctx.boardRefresh = undefined;
+  ctx.refreshCurrentView = async () => {};
+  ctx.boardKeyHandler = null;
   setActiveNav();
   const root = document.getElementById('root') as HTMLElement;
   const hash = (window.location.hash || '#/board').slice(1);
@@ -89,17 +134,25 @@ async function dispatch(ctx: AppContext) {
   const params = parts.slice(1);
   if (view === 'board') {
     const { refresh } = await renderBoard(ctx.rpc, root);
-    ctx.boardRefresh = refresh;
+    ctx.refreshCurrentView = refresh;
   } else if (view === 'card' && params[0]) {
-    const result = await renderCardDetail(ctx.rpc, ctx.stream, root, params[0]);
+    const cardId = params[0];
+    const result = await renderCardDetail(ctx.rpc, ctx.stream, root, cardId);
     detailCleanup = result.cleanup;
+    ctx.refreshCurrentView = async () => {
+      detailCleanup?.();
+      const fresh = await renderCardDetail(ctx.rpc, ctx.stream, root, cardId);
+      detailCleanup = fresh.cleanup;
+    };
   } else if (view === 'monitor') {
     const { renderMonitor } = await import('./views/monitor.js');
     const result = await renderMonitor(ctx.rpc, ctx.stream, root);
     detailCleanup = result.cleanup;
+    ctx.refreshCurrentView = result.refresh;
   } else if (view === 'routing') {
     const { renderRouting } = await import('./views/routing.js');
-    await renderRouting(ctx.rpc, root);
+    const { refresh } = await renderRouting(ctx.rpc, root);
+    ctx.refreshCurrentView = refresh;
   } else {
     root.innerHTML = '<p>Unknown view.</p>';
   }
@@ -111,9 +164,20 @@ async function main() {
   await dispatch(ctx);
   ctx.stream.on((e) => {
     if (e.kind === 'cards-changed' || e.kind === 'state-changed' || e.kind === 'session-end') {
-      ctx.boardRefresh?.();
+      void ctx.refreshCurrentView();
     }
   });
+
+  const keyCtx: KeyContext = {
+    refreshCurrentView: async () => { flashStatusDot(); await ctx.refreshCurrentView(); },
+    openHelpOverlay: openStubHelpOverlay,
+    navigateTo: (v) => { window.location.hash = `#/${v}`; },
+    get boardKeyHandler() { return ctx.boardKeyHandler; },
+    dialogIsOpen: () => document.querySelector('dialog[open]') !== null,
+    currentView: currentViewName,
+  };
+  installGlobalKeys(keyCtx);
+
   window.addEventListener('hashchange', () => { dispatch(ctx); });
 }
 

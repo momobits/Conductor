@@ -98,7 +98,10 @@ function yamlToConfig(yaml: string): ProjectConfigShape {
   return { routing, autonomy, verify_command };
 }
 
-export async function renderRouting(rpc: RpcClient, root: HTMLElement): Promise<void> {
+export async function renderRouting(
+  rpc: RpcClient,
+  root: HTMLElement,
+): Promise<{ refresh: () => Promise<void> }> {
   const result = await rpc.call<{ config: ProjectConfigShape }>('config_get');
   const yaml = configToYaml(result.config);
   const currentMode = result.config.autonomy.default;
@@ -181,10 +184,15 @@ export async function renderRouting(rpc: RpcClient, root: HTMLElement): Promise<
     }
   });
 
-  reloadBtn.addEventListener('click', async () => {
+  async function refresh(): Promise<void> {
     const r = await rpc.call<{ config: ProjectConfigShape }>('config_get');
     ta.value = configToYaml(r.config);
+    autonomySelect.value = r.config.autonomy.default;
     errEl.hidden = true;
     delete errEl.dataset.ok;
-  });
+  }
+
+  reloadBtn.addEventListener('click', refresh);
+
+  return { refresh };
 }

@@ -18,7 +18,7 @@ export async function renderMonitor(
   rpc: RpcClient,
   stream: EventStream,
   root: HTMLElement,
-): Promise<{ cleanup: () => void }> {
+): Promise<{ cleanup: () => void; refresh: () => Promise<void> }> {
   let sessions: Session[] = [];
   let brain: BrainStatus = { running: false, iteration: 0, halts: 0 };
   const brainLog: string[] = [];
@@ -129,5 +129,5 @@ export async function renderMonitor(
     }
   });
 
-  return { cleanup: unsub };
+  return { cleanup: unsub, refresh };
 }
