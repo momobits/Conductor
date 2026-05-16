@@ -3,7 +3,7 @@
 > Single source of truth. Read this first every session. Updated at every
 > `/session-end` and by the `PreCompact` hook. Every field has a purpose -- fill each.
 
-**Last updated:** 2026-05-16 by /phase-close (sid-2026-05-16-phase-23-routing-pr2)
+**Last updated:** 2026-05-16 by /session-end (sid-2026-05-16-phase-21-and-22-grouped-runs)
 **Current phase:** 23 — Routing PR-2 (dropdown dirty guard + yaml comment preservation)
 **Current step:** 23.1 — Relay Phase 13 PR-2 (#24 + #27)
 **Status:** kicked-off (Phase 22 closed cleanly at tag `phase-22-routing-config-destructiveness-closed`; Phase 23 scaffold authored; PR-1 unblocked PR-2 mechanically)
@@ -99,26 +99,18 @@ Control phase tags placed: `phase-13-...-closed` through `phase-22-routing-confi
 
 ## Notes for next session
 
-**Active Relay backlog is empty.** All 20 items resolved across 11 Relay phases (2026-05-12 dogfood + Phase 9 gitignore-template carry-over + 2026-05-15 omniforge dogfood + Phase 19 UI redesign + Phase 20 venv-aware verify_command). The `--browser` flag carry-forward from Phase 18 was closed WONT-DO mid-Phase-19.
+Phase 23 (`routing-pr2`) closes Relay Phase 13 PR-2: #24 (autonomy dropdown overwrites uncommitted yaml edits — P1, S-complexity, leader) + #27 (config_set strips yaml comments — P2, M-complexity, sibling). Both touch `src/ui/views/routing.ts` and the `config_set` write path. PR-1's merge-aware `config_set` (shipped Phase 22) is now in place — the surgical-update implementation #24 needs can call into it. Comment preservation has Option A (heuristic: re-inject leading comment block above `routing:`) as the lightest unblock; escalate to a comment-preserving YAML AST library if dogfood reveals shapes that heuristic doesn't cover.
 
-Three recommended paths to author Phase 21:
+Pattern precedent recap (cite if a future ADR session writes one — all currently at deferred status):
+- **Pure-helper extraction for testable CLI print-shape contracts** (n=4 — Phase 18 `formatDaemonStartedMessage`, Phase 20 `detectPythonVerifyCommand`, Phase 21 substrate helpers, Phase 22 `deepMergeConfig`/`isPlainObject`). Promotion threshold long fired.
+- **JSONL/markdown-writer with prune-at-boot** (n=3 — `RunLogWriter`, `BrainLogWriter` Phase 6, `RunArtifactWriter` + `ChatLogWriter` Phase 21). Promotion threshold fired.
+- **In-memory hand-off between same-run ops via typed args** (Phase 21 `PlanArgs.analysis` instead of `extractSection(card.body, 'Analysis')`). Single instance so far; worth watching if Phase 23+ chooses a similar pattern.
+- **Schema-layer JSON sentinel coercion via `z.preprocess`** (Phase 22 `null → Infinity` on `cost_ceilings`). Single instance; pattern worth flagging if other non-JSON-representable defaults appear.
 
-1. **`/relay-discover`** — codebase scan for new TODOs / drift / latent gaps surfaced by the substantial changes since Phase 13:
-   - Phase 13: `src/engine/ops/plan.ts` SYSTEM_PROMPT restructure with H3 preamble + scan-first defensive clause.
-   - Phase 14: `src/daemon/brain_log.ts` (new module) + `src/daemon/index.ts` lifecycle wiring + `src/config/schema.ts` new `brain_log` block.
-   - Phase 15: `docs/operations.md`, `docs/quickstart.md`, `docs/mcp.md` substantial doc expansion; `src/cli/commands/transition.ts` and `src/daemon/mcp_server.ts` `.description()` text.
-   - Phase 17: `src/cli/commands/init.ts` gitignore generator + tests; `docs/operations.md § Auth token lifecycle` template correction; repo's own `.gitignore` correction.
-   - Phase 18: `src/cli/commands/daemon.ts` token-bearing URL print + `formatDaemonStartedMessage` helper; `src/ui/main.ts:42` bootstrap message; `docs/quickstart.md § 6` + `docs/operations.md § Auth token lifecycle` updates.
-   - Phase 19: full UI redesign — `src/ui/index.html`, `src/ui/app.css` (+1,243 lines), `src/ui/main.ts`, `src/ui/views/{board,board_dnd,monitor,routing}.ts`; design tokens, masthead, structured headers, drag-target highlights.
-   - Phase 20: `src/cli/commands/init.ts` `detectPythonVerifyCommand` helper + wiring + stdout note; `tests/cli/init.test.ts` +15 tests; `docs/quickstart.md § 3` table replacement.
+ADR filing remains deferred per operator decision. Pure-helper-extraction is the strongest candidate if a future session authorizes it: candidate slug `0001-pure-helper-extraction-for-testable-cli-contracts.md` (verify next number against `.control/architecture/decisions/`).
 
-2. **Dogfood pass** — run `conductor work <card>` on a real project. Phase 20's fix should validate that Python verify loops succeed on first run for projects with `.venv` / poetry / pdm / uv. Watch for other UI/CLI rough edges.
+Carry-forward into Phase 23 already done: `## Why this phase exists` section seeded from Phase 22's Deferred bullet (Relay #24 + #27 PR-2 cluster).
 
-3. **File the deferred pure-helper-extraction ADR** — small discrete work-item. Path: `.control/architecture/decisions/0001-pure-helper-extraction-for-testable-cli-contracts.md` (verify next number against existing files). Use `.control/templates/adr.md`. Cite Phase 18 `formatDaemonStartedMessage` and Phase 20 `detectPythonVerifyCommand` as n=1 and n=2 instances. Commit shape: `docs(adr): ADR-0001 pure-helper extraction for testable CLI contracts`.
-
-Pattern precedent recap (cite if a future ADR needs to reference them):
-- **Pure-helper extraction for testable CLI print-shape contracts** (n=2 — Phase 18 + Phase 20; ADR filing deferred per operator decision).
-- **Defensive try/catch wrap when reading freshly-written daemon artifacts from action callbacks** (Phase 18 — n=1).
-- **Sentinel-fenced idempotency for managed-but-mutable content blocks** (Phase 17 — n=1).
+After Phase 23: 12 active issues remain in `.relay/issues/` — Phases 14 (board UX, #29 + #30), 15 (brain telemetry, #31-#33), 16 (polish, #34-#38), 17 (keyboard layer, 4 designed features #40-#43), plus the Phase 21 follow-up `engine-ops-still-append-to-card-body`. Phase 17 is the largest contiguous cluster and is already designed (4 features ready for `/relay-analyze`); strong candidate for the session after Phase 23.
 
 Notebook step is skipped per `relay-config.md § Notebook Setup` (TypeScript-only project).
