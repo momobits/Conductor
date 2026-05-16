@@ -8,6 +8,7 @@
 
 import type { RpcClient } from '../api.js';
 import { isLegalTransition } from './board_validate.js';
+import { confirmTransition } from '../lib/dialog.js';
 
 type Column = 'discovered' | 'planned' | 'approved' | 'building' | 'verifying' | 'shipped' | 'archived';
 type Policy = 'manual' | 'assist' | 'auto';
@@ -66,7 +67,7 @@ export function attachDragDrop(opts: {
         return;
       }
       const policy = (config.autonomy.transitions[`${from}_to_${to}`] ?? 'manual') as Policy;
-      const proceed = await confirmTransition(id, from, to, policy);
+      const proceed = await confirmTransition({ id, from, to, policy });
       if (!proceed) return;
       try {
         await rpc.call('transition', { id, to });
@@ -81,35 +82,8 @@ export function attachDragDrop(opts: {
   });
 }
 
-/** Shared with board_keys.ts (Phase 25.2 feature #41). Phase 25.3
- *  (`keyboard-approval-dialog-bindings`) will replace this call site
- *  and card_detail.ts's near-duplicate with src/ui/lib/dialog.ts. */
-export async function confirmTransition(id: string, from: Column, to: Column, policy: Policy): Promise<boolean> {
-  if (policy === 'auto') return true;
-  const dialog = document.createElement('dialog');
-  dialog.innerHTML = `
-    <h3>Move <code>${escape(id)}</code></h3>
-    <p>${escape(from)} → ${escape(to)}</p>
-    <p><strong>Autonomy policy:</strong> ${policy}</p>
-    <p>${policy === 'manual' ? 'Manual transitions require explicit approval.' : 'Assist transitions normally show a Task Agent recommendation. Phase 5 surfaces the request without an LLM-driven recommendation; that lands in Phase 6.'}</p>
-    <div class="actions">
-      <button class="secondary" data-act="cancel">Cancel</button>
-      <button data-act="ok">Approve</button>
-    </div>
-  `;
-  document.body.appendChild(dialog);
-  return new Promise<boolean>((resolve) => {
-    dialog.querySelector('[data-act="cancel"]')!.addEventListener('click', () => { dialog.remove(); resolve(false); });
-    dialog.querySelector('[data-act="ok"]')!.addEventListener('click', () => { dialog.remove(); resolve(true); });
-    dialog.showModal();
-  });
-}
-
 function cssEscape(s: string): string {
   return s.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
-}
-function escape(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 }
 
 /** Brief shake animation on a tile to indicate a rejected drop/move.

@@ -14,7 +14,8 @@
 // report isInMoveMode() === true.
 
 import type { RpcClient } from '../api.js';
-import { confirmTransition, shakeTile } from './board_dnd.js';
+import { shakeTile } from './board_dnd.js';
+import { confirmTransition } from '../lib/dialog.js';
 import { isLegalTransition, nextColumn, type Column } from './board_validate.js';
 
 const COLUMNS: readonly Column[] = [
@@ -219,7 +220,7 @@ export function attachBoardKeys(opts: BoardKeysOpts): BoardKeysHandle {
   async function executeMove(id: string, from: Column, to: Column): Promise<void> {
     let proceeded = false;
     try {
-      proceeded = await confirmTransition(id, from, to, policyFor(from, to));
+      proceeded = await confirmTransition({ id, from, to, policy: policyFor(from, to) });
     } catch (err) {
       console.warn('[board_keys] dialog threw:', (err as Error).message);
       return;
