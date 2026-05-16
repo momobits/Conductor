@@ -1,8 +1,12 @@
 # Transition approval dialogs leak internal phase terminology to users
 
+> **ARCHIVED — RESOLVED IN GROUPED RUN** with [keyboard-approval-dialog-bindings.md](../features/keyboard-approval-dialog-bindings.md). See run leader's Per-Entry Closure for closure status and obligation granularity.
+
 *Created: 2026-05-15*
 *Source: Phase 21 Playwright dogfood of Control Room UI against omniforge.*
 *Severity: P3 — visible text bug, internal jargon in user-facing copy.*
+
+> Grouped into [keyboard-approval-dialog-bindings.md](../features/keyboard-approval-dialog-bindings.md) run on 2026-05-16. See [keyboard-approval-dialog-bindings.md](../features/keyboard-approval-dialog-bindings.md) for closure status and per-entry obligation.
 
 ## Problem statement
 
