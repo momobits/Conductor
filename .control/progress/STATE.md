@@ -3,10 +3,10 @@
 > Single source of truth. Read this first every session. Updated at every
 > `/session-end` and by the `PreCompact` hook. Every field has a purpose -- fill each.
 
-**Last updated:** 2026-05-16 by /phase-close (sid-2026-05-16-phase-22-routing-config-destructiveness)
-**Current phase:** 22 — Routing config destructiveness (cluster)
-**Current step:** 22.1 — bundle of Relay Phase 13 PR-1 (#25 + #26 + #28)
-**Status:** kicked-off (Phase 22 scaffold authored; about to run `/relay-analyze` on the M-complexity PR-1 leader `ui-routing-yaml-commit-silently-resets-omitted-fields-to-defaults`)
+**Last updated:** 2026-05-16 by /phase-close (sid-2026-05-16-phase-23-routing-pr2)
+**Current phase:** 23 — Routing PR-2 (dropdown dirty guard + yaml comment preservation)
+**Current step:** 23.1 — Relay Phase 13 PR-2 (#24 + #27)
+**Status:** kicked-off (Phase 22 closed cleanly at tag `phase-22-routing-config-destructiveness-closed`; Phase 23 scaffold authored; PR-1 unblocked PR-2 mechanically)
 
 ---
 
@@ -19,30 +19,30 @@
 
 ## Next action
 
-**Phase 22 active — Relay Phase 13 PR-1 #25 (routing config destructiveness) is the leader.** Phase 21 closed cleanly (tag `phase-21-card-body-persistence-closed`); Relay Phase 12 grouped run shipped 3 full closures + 1 documented partial (#20 plan body dual-write shim; sunset filed at `.relay/issues/engine-ops-still-append-to-card-body.md`). Suite at 585/585.
+**Phase 23 active — Relay Phase 13 PR-2 (#24 + #27 routing UI cluster) is the next target.** Phase 22 closed cleanly (tag `phase-22-routing-config-destructiveness-closed`); Relay Phase 13 PR-1 grouped run shipped 3 full closures (#25 + #26 + #28). Suite at 596/596. PR-1 unblocked PR-2 mechanically — the merge-aware `config_set` is now in place.
 
-Top item: **`ui-routing-yaml-commit-silently-resets-omitted-fields-to-defaults.md`** (P2, **M**-complexity; PR-1 leader of Relay Phase 13). Server-side deep-merge in `config_set` unblocks #24 (autonomy dropdown — deferred to PR-2/Phase 23), #26 (Infinity coercion — grouped into PR-1), and stabilizes #28 (zod-error joined message — grouped into PR-1).
+Top item: **`ui-routing-autonomy-dropdown-overwrites-uncommitted-yaml-edits.md`** (P1, **S**-complexity; PR-2 leader). The autonomy dropdown change handler at `src/ui/views/routing.ts:117-118` re-fetches config and overwrites the textarea without a dirty check. Pair with **`ui-config-set-strips-yaml-comments.md`** (P2, M-complexity) for the comment-preservation half — both touch `routing.ts` + `config_set` write path; grouped run avoids two visits.
 
 Pipeline:
 
-1. `/relay-analyze` on `ui-routing-yaml-commit-silently-resets-omitted-fields-to-defaults.md` (Agent(Explore) landscape scan; main session reads spec + ≤5 affected sources).
-2. `/relay-plan` (M-item, single-pass; superplan not needed).
+1. `/relay-analyze` on `ui-routing-autonomy-dropdown-overwrites-uncommitted-yaml-edits.md` (Agent(Explore) landscape scan; main session reads spec + ≤5 affected sources).
+2. `/relay-plan` (likely M aggregate complexity; single-pass sufficient unless analyze surfaces L surprises — escalate to `/relay-superplan` if so).
 3. `/relay-review` (adversarial; pause for operator only if APPROVED-WITH-CHANGES or REJECTED).
-4. Implement per finalized plan — likely 1–2 commits across `src/rpc/methods.ts:config_set` + `src/rpc/schema.ts` + new `src/rpc/error_handling.ts` (or similar). Closes Relay #25 + #26 + #28 (PR-1 bundle).
-5. `/relay-verify` (full suite + targeted `tests/rpc/methods.test.ts tests/config/`).
+4. Implement per finalized plan — likely 2 commits across `src/ui/views/routing.ts` (dirty guard + textarea state tracking) + `src/rpc/methods.ts:config_set` (comment-preserving yaml writer). Closes Relay #24 + #27 (PR-2 bundle).
+5. `/relay-verify` (full suite + targeted `tests/rpc/methods.test.ts tests/config/`; UI smoke via `tests/integration/phase5-ui-end-to-end.test.ts` extension if a fixture path makes sense).
 6. `/relay-resolve` (single-pass; commit at end).
 
-Phase 22 README + steps authored at `.control/phases/phase-22-routing-config-destructiveness/`.
+Phase 23 README + steps authored at `.control/phases/phase-23-routing-pr2/`.
 
-**Deferred to Phase 23**: Relay #24 (routing autonomy dropdown dirty guard) + #27 (yaml comment preservation) as PR-2; PR-2 depends on PR-1's server-side merge being in place.
+**After Phase 23**: 12 active issues remain (Phase 13 #27 closes here, leaving Phases 14-16 + follow-up). Phase 17 (4 designed keyboard features) remains the largest contiguous backlog cluster.
 
 ---
 
 ## Git state
 - **Branch:** main
-- **Last commit:** `4b4c270` — docs(21.1): /relay-resolve close out Phase 12 grouped run. Predecessors: `c7579d9` (docs(21.1) flip checkbox), `3f46351` (feat(21.1) chat assistant markdown render), `8cc3bad` (feat(21.1) chat sibling JSONL + UI replay), `b81bcd6` (feat(21.1) decouple analyze + plan op output from card body), `807f475` (chore(phase-21) kickoff card-body persistence), `7fbd5a6` (docs(state) session end for step 20.1), `b685305` (chore(phase-20) close phase 20).
-- **Uncommitted changes:** about to land in this `/phase-close` commit (Phase 22 scaffold + STATE.md timestamp refresh).
-- **Last phase tag:** `phase-21-card-body-persistence-closed` (created during this `/phase-close`; predecessor `phase-20-init-verify-venv-awareness-closed` at `654973f`).
+- **Last commit:** `789c460` — docs(22.1): /relay-resolve close out Phase 13 PR-1 grouped run. Predecessors: `9c2a8f6` (docs(22.1) flip checkbox), `cc86027` (feat(22.1) ZodError human-readable join), `9053529` (feat(22.1) server-side deep-merge in config_set), `c22cb0c` (feat(22.1) cost_ceilings null-as-Infinity preprocess), `098474c` (chore(phase-21) close phase 21, kick off phase 22), `4b4c270` (docs(21.1) /relay-resolve close Phase 12 grouped run).
+- **Uncommitted changes:** about to land in this `/phase-close` commit (Phase 23 scaffold + STATE.md timestamp refresh).
+- **Last phase tag:** `phase-22-routing-config-destructiveness-closed` (created during this `/phase-close`; predecessor `phase-21-card-body-persistence-closed` at `cc86027`).
 
 ---
 
@@ -52,14 +52,14 @@ Phase 22 README + steps authored at `.control/phases/phase-22-routing-config-des
 ---
 
 ## In-flight work
-- Phase 22 step 22.1 about to begin: `/relay-analyze` on Relay #25 `ui-routing-yaml-commit-silently-resets-omitted-fields-to-defaults` (M-complexity; grouped-run candidate with #26 + #28 per Phase 13 PR-1 strategy).
+- Phase 23 step 23.1 about to begin: `/relay-analyze` on Relay #24 `ui-routing-autonomy-dropdown-overwrites-uncommitted-yaml-edits` (S-complexity P1; grouped-run candidate with #27 yaml comment preservation per Phase 13 PR-2 strategy).
 
 ---
 
 ## Test / eval status
-- **Last test run:** 2026-05-16 — `npm test` → **585/585 pass across 101 test files** in ~16.5s at HEAD `4b4c270`. Zero regressions. Typecheck clean (`tsc --noEmit` both engine and UI configs). Targeted `npx vitest run tests/agent/ tests/engine/ops/{analyze,plan,chat}.test.ts tests/engine/state/ tests/rpc/methods.test.ts tests/integration/{phase21,end-to-end}.test.ts tests/cli/work.test.ts` → 122/122 in ~8.3s.
+- **Last test run:** 2026-05-16 — `npm test` → **596/596 pass across 102 test files** in ~16s at HEAD `789c460`. Zero regressions. Typecheck clean (`tsc --noEmit` both engine and UI configs). Targeted `npx vitest run tests/config/ tests/rpc/ tests/daemon/http_server.test.ts` → 82/82 in ~2.8s.
 - **Eval score** (agent phases only): n/a.
-- **Session-level test delta:** 559 → 585 (+26). New: `tests/agent/run_artifact.test.ts` (8), `tests/engine/state/chat_log.test.ts` (6), `tests/integration/phase21-end-to-end.test.ts` (2). Extended: `tests/agent/task_agent.test.ts` (+1), `tests/engine/ops/plan.test.ts` (+1), `tests/rpc/methods.test.ts` (+5); contract-migration rewrites in `tests/engine/ops/analyze.test.ts` + `tests/engine/ops/chat.test.ts`.
+- **Session-level test delta:** 559 → 596 (+37). Phase 21: +26. Phase 22: +11. New this phase: `tests/config/schema-phase22.test.ts` (7). Extended: `tests/rpc/methods.test.ts` (+2: partial-commit preserves disk customizations; Infinity-roundtrip), `tests/daemon/http_server.test.ts` (+2: ZodError joined-message + refine `(root):` path).
 
 ---
 
@@ -74,18 +74,18 @@ Phase 22 README + steps authored at `.control/phases/phase-22-routing-config-des
 ---
 
 ## Recently completed (last 5 steps)
-- 4b4c270 — docs(21.1): /relay-resolve close out Phase 12 grouped run — 2026-05-16
-- c7579d9 — docs(21.1): flip steps.md checkbox for step 21.1 — 2026-05-16
-- 3f46351 — feat(21.1): render chat assistant turns through renderMarkdown — 2026-05-16
-- 8cc3bad — feat(21.1): persist chat to sibling JSONL artifact with UI replay — 2026-05-16
-- b81bcd6 — feat(21.1): decouple analyze + plan op output from card body via run-artifact substrate — 2026-05-16
+- 789c460 — docs(22.1): /relay-resolve close out Phase 13 PR-1 grouped run — 2026-05-16
+- 9c2a8f6 — docs(22.1): flip steps.md checkbox for step 22.1 — 2026-05-16
+- cc86027 — feat(22.1): ZodError surfaces as human-readable joined message — 2026-05-16
+- 9053529 — feat(22.1): server-side deep-merge in config_set preserves omitted fields — 2026-05-16
+- c22cb0c — feat(22.1): cost_ceilings schema accepts null as Infinity sentinel — 2026-05-16
 
-Control phase tags placed: `phase-13-...-closed` through `phase-21-card-body-persistence-closed` (9 in succession). Relay ordering: 12 Relay Phases resolved (24 items closed across Control Phases 9-21; +1 closed WONT-DO). 16 active issues remain in `.relay/issues/` from the 2026-05-15 dogfood (Phase 13 4-of-5, Phases 14-16, Phase 17 4-feature backlog) + 1 follow-up (`engine-ops-still-append-to-card-body`).
+Control phase tags placed: `phase-13-...-closed` through `phase-22-routing-config-destructiveness-closed` (10 in succession). Relay ordering: 13 Relay Phases resolved (27 items closed across Control Phases 9-22; +1 closed WONT-DO). 14 active issues remain in `.relay/issues/` (Phase 13 #24+#27 PR-2, Phases 14-16, Phase 17 4-feature backlog) + 1 follow-up (`engine-ops-still-append-to-card-body`).
 
 ---
 
 ## Attempts that didn't work (current step only)
-- None (Phase 22 not yet started).
+- None (Phase 23 not yet started).
 
 ---
 
