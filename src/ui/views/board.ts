@@ -6,6 +6,7 @@
 import type { RpcClient } from '../api.js';
 import { attachDragDrop } from './board_dnd.js';
 import { nextColumn } from './board_validate.js';
+import { attachBoardKeys, type BoardKeysHandle } from './board_keys.js';
 
 const COLUMNS = [
   'discovered', 'planned', 'approved', 'building',
@@ -58,7 +59,11 @@ function tile(c: CardSummary): string {
   `;
 }
 
-export async function renderBoard(rpc: RpcClient, root: HTMLElement): Promise<{ refresh: () => Promise<void> }> {
+export async function renderBoard(
+  rpc: RpcClient,
+  root: HTMLElement,
+): Promise<{ refresh: () => Promise<void>; boardKeys: BoardKeysHandle }> {
+  let keys: BoardKeysHandle | null = null;
   async function fetchAndPaint() {
     const [{ cards }, { config }] = await Promise.all([
       rpc.call<ScanResult>('scan'),
@@ -101,8 +106,13 @@ export async function renderBoard(rpc: RpcClient, root: HTMLElement): Promise<{ 
       config,
       onDropped: () => fetchAndPaint(),
     });
+    if (!keys) {
+      keys = attachBoardKeys({ root, rpc, config, refresh: fetchAndPaint });
+    } else {
+      keys.syncFocusAfterRepaint();
+    }
   }
 
   await fetchAndPaint();
-  return { refresh: fetchAndPaint };
+  return { refresh: fetchAndPaint, boardKeys: keys! };
 }

@@ -1286,3 +1286,48 @@ dialog .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top
   .masthead-row { flex-direction: column; align-items: flex-start; }
   .edition { text-align: left; }
 }
+
+/* ====================================================================
+   PHASE 25.2 — BOARD KEYBOARD MOVE-MODE
+   Selector specificity uses [data-state] attribute selectors; keyframe
+   names are `move-target-pulse` and `deny-flash` (NOT `pulse`) to avoid
+   clobbering the existing `pulse` keyframe at :195 used by status-dot,
+   loading-mark, and brain-live indicator.
+
+   CRITICAL: animate `.column::before` (the visible numeral) — `data-num`
+   is the ATTRIBUTE on the section, NOT a child element. Targeting
+   `[data-num]` as a descendant selector matches nothing.
+   ==================================================================== */
+
+.card-tile[data-focused="true"] {
+  box-shadow: 0 0 0 2px var(--signal);
+  outline: none;
+}
+
+.column[data-focused="true"]:not(:has(.card-tile)) {
+  outline: 2px dashed var(--signal);
+  outline-offset: -2px;
+}
+
+.board-shell[data-move-mode="true"] .column:not([data-legal-target="true"]) {
+  opacity: 0.32;
+  transition: opacity 140ms ease-out;
+}
+
+.board-shell[data-move-mode="true"] .column[data-legal-target="true"]::before {
+  animation: move-target-pulse 1.1s ease-in-out infinite;
+}
+
+.column.deny::before {
+  animation: deny-flash 220ms ease-in-out;
+}
+
+@keyframes move-target-pulse {
+  0%, 100% { color: var(--paper-2); }
+  50%      { color: var(--signal); }
+}
+
+@keyframes deny-flash {
+  0%, 100% { color: var(--mute-2); }
+  50%      { color: var(--paper-2); }
+}

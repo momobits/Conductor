@@ -13,6 +13,7 @@ function stubCtx(overrides: Partial<KeyContext> = {}): KeyContext {
     boardKeyHandler:    null,
     dialogIsOpen:       vi.fn().mockReturnValue(false),
     currentView:        vi.fn().mockReturnValue('board'),
+    boardInMoveMode:    vi.fn().mockReturnValue(false),
     ...overrides,
   };
 }
@@ -63,6 +64,16 @@ describe('handleKey — view switching', () => {
     const ctx = stubCtx();
     expect(handleKey(makeEvent('1', { tagName: 'TEXTAREA' }), ctx)).toBe(false);
     expect(ctx.navigateTo).not.toHaveBeenCalled();
+  });
+  it('1/2/3 are gated out when board is in move mode (passed through to boardKeyHandler)', () => {
+    const handler = vi.fn().mockReturnValue(true);
+    const ctx = stubCtx({
+      boardInMoveMode: vi.fn().mockReturnValue(true),
+      boardKeyHandler: handler,
+    });
+    expect(handleKey(makeEvent('2'), ctx)).toBe(true);
+    expect(ctx.navigateTo).not.toHaveBeenCalled();
+    expect(handler).toHaveBeenCalled();
   });
 });
 

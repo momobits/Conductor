@@ -81,7 +81,10 @@ export function attachDragDrop(opts: {
   });
 }
 
-async function confirmTransition(id: string, from: Column, to: Column, policy: Policy): Promise<boolean> {
+/** Shared with board_keys.ts (Phase 25.2 feature #41). Phase 25.3
+ *  (`keyboard-approval-dialog-bindings`) will replace this call site
+ *  and card_detail.ts's near-duplicate with src/ui/lib/dialog.ts. */
+export async function confirmTransition(id: string, from: Column, to: Column, policy: Policy): Promise<boolean> {
   if (policy === 'auto') return true;
   const dialog = document.createElement('dialog');
   dialog.innerHTML = `
@@ -109,10 +112,13 @@ function escape(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 }
 
-/** Brief shake animation on a tile to indicate a rejected drop. CSS rule
- *  in src/ui/app.css; class is auto-removed on animationend so repeated
- *  shakes re-trigger cleanly. */
-function shakeTile(tile: HTMLElement): void {
+/** Brief shake animation on a tile to indicate a rejected drop/move.
+ *  Reused by board_keys.ts (Phase 25.2) for illegal move-mode attempts.
+ *  Restart-safe: rapid repeated calls re-trigger the animation via the
+ *  remove + reflow + add pattern (matches Phase 25.1's flashStatusDot). */
+export function shakeTile(tile: HTMLElement): void {
+  tile.classList.remove('shake');
+  void tile.offsetWidth;
   tile.classList.add('shake');
   tile.addEventListener('animationend', () => tile.classList.remove('shake'), { once: true });
 }

@@ -15,6 +15,7 @@ export interface KeyContext {
   boardKeyHandler: ((ev: KeyboardEvent) => boolean) | null;
   dialogIsOpen: () => boolean;
   currentView: () => ViewName;
+  boardInMoveMode: () => boolean;
 }
 
 export function isInFormField(target: unknown): boolean {
@@ -52,11 +53,17 @@ export function handleKey(ev: KeyboardEvent, ctx: KeyContext): boolean {
   }
 
   // View-switch keys, R refresh, and board-key delegation all gate on
-  // "no dialog open" so an approval modal isn't broken into.
+  // "no dialog open" so an approval modal isn't broken into. During Board
+  // move-mode, 1/2/3 yield to ctx.boardKeyHandler so they reach attempt-move
+  // (Phase 25.2 fix: without this gate, move-mode 1/2/3 would always be
+  // intercepted by view-switch, blocking discovered→planned / planned→approved
+  // and three legal backward edges).
   if (!ctx.dialogIsOpen()) {
-    if (ev.key === '1') { ctx.navigateTo('board');   return true; }
-    if (ev.key === '2') { ctx.navigateTo('monitor'); return true; }
-    if (ev.key === '3') { ctx.navigateTo('routing'); return true; }
+    if (!ctx.boardInMoveMode()) {
+      if (ev.key === '1') { ctx.navigateTo('board');   return true; }
+      if (ev.key === '2') { ctx.navigateTo('monitor'); return true; }
+      if (ev.key === '3') { ctx.navigateTo('routing'); return true; }
+    }
     if (ev.key === 'r' || ev.key === 'R') {
       void ctx.refreshCurrentView();
       return true;
