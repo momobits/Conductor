@@ -1,3 +1,5 @@
+> **ARCHIVED — RESOLVED IN GROUPED RUN** with [ui-routing-yaml-commit-silently-resets-omitted-fields-to-defaults](../../implemented/ui-routing-yaml-commit-silently-resets-omitted-fields-to-defaults.md). See run leader's Per-Entry Closure for closure status and obligation granularity.
+
 # Routing config save error renders raw zod JSON instead of a readable message
 
 *Created: 2026-05-15*

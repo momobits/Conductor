@@ -1,3 +1,5 @@
+> **ARCHIVED** — Resolved. See [implementation doc](../../implemented/ui-routing-yaml-commit-silently-resets-omitted-fields-to-defaults.md)
+
 # Routing yaml commit silently resets schema-defaulted fields to their defaults
 
 *Created: 2026-05-15*
@@ -650,3 +652,58 @@ All revisions are in-place in the Implementation Plan section above; no duplicat
   - **Actual**: [what was done instead]
   - **Reason**: [why the deviation was necessary]
 - Do NOT make changes beyond what the plan specifies.
+
+---
+
+## Verification Report
+
+*Verified: 2026-05-16*
+
+### Implementation Status
+
+| Step | Planned | Implemented | Correct |
+|------|---------|-------------|---------|
+| 1 | `src/config/schema.ts` cost_ceilings preprocess `null → Infinity` (both fields) | YES | YES |
+| 2 | `src/rpc/methods.ts` config_set: bypass ConfigSetParams.parse, shape-check via `z.record(z.unknown())`, ENOENT-guarded `loadProjectConfig`, `deepMergeConfig`, re-validate via `ProjectConfigSchema.parse`, `Object.assign(ctx.config, validated)` | YES | YES |
+| 3 | `src/daemon/http_server.ts` ZodError branch with `(root)` path label + `error.data.issues` | YES | YES |
+
+### Test Results
+
+- **Full suite**: `npm test` → **596/596 pass** in ~16s across 102 test files. Baseline 585 → 596 (+11 net new).
+- **Typecheck**: `npm run typecheck` → clean for both engine and UI tsconfigs.
+- **Targeted**: `npx vitest run tests/config/ tests/rpc/ tests/daemon/http_server.test.ts` → 82/82 in ~2.8s.
+
+Per-test-file delta:
+- `tests/config/schema-phase22.test.ts` — NEW, 7 tests (undefined→Infinity default; null→Infinity both fields; finite values pass; Infinity→JSON→null→re-parse roundtrip; non-numeric rejected; zero/negative rejected — preserves `z.number().positive()`).
+- `tests/rpc/methods.test.ts` — EXTENDED with +2 tests (`config_set preserves disk-resident customizations on partial commit (#25)` — pre-seeds disk with `cost_ceilings.per_card_dollars: 0.5, halt_on_breach: true`, sends partial body, asserts both survive; `config_set roundtrip with Infinity defaults works without scrubbing (#26)` — `config_get → JSON.parse(JSON.stringify) → config_set` returns ok=true). 24/24 total now (was 22).
+- `tests/daemon/http_server.test.ts` — EXTENDED with +2 tests (`ZodError message is human-readable joined string with structured issues in error.data` — invalid `card_new` returns formatted message + `error.data.issues` array; `refine error formats top-level path as (root)` — `card_update` refine produces `^\(root\):` prefix). 8/8 total now (was 6).
+
+### Grouped Run Coverage
+
+Closure obligation: **full** for all 3 entries.
+
+| Entry | Title | Files touched | Verification evidence |
+|-------|-------|---------------|----------------------|
+| **#25 (run leader)** | Routing yaml commit silently resets schema-defaulted fields | `src/rpc/methods.ts:config_set` + `deepMergeConfig` + `isPlainObject` helpers | `tests/rpc/methods.test.ts` "config_set preserves disk-resident customizations on partial commit (#25)" asserts `cost_ceilings.per_card_dollars: 0.5` + `halt_on_breach: true` survive a partial commit. **Full closure**. |
+| **#26** | `config_get → config_set` roundtrip fails on Infinity | `src/config/schema.ts:cost_ceilings.per_card_dollars` + `per_day_dollars` (z.preprocess null→Infinity) | `tests/config/schema-phase22.test.ts` roundtrip test (`Infinity → JSON.stringify (null) → re-parse → Infinity`) + `tests/rpc/methods.test.ts` "config_set roundtrip with Infinity defaults works without scrubbing (#26)". **Full closure**. |
+| **#28** | Routing config save error renders raw zod JSON | `src/daemon/http_server.ts:97-118` ZodError branch | `tests/daemon/http_server.test.ts` "ZodError message is human-readable joined string with structured issues in error.data" asserts message does NOT start with `[`, contains `slug:`, and `error.data.issues` is the structured array. Refine path test asserts `(root):` prefix for top-level refines. **Full closure**. |
+
+### Issues Found
+
+None. All 3 plan steps implemented per the corrected `/relay-review` plan. ConfigSetParams import removed from `src/rpc/methods.ts` (no longer used); the export in `src/rpc/schema.ts` retained for potential future callers. No test legacy assertions needed updating beyond the planned scope — existing `config_set rejects invalid config with a validation error` (line 212) and `card_update refine returns -32602` (http_server.test.ts:83) both survived under the new contract because (a) the first uses `rejects.toThrow()` without message-shape assertion, and (b) the second's regex `/frontmatterPatch|bodyAppend/` is a substring still preserved inside the formatted `(root): card_update requires frontmatterPatch or bodyAppend` message.
+
+### Verification Fixes
+
+None — no issues required mid-verify fixes. The `/relay-review` CRITICAL fix (bypass `ConfigSetParams.parse`) and MEDIUM fix (ENOENT guard) were incorporated into the plan before implementation began.
+
+### Verdict
+
+**COMPLETE** — all 3 plan steps implemented across 4 commits (c22cb0c, 9053529, cc86027, 9c2a8f6). Full suite 596/596 green (+11 net new tests; baseline 585). Typecheck clean. Grouped Run Coverage: 3 full closures (#25 + #26 + #28). PR-2 items (#24 + #27) remain deferred to Phase 23 per established ordering.
+
+### Per-Entry Closure
+
+| # | Target | Kind | Obligation | Final disposition | Citation |
+|---|--------|------|------------|-------------------|----------|
+| 1 | ui-routing-yaml-commit-silently-resets-omitted-fields-to-defaults (this — run leader) | run leader | full | **closed** | `src/rpc/methods.ts:227-281` (config_set deep-merge + deepMergeConfig helper) + `tests/rpc/methods.test.ts` "config_set preserves disk-resident customizations on partial commit (#25)". |
+| 2 | ui-config-get-set-roundtrip-fails-on-infinity-serialization | existing item | full | **closed** | `src/config/schema.ts:64-78` (preprocess null→Infinity on both cost_ceilings fields) + `tests/config/schema-phase22.test.ts` roundtrip test + `tests/rpc/methods.test.ts` Infinity-roundtrip regression. |
+| 3 | ui-routing-save-error-renders-raw-zod-json | existing item | full | **closed** | `src/daemon/http_server.ts:97-118` ZodError branch with `(root)` path label + `error.data.issues` + `tests/daemon/http_server.test.ts` two new tests (joined-message shape + refine `(root):` prefix). |
