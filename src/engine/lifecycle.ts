@@ -21,6 +21,7 @@ const FORWARD: ReadonlyMap<Column, Column> = new Map([
 
 const BACKWARD: ReadonlySet<string> = new Set([
   'planned->discovered',
+  'approved->planned',
   'building->approved',
   'verifying->building',
 ]);

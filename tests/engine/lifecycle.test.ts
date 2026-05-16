@@ -34,6 +34,7 @@ describe('canTransition', () => {
 
   it('permits known backward edges (review rejection, post-impl fix)', () => {
     expect(canTransition('planned', 'discovered')).toBe(true);
+    expect(canTransition('approved', 'planned')).toBe(true);
     expect(canTransition('building', 'approved')).toBe(true);
     expect(canTransition('verifying', 'building')).toBe(true);
   });
