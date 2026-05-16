@@ -259,6 +259,59 @@ cost_ceilings:
     expect(result.config.routing.default).toBe('gpt-5');
   });
 
+  it('config_set preserves yaml comments on commit (#27)', async () => {
+    const repo = setupRepo();
+    const fs = await import('node:fs/promises');
+    await fs.writeFile(
+      join(repo, '.conductor', 'config.yaml'),
+      [
+        '# Claude-subscription-only config — routes every op through claude.',
+        '# Prerequisites:',
+        '#   1. Install Claude Code',
+        '',
+        'routing:',
+        '  default: claude-sub:sonnet',
+        '  functions:',
+        '    analyze: claude-opus-4-7        # heavy reasoning',
+        'autonomy:',
+        '  default: assist',
+        '  transitions:',
+        '    discovered_to_planned: auto',
+        '    planned_to_approved: assist',
+        '    approved_to_building: manual',
+        '    building_to_verifying: auto',
+        '    verifying_to_shipped: assist',
+        '    shipped_to_archived: manual',
+        'verify_command: npm test',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    await methods.config_set(ctx, {
+      config: {
+        routing: { default: 'claude-sub:sonnet', functions: { analyze: 'claude-opus-4-7' } },
+        autonomy: {
+          default: 'auto',
+          transitions: {
+            discovered_to_planned: 'auto',
+            planned_to_approved: 'assist',
+            approved_to_building: 'manual',
+            building_to_verifying: 'auto',
+            verifying_to_shipped: 'assist',
+            shipped_to_archived: 'manual',
+          },
+        },
+        verify_command: 'npm test',
+      },
+    });
+    const after = await fs.readFile(join(repo, '.conductor', 'config.yaml'), 'utf8');
+    expect(after).toContain('# Claude-subscription-only config');
+    expect(after).toContain('# Prerequisites:');
+    expect(after).toContain('heavy reasoning');
+    expect(after).toContain('default: auto');
+  });
+
   it('config_set roundtrip with Infinity defaults works without scrubbing (#26)', async () => {
     const repo = setupRepo();
     const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };

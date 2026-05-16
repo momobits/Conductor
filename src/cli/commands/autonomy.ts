@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { writeFile, readFile } from 'node:fs/promises';
 import { dump as yamlDump, load as yamlLoad } from 'js-yaml';
 import { ProjectConfigSchema } from '../../config/schema.js';
+import { preserveYamlComments } from '../../config/preserve_comments.js';
 
 export async function autonomySet(repo: string, mode: string): Promise<void> {
   if (!['escort', 'assist', 'auto', 'critical'].includes(mode)) {
@@ -23,7 +24,9 @@ export async function autonomySet(repo: string, mode: string): Promise<void> {
     autonomy: { ...((parsed.autonomy as Record<string, unknown>) ?? {}), default: mode },
   };
   ProjectConfigSchema.parse(next);
-  await writeFile(path, yamlDump(next, { lineWidth: 100, noRefs: true }), 'utf8');
+  const dump = yamlDump(next, { lineWidth: 100, noRefs: true });
+  const preserved = preserveYamlComments(yaml || null, dump);
+  await writeFile(path, preserved, 'utf8');
   process.stdout.write(`autonomy.default = ${mode}\n`);
 }
 

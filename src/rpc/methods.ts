@@ -30,8 +30,9 @@ import { listRuns, pruneRuns, replayRun } from '../agent/runlog_store.js';
 import { getCostSummary } from '../daemon/cost_summary.js';
 import { Conductor, defaultAgentFactory } from '../conductor/loop.js';
 import { dump as yamlDump } from 'js-yaml';
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { loadProjectConfig } from '../config/load.js';
+import { preserveYamlComments } from '../config/preserve_comments.js';
 import { readCard, writeCard, listCards, listCardsLenient, createCard } from '../engine/state/card.js';
 import { canTransition } from '../engine/lifecycle.js';
 import { TaskAgent } from '../agent/task_agent.js';
@@ -258,8 +259,15 @@ async function config_set(ctx: MethodContext, raw: unknown) {
   // Re-validate merged result via strict schema (catches user input type errors
   // such as routing.default: 123 without scrubbing disk state).
   const validated = ProjectConfigSchema.parse(merged);
-  const yaml = yamlDump(validated, { lineWidth: 100, noRefs: true });
-  await writeFile(join(ctx.repo, '.conductor', 'config.yaml'), yaml, 'utf-8');
+  // Phase 23: read existing file text BEFORE writing so preserveYamlComments
+  // can re-inject user-authored comments onto the fresh dump. Closes Relay #27.
+  const configPath = join(ctx.repo, '.conductor', 'config.yaml');
+  const existingText = await readFile(configPath, 'utf-8').catch(
+    (err: NodeJS.ErrnoException) => (err.code === 'ENOENT' ? null : Promise.reject(err)),
+  );
+  const dump = yamlDump(validated, { lineWidth: 100, noRefs: true });
+  const yaml = preserveYamlComments(existingText, dump);
+  await writeFile(configPath, yaml, 'utf-8');
   // Align daemon's in-memory copy with merged disk state.
   Object.assign(ctx.config, validated);
   ctx.bus?.publish({ kind: 'config-changed' });
