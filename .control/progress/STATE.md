@@ -3,10 +3,10 @@
 > Single source of truth. Read this first every session. Updated at every
 > `/session-end` and by the `PreCompact` hook. Every field has a purpose -- fill each.
 
-**Last updated:** 2026-05-16 by /session-end (sid-2026-05-16-phase-21-and-22-grouped-runs)
-**Current phase:** 23 — Routing PR-2 (dropdown dirty guard + yaml comment preservation)
-**Current step:** 23.1 — Relay Phase 13 PR-2 (#24 + #27)
-**Status:** kicked-off (Phase 22 closed cleanly at tag `phase-22-routing-config-destructiveness-closed`; Phase 23 scaffold authored; PR-1 unblocked PR-2 mechanically)
+**Last updated:** 2026-05-16 by /phase-close (Phase 23 → Phase 24 transition)
+**Current phase:** 24 — Board transition UX (drag-drop validator + approved column backward path)
+**Current step:** 24.1 — Relay Phase 14 (#29 + #30)
+**Status:** kicked-off (Phase 23 closed cleanly at tag `phase-23-routing-pr2-closed`; Phase 24 scaffold authored; Relay Phase 13 cluster fully resolved across Phases 22 + 23)
 
 ---
 
@@ -19,30 +19,30 @@
 
 ## Next action
 
-**Phase 23 active — Relay Phase 13 PR-2 (#24 + #27 routing UI cluster) is the next target.** Phase 22 closed cleanly (tag `phase-22-routing-config-destructiveness-closed`); Relay Phase 13 PR-1 grouped run shipped 3 full closures (#25 + #26 + #28). Suite at 596/596. PR-1 unblocked PR-2 mechanically — the merge-aware `config_set` is now in place.
+**Phase 24 active — Relay Phase 14 (board transition UX) is the next target.** Phase 23 closed cleanly (tag `phase-23-routing-pr2-closed`); Relay Phase 13 cluster (PR-1 + PR-2 across Control Phases 22 + 23) is fully resolved. Suite at 612/612.
 
-Top item: **`ui-routing-autonomy-dropdown-overwrites-uncommitted-yaml-edits.md`** (P1, **S**-complexity; PR-2 leader). The autonomy dropdown change handler at `src/ui/views/routing.ts:117-118` re-fetches config and overwrites the textarea without a dirty check. Pair with **`ui-config-set-strips-yaml-comments.md`** (P2, M-complexity) for the comment-preservation half — both touch `routing.ts` + `config_set` write path; grouped run avoids two visits.
+Top item: **`ui-board-dnd-invalid-transition-uses-server-error-alert.md`** (Relay #29, P2, S-complexity; leader). Drag-drop currently offers approval for transitions the server rejects, then surfaces a blocking `alert()`. Pair with **`ui-no-backward-path-from-approved-column.md`** (Relay #30, P2, XS-complexity) — both touch `src/ui/views/board_dnd.ts` + `src/engine/lifecycle.ts`. Phase 14's #29 fix is the validator extract that Phase 17 #41 imports later as substrate — this phase's deliverable feeds the keyboard layer.
 
 Pipeline:
 
-1. `/relay-analyze` on `ui-routing-autonomy-dropdown-overwrites-uncommitted-yaml-edits.md` (Agent(Explore) landscape scan; main session reads spec + ≤5 affected sources).
-2. `/relay-plan` (likely M aggregate complexity; single-pass sufficient unless analyze surfaces L surprises — escalate to `/relay-superplan` if so).
+1. `/relay-analyze` on `ui-board-dnd-invalid-transition-uses-server-error-alert.md` (Agent(Explore) landscape scan; main session reads spec + `board_dnd.ts` + `lifecycle.ts` + ≤3 other affected sources).
+2. `/relay-plan` (likely S aggregate complexity; single-pass sufficient).
 3. `/relay-review` (adversarial; pause for operator only if APPROVED-WITH-CHANGES or REJECTED).
-4. Implement per finalized plan — likely 2 commits across `src/ui/views/routing.ts` (dirty guard + textarea state tracking) + `src/rpc/methods.ts:config_set` (comment-preserving yaml writer). Closes Relay #24 + #27 (PR-2 bundle).
-5. `/relay-verify` (full suite + targeted `tests/rpc/methods.test.ts tests/config/`; UI smoke via `tests/integration/phase5-ui-end-to-end.test.ts` extension if a fixture path makes sense).
+4. Implement per finalized plan — likely 2 commits across `src/ui/views/board_dnd.ts` (visual rejection + alert removal) + new `src/ui/views/board_validate.ts` (extracted validator) + `src/engine/lifecycle.ts` (BACKWARD set extension). Closes Relay #29 + #30.
+5. `/relay-verify` (full suite + targeted `tests/engine/lifecycle.test.ts`; UI smoke via `tests/integration/phase5-ui-end-to-end.test.ts` extension if a fixture path makes sense).
 6. `/relay-resolve` (single-pass; commit at end).
 
-Phase 23 README + steps authored at `.control/phases/phase-23-routing-pr2/`.
+Phase 24 README + steps authored at `.control/phases/phase-24-board-transition-ux/`.
 
-**After Phase 23**: 12 active issues remain (Phase 13 #27 closes here, leaving Phases 14-16 + follow-up). Phase 17 (4 designed keyboard features) remains the largest contiguous backlog cluster.
+**After Phase 24**: 10 active issues remain — Phase 15 (brain telemetry, #31-#33), Phase 16 (polish, #34-#38), Phase 17 (keyboard layer, 4 designed features #40-#43; substrate now available from Phase 24's validator extract), plus the Phase 21 follow-up `engine-ops-still-append-to-card-body`. Phase 17 remains the largest contiguous cluster.
 
 ---
 
 ## Git state
 - **Branch:** main
-- **Last commit:** `789c460` — docs(22.1): /relay-resolve close out Phase 13 PR-1 grouped run. Predecessors: `9c2a8f6` (docs(22.1) flip checkbox), `cc86027` (feat(22.1) ZodError human-readable join), `9053529` (feat(22.1) server-side deep-merge in config_set), `c22cb0c` (feat(22.1) cost_ceilings null-as-Infinity preprocess), `098474c` (chore(phase-21) close phase 21, kick off phase 22), `4b4c270` (docs(21.1) /relay-resolve close Phase 12 grouped run).
-- **Uncommitted changes:** about to land in this `/phase-close` commit (Phase 23 scaffold + STATE.md timestamp refresh).
-- **Last phase tag:** `phase-22-routing-config-destructiveness-closed` (created during this `/phase-close`; predecessor `phase-21-card-body-persistence-closed` at `cc86027`).
+- **Last commit:** `e0295a8` — docs(23.1): /relay-resolve close out Phase 13 PR-2 grouped run. Predecessors: `48ace63` (feat(23.1) wire preserveYamlComments into config_set and autonomy CLI), `552d1e2` (feat(23.1) preserveYamlComments helper), `ce704fa` (feat(23.1) autonomy dropdown patches textarea surgically), `a22f564` (docs(state) session end for steps 21.1 and 22.1), `e46d52e` (chore(phase-22) close phase 22, kick off phase 23).
+- **Uncommitted changes:** about to land in this `/phase-close` commit (Phase 24 scaffold + STATE.md update + next.md regeneration).
+- **Last phase tag:** `phase-23-routing-pr2-closed` (created during this `/phase-close`; predecessor `phase-22-routing-config-destructiveness-closed` at `cc86027`).
 
 ---
 
@@ -52,14 +52,14 @@ Phase 23 README + steps authored at `.control/phases/phase-23-routing-pr2/`.
 ---
 
 ## In-flight work
-- Phase 23 step 23.1 about to begin: `/relay-analyze` on Relay #24 `ui-routing-autonomy-dropdown-overwrites-uncommitted-yaml-edits` (S-complexity P1; grouped-run candidate with #27 yaml comment preservation per Phase 13 PR-2 strategy).
+- Phase 24 step 24.1 about to begin: `/relay-analyze` on Relay #29 `ui-board-dnd-invalid-transition-uses-server-error-alert` (S-complexity P2; grouped-run candidate with #30 backward-path approved→planned per Phase 14 strategy).
 
 ---
 
 ## Test / eval status
-- **Last test run:** 2026-05-16 — `npm test` → **596/596 pass across 102 test files** in ~16s at HEAD `789c460`. Zero regressions. Typecheck clean (`tsc --noEmit` both engine and UI configs). Targeted `npx vitest run tests/config/ tests/rpc/ tests/daemon/http_server.test.ts` → 82/82 in ~2.8s.
+- **Last test run:** 2026-05-16 — `npm test` → **612/612 pass across 105 test files** in ~18s at HEAD `e0295a8`. Zero regressions. Typecheck clean (`tsc --noEmit` both engine and UI configs). Targeted `npx vitest run tests/ui/ tests/config/preserve_comments.test.ts tests/cli/autonomy.test.ts tests/rpc/methods.test.ts` → 40/40 in ~3s.
 - **Eval score** (agent phases only): n/a.
-- **Session-level test delta:** 559 → 596 (+37). Phase 21: +26. Phase 22: +11. New this phase: `tests/config/schema-phase22.test.ts` (7). Extended: `tests/rpc/methods.test.ts` (+2: partial-commit preserves disk customizations; Infinity-roundtrip), `tests/daemon/http_server.test.ts` (+2: ZodError joined-message + refine `(root):` path).
+- **Session-level test delta:** 596 → 612 (+16). Phase 23: +16. New this phase: `tests/ui/routing-helpers.test.ts` (6), `tests/config/preserve_comments.test.ts` (8), `tests/cli/autonomy.test.ts` (1). Extended: `tests/rpc/methods.test.ts` (+1: `config_set preserves yaml comments on commit (#27)`).
 
 ---
 
@@ -74,18 +74,18 @@ Phase 23 README + steps authored at `.control/phases/phase-23-routing-pr2/`.
 ---
 
 ## Recently completed (last 5 steps)
+- e0295a8 — docs(23.1): /relay-resolve close out Phase 13 PR-2 grouped run — 2026-05-16
+- 48ace63 — feat(23.1): wire preserveYamlComments into config_set and autonomy CLI — 2026-05-16
+- 552d1e2 — feat(23.1): preserveYamlComments helper for round-trip comment retention — 2026-05-16
+- ce704fa — feat(23.1): autonomy dropdown patches textarea surgically — 2026-05-16
 - 789c460 — docs(22.1): /relay-resolve close out Phase 13 PR-1 grouped run — 2026-05-16
-- 9c2a8f6 — docs(22.1): flip steps.md checkbox for step 22.1 — 2026-05-16
-- cc86027 — feat(22.1): ZodError surfaces as human-readable joined message — 2026-05-16
-- 9053529 — feat(22.1): server-side deep-merge in config_set preserves omitted fields — 2026-05-16
-- c22cb0c — feat(22.1): cost_ceilings schema accepts null as Infinity sentinel — 2026-05-16
 
-Control phase tags placed: `phase-13-...-closed` through `phase-22-routing-config-destructiveness-closed` (10 in succession). Relay ordering: 13 Relay Phases resolved (27 items closed across Control Phases 9-22; +1 closed WONT-DO). 14 active issues remain in `.relay/issues/` (Phase 13 #24+#27 PR-2, Phases 14-16, Phase 17 4-feature backlog) + 1 follow-up (`engine-ops-still-append-to-card-body`).
+Control phase tags placed: `phase-13-...-closed` through `phase-23-routing-pr2-closed` (11 in succession). Relay ordering: Phase 13 cluster fully resolved (29 items closed across Control Phases 9-23; +1 closed WONT-DO). 12 active issues remain in `.relay/issues/` (Phases 14-16, Phase 17 4-feature backlog) + 1 follow-up (`engine-ops-still-append-to-card-body`).
 
 ---
 
 ## Attempts that didn't work (current step only)
-- None (Phase 23 not yet started).
+- None (Phase 24 not yet started).
 
 ---
 
@@ -93,24 +93,27 @@ Control phase tags placed: `phase-13-...-closed` through `phase-22-routing-confi
 - **Language / runtime:** TypeScript (Node ≥ 20). Engine builds with `tsc -p tsconfig.json`. UI built by `scripts/build-ui.mjs`. zod 3.23.8 confirmed as direct dep.
 - **Key pinned deps:** vitest 2.1.9, simple-git, gray-matter, zod, chokidar, @anthropic-ai/sdk.
 - **Model in use:** Claude Opus 4.7 (1M context).
-- **Other:** Chokidar polling 50ms / 100ms stability. `pretest` builds the UI. Test timeout 5000ms. Daemon EventBus has both run-log (per-card) and brain-log (daemon-wide) persistent subscribers as of Phase 14; SSE remains the real-time fan-out surface. `conductor init` writes/extends `.gitignore` at the user's project root with a sentinel-fenced block of daemon-written runtime artifacts (Phase 17). `conductor daemon start` prints `Daemon up at <url>/?token=<uuid> (pid=NNNN)` — the URL is copy-pasteable into a browser for first-visit UI auth (Phase 18). UI is Control-Room-styled with masthead, design tokens, numbered nav, and structured headers (Phase 19). `conductor init`'s Python verify_command detection walks a venv-aware/tool-runner-aware ladder (uv/pdm/poetry/`.venv`/`venv`/`python -m pytest` fallback with platform-split path joins; one-line stdout note on the bare-fallback branch) — Phase 20.
+- **Other:** Chokidar polling 50ms / 100ms stability. `pretest` builds the UI. Test timeout 5000ms. Daemon EventBus has both run-log (per-card) and brain-log (daemon-wide) persistent subscribers as of Phase 14; SSE remains the real-time fan-out surface. `conductor init` writes/extends `.gitignore` at the user's project root with a sentinel-fenced block of daemon-written runtime artifacts (Phase 17). `conductor daemon start` prints `Daemon up at <url>/?token=<uuid> (pid=NNNN)` — the URL is copy-pasteable into a browser for first-visit UI auth (Phase 18). UI is Control-Room-styled with masthead, design tokens, numbered nav, and structured headers (Phase 19). `conductor init`'s Python verify_command detection walks a venv-aware/tool-runner-aware ladder (uv/pdm/poetry/`.venv`/`venv`/`python -m pytest` fallback with platform-split path joins; one-line stdout note on the bare-fallback branch) — Phase 20. The Routing UI's autonomy dropdown patches the textarea surgically without re-fetching (Phase 23); `config_set` and the `autonomy` CLI both preserve user-authored YAML comments (file-head preamble + section-leading blocks + end-of-line annotations) through commit cycles via the shared `preserveYamlComments` helper at `src/config/preserve_comments.ts` (Phase 23).
 
 ---
 
 ## Notes for next session
 
-Phase 23 (`routing-pr2`) closes Relay Phase 13 PR-2: #24 (autonomy dropdown overwrites uncommitted yaml edits — P1, S-complexity, leader) + #27 (config_set strips yaml comments — P2, M-complexity, sibling). Both touch `src/ui/views/routing.ts` and the `config_set` write path. PR-1's merge-aware `config_set` (shipped Phase 22) is now in place — the surgical-update implementation #24 needs can call into it. Comment preservation has Option A (heuristic: re-inject leading comment block above `routing:`) as the lightest unblock; escalate to a comment-preserving YAML AST library if dogfood reveals shapes that heuristic doesn't cover.
+Phase 24 (`board-transition-ux`) closes Relay Phase 14: #29 (board drag-drop offers approval for invalid transitions, then `alert()` — P2, S-complexity, leader) + #30 (no backward UI path out of `approved` — P2, XS-complexity, sibling). Both touch `src/ui/views/board_dnd.ts` and `src/engine/lifecycle.ts`. Phase 14's key deliverable is the **extracted shared forward-map validator** at `src/ui/views/board_validate.ts` — this is the structural substrate Relay Phase 17 #41 (`keyboard-board-focus-and-move`) will later import directly, so this phase unblocks Phase 17 feature #41 mechanically.
+
+Recommended approach (from Relay ordering): at drop time, look up the forward-map (reuse `policyForExit`'s allowed-next-column logic) + the BACKWARD set; reject visually (shake on source tile, or status surface) instead of dialog + `alert()`. Replace remaining `alert()` calls with the existing in-app status surfaces. For #30: add `'approved->planned'` to the `BACKWARD` set; rationale is sound (no work performed at `approved` yet; rollback is cheap). Ship as one PR.
 
 Pattern precedent recap (cite if a future ADR session writes one — all currently at deferred status):
-- **Pure-helper extraction for testable CLI print-shape contracts** (n=4 — Phase 18 `formatDaemonStartedMessage`, Phase 20 `detectPythonVerifyCommand`, Phase 21 substrate helpers, Phase 22 `deepMergeConfig`/`isPlainObject`). Promotion threshold long fired.
+- **Pure-helper extraction for testable CLI print-shape contracts** (n=6 — Phase 18 `formatDaemonStartedMessage`, Phase 20 `detectPythonVerifyCommand`, Phase 21 substrate helpers, Phase 22 `deepMergeConfig`/`isPlainObject`, Phase 23 `replaceAutonomyDefault`, Phase 23 `preserveYamlComments`). Promotion threshold long fired.
 - **JSONL/markdown-writer with prune-at-boot** (n=3 — `RunLogWriter`, `BrainLogWriter` Phase 6, `RunArtifactWriter` + `ChatLogWriter` Phase 21). Promotion threshold fired.
-- **In-memory hand-off between same-run ops via typed args** (Phase 21 `PlanArgs.analysis` instead of `extractSection(card.body, 'Analysis')`). Single instance so far; worth watching if Phase 23+ chooses a similar pattern.
+- **In-memory hand-off between same-run ops via typed args** (Phase 21 `PlanArgs.analysis` instead of `extractSection(card.body, 'Analysis')`). Single instance so far; pattern remained n=1 through Phase 23.
 - **Schema-layer JSON sentinel coercion via `z.preprocess`** (Phase 22 `null → Infinity` on `cost_ceilings`). Single instance; pattern worth flagging if other non-JSON-representable defaults appear.
+- **Pure-helper for surgical UI-buffer mutation** (Phase 23 `replaceAutonomyDefault`) and **heuristic round-trip preservation in a write path** (Phase 23 `preserveYamlComments`). Both new this phase; carried into the pure-helper-extraction count above. Either could become its own ADR variant if a second site adopts the pattern.
 
 ADR filing remains deferred per operator decision. Pure-helper-extraction is the strongest candidate if a future session authorizes it: candidate slug `0001-pure-helper-extraction-for-testable-cli-contracts.md` (verify next number against `.control/architecture/decisions/`).
 
-Carry-forward into Phase 23 already done: `## Why this phase exists` section seeded from Phase 22's Deferred bullet (Relay #24 + #27 PR-2 cluster).
+Carry-forward into Phase 24: Phase 23's Deferred section was empty (`<none yet>` placeholder only); the Phase 24 README's `## Why this phase exists` section keeps its `<Fill in during phase kickoff.>` placeholder and should be authored on Phase 24 start.
 
-After Phase 23: 12 active issues remain in `.relay/issues/` — Phases 14 (board UX, #29 + #30), 15 (brain telemetry, #31-#33), 16 (polish, #34-#38), 17 (keyboard layer, 4 designed features #40-#43), plus the Phase 21 follow-up `engine-ops-still-append-to-card-body`. Phase 17 is the largest contiguous cluster and is already designed (4 features ready for `/relay-analyze`); strong candidate for the session after Phase 23.
+After Phase 24: 10 active issues remain — Phase 15 (brain telemetry, #31-#33), Phase 16 (polish, #34-#38), Phase 17 (keyboard layer, 4 designed features #40-#43 — substrate available from Phase 24's validator extract), plus the Phase 21 follow-up `engine-ops-still-append-to-card-body`. Phase 17 is the largest contiguous cluster (4 features ready for `/relay-analyze` in strict declared order #40 → #41 → #42 → #43) and is the natural next target once Phase 24 closes.
 
 Notebook step is skipped per `relay-config.md § Notebook Setup` (TypeScript-only project).
