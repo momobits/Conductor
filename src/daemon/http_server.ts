@@ -98,9 +98,21 @@ export async function startHttpServer(args: StartHttpServerArgs): Promise<Starte
         const result = await handler(ctx, parsed.params);
         writeJson(res, 200, { jsonrpc: '2.0', id: parsed.id ?? null, result });
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        const code = err instanceof ZodError ? -32602 : -32603;
-        writeJson(res, 200, { jsonrpc: '2.0', id: parsed.id ?? null, error: { code, message } });
+        // Phase 22: format ZodError as a human-readable joined message; expose
+        // structured issues in error.data for programmatic clients. Closes #28.
+        if (err instanceof ZodError) {
+          const message = err.issues
+            .map((i) => `${i.path.length === 0 ? '(root)' : i.path.join('.')}: ${i.message}`)
+            .join('; ');
+          writeJson(res, 200, {
+            jsonrpc: '2.0',
+            id: parsed.id ?? null,
+            error: { code: -32602, message, data: { issues: err.issues } },
+          });
+        } else {
+          const message = err instanceof Error ? err.message : String(err);
+          writeJson(res, 200, { jsonrpc: '2.0', id: parsed.id ?? null, error: { code: -32603, message } });
+        }
       }
     } catch (err) {
       res.statusCode = 500;

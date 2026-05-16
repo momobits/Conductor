@@ -86,4 +86,25 @@ describe('http_server', () => {
     expect(body.error.code).toBe(-32602);
     expect(body.error.message).toMatch(/frontmatterPatch|bodyAppend/);
   });
+
+  it('Phase 22: ZodError message is human-readable joined string with structured issues in error.data (#28)', async () => {
+    // Send an invalid card_new (missing required `slug`) to trigger ZodError.
+    const r = await rpc(server, 'conductor.card_new', { title: 'no slug' }, token);
+    const body = r.body as { error: { code: number; message: string; data?: { issues: unknown[] } } };
+    expect(body.error.code).toBe(-32602);
+    // Message must NOT start with `[` (raw JSON array) — the original bug.
+    expect(body.error.message.startsWith('[')).toBe(false);
+    // Message must be the joined human-readable form `<path>: <msg>`.
+    expect(body.error.message).toMatch(/slug:/);
+    // Structured issues must be available in error.data for programmatic clients.
+    expect(Array.isArray(body.error.data?.issues)).toBe(true);
+    expect(body.error.data!.issues.length).toBeGreaterThan(0);
+  });
+
+  it('Phase 22: refine error formats top-level path as (root) (#28)', async () => {
+    // card_update refine has empty `path`; formatter labels it `(root)`.
+    const r = await rpc(server, 'conductor.card_update', { id: 'x' }, token);
+    const body = r.body as { error: { message: string } };
+    expect(body.error.message).toMatch(/^\(root\):/);
+  });
 });
