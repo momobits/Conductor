@@ -667,10 +667,15 @@ main#root.page {
   padding: 12px 14px;
   border-radius: 2px;
   border: 1px solid var(--hairline);
-  max-height: 32vh;
-  overflow-y: auto;
   margin-top: 14px;
   position: relative;
+  /* Phase 26.5b: overflow MUST stay visible on .stream so the ::before
+     LIVE FEED label (positioned at top: -8px) is not clipped by the
+     stream's own box. Scrolling moved to .stream-scroll below. */
+}
+.stream-scroll {
+  max-height: 32vh;
+  overflow-y: auto;
 }
 .stream::before {
   content: 'LIVE FEED ⌁';

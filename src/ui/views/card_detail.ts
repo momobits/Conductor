@@ -59,7 +59,7 @@ export async function renderCardDetail(
         <button id="work-btn" ${status.session ? 'disabled' : ''}>
           ${status.session ? `Running (${escape(status.session.operation)})` : 'Work this card'}
         </button>
-        <div class="stream" id="stream"></div>
+        <div class="stream"><div class="stream-scroll" id="stream"></div></div>
       </aside>
     </div>
   `;
