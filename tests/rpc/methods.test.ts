@@ -529,6 +529,10 @@ v2 plan text.
   it('run_artifact_get rejects unknown op values', async () => {
     const repo = setupRepo();
     const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
-    await expect(methods.run_artifact_get(ctx, { runId: 'r1', op: 'review' })).rejects.toThrow();
+    // Phase 28.3 widened the RPC enum to all 6 op artifacts (analyze, plan,
+    // review, verify, notebook, implement); 'review' is now valid. Use an
+    // unambiguously-invalid string to keep the rejection-test's boundary-
+    // guard purpose intact.
+    await expect(methods.run_artifact_get(ctx, { runId: 'r1', op: 'INVALID' })).rejects.toThrow();
   });
 });

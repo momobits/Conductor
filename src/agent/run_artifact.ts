@@ -14,13 +14,12 @@ import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { listRuns } from './runlog_store.js';
 
-// Writer-side op kinds. Phase 28.1 added 'review'; Phase 28.2 adds 'verify'
-// and 'notebook'; 'implement' widens in Phase 28.3.
-// Note: the RPC boundary enum at `rpc/schema.ts` (RunArtifactGetParams.op)
-// stays narrower until 28.3 (Card Detail UI verify-all-6); the intentional
-// divergence preserves the `run_artifact_get rejects unknown op values`
-// test contract until the UI render typing widens together with the RPC.
-export type ArtifactOp = 'analyze' | 'plan' | 'review' | 'verify' | 'notebook';
+// Writer-side op kinds. Phase 28 ships in 3 commits:
+//   28.1 added 'review'; 28.2 added 'verify' and 'notebook'; 28.3 added
+//   'implement'. All 6 engine ops produce per-run artifacts as of Phase 28.3.
+// The RPC boundary enum at `rpc/schema.ts` (RunArtifactGetParams.op) and the
+// UI render typing at `ui/views/card_detail.ts` widened to match in Phase 28.3.
+export type ArtifactOp = 'analyze' | 'plan' | 'review' | 'verify' | 'notebook' | 'implement';
 
 // Path-traversal guard: op name must match a safe charset. Defense-in-depth
 // for RPC-driven reads (run_artifact_get) — the Zod enum at the RPC boundary

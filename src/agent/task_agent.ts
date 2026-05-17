@@ -178,7 +178,14 @@ export class TaskAgent {
         const c = await readCard(cardPath);
         yield await this.emit({ kind: 'op_start', cardId: this.cardId, operation: 'implement', model: modelFor(c, 'implement') });
         const t = Date.now();
-        await implement({ repo: this.repo, card: c, adapter: this.adapter, model: modelFor(c, 'implement'), step: this.step });
+        await implement({
+          repo: this.repo,
+          card: c,
+          adapter: this.adapter,
+          model: modelFor(c, 'implement'),
+          step: this.step,
+          runId: this.runId,
+        });
         yield await this.emit({ kind: 'op_complete', cardId: this.cardId, operation: 'implement', durationMs: Date.now() - t });
         let halted = false;
         for await (const { event, halted: h } of this.transitionWithGate(cardPath, 'approved', 'building')) {

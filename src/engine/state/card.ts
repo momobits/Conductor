@@ -2,16 +2,18 @@
 //
 // Card persistence: read, write, list, and append-section.
 // Cards are markdown files with YAML frontmatter at .conductor/cards/<id>.md.
-// Body sections that still accrete via `appendSection` (Relay-style):
-//   ## Implementation Guidelines (implement op — Phase 28.3 migration pending)
-// As of Phase 28.2, analyze + plan + review + verify + notebook + chat outputs
-// live in sibling artifacts (NOT card body):
-//   .conductor/runs/<runId>/analyze.md   (analyze op output)
-//   .conductor/runs/<runId>/plan.md      (plan op output; Phase 28.1 sunset dual-write)
-//   .conductor/runs/<runId>/review.md    (review op output, Phase 28.1)
-//   .conductor/runs/<runId>/verify.md    (verify op output, Phase 28.2)
-//   .conductor/runs/<runId>/notebook.md  (notebook op metadata, Phase 28.2)
-//   .conductor/cards/<id>.chat.jsonl     (chat history)
+// As of Phase 28.3, NO engine op accretes body sections via `appendSection`.
+// All op outputs live in sibling artifacts (NOT card body):
+//   .conductor/runs/<runId>/analyze.md    (analyze op output)
+//   .conductor/runs/<runId>/plan.md       (plan op output; Phase 28.1 sunset dual-write)
+//   .conductor/runs/<runId>/review.md     (review op output, Phase 28.1)
+//   .conductor/runs/<runId>/verify.md     (verify op output, Phase 28.2)
+//   .conductor/runs/<runId>/notebook.md   (notebook op metadata, Phase 28.2)
+//   .conductor/runs/<runId>/implement.md  (implement op guideline, Phase 28.3)
+//   .conductor/cards/<id>.chat.jsonl      (chat history)
+// `appendSection` and `extractSection` are retained in this module for the
+// `card_update` RPC's `bodyAppend` param and any user-facing tooling, but no
+// engine op writes to body via these helpers anymore.
 
 import { readFile, writeFile, readdir, mkdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';

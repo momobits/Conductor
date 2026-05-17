@@ -1,13 +1,17 @@
 // src/engine/ops/implement.ts
 //
 // Operation: apply ONE step of the implementation plan to the working
-// tree, then commit with Control's commit-per-step format.
+// tree, then commit with Control's commit-per-step format. Phase 28.3
+// migrated this op off card-body appends: implement reads the plan from
+// the per-run substrate (.conductor/runs/<latestPlanRunId>/plan.md) and
+// writes its guideline to the per-run substrate (.conductor/runs/<runId>/
+// implement.md). Card body is no longer mutated.
 
 import { writeFile, mkdir, rm, access } from 'node:fs/promises';
 import { resolve, relative, dirname, isAbsolute } from 'node:path';
 import type { ModelAdapter } from '../../adapters/adapter.js';
 import { COMMIT_TYPES, type Card, type CommitType, type Diff, type DiffFile } from '../types.js';
-import { appendSection } from '../state/card.js';
+import { RunArtifactWriter, findLatestArtifactRunId } from '../../agent/run_artifact.js';
 import { commitStep } from '../state/git.js';
 import { parseJsonResponse } from '../util/parse_json_response.js';
 
@@ -17,6 +21,7 @@ export interface ImplementArgs {
   adapter: ModelAdapter;
   model: string;
   step: string; // e.g. '1.1'
+  runId: string;
 }
 
 const SYSTEM_PROMPT = `You are an experienced software engineer applying ONE
@@ -83,15 +88,39 @@ async function applyDiffFile(repo: string, file: DiffFile): Promise<void> {
 }
 
 export async function implement(args: ImplementArgs): Promise<Diff> {
-  const { repo, card, adapter, model, step } = args;
+  const { repo, card, adapter, model, step, runId } = args;
+
+  if (typeof repo !== 'string' || repo.length === 0) {
+    throw new Error(`implement: repo arg required (received: ${JSON.stringify(repo)}).`);
+  }
+  if (typeof runId !== 'string' || runId.length === 0) {
+    throw new Error(`implement: runId arg required (received: ${JSON.stringify(runId)}).`);
+  }
+
+  // Phase 28.3: read plan from per-run substrate (fixes the latent prompt
+  // bug introduced when 28.1 + 28.2 removed Analysis + Plan sections from
+  // card.body). Pre-28.3 implement spliced card.body.trim() into the prompt
+  // under a "Card body (Analysis + Plan)" label, but body has neither
+  // section post-28.1 + 28.2 — the prompt was near-empty in production.
+  const found = await findLatestArtifactRunId(repo, card.frontmatter.id, 'plan');
+  if (!found) {
+    throw new Error(
+      `Card ${card.frontmatter.id} has no Implementation Plan in any prior run; run plan first.`,
+    );
+  }
+  const { runId: planRunId, text: plan } = found;
 
   const userPrompt = [
     `Card: ${card.frontmatter.id}`,
     `Phase: ${card.frontmatter.phase}`,
     `Step requested: ${step}`,
+    `Plan run: ${planRunId}`,
     '',
-    '--- Card body (Analysis + Plan) ---',
+    '--- Card body (user description) ---',
     card.body.trim(),
+    '',
+    '--- Implementation Plan (from substrate) ---',
+    plan,
   ].join('\n');
 
   const resp = await adapter.invoke({
@@ -124,8 +153,10 @@ export async function implement(args: ImplementArgs): Promise<Diff> {
     await applyDiffFile(repo, f);
   }
 
-  // Append the implementation guideline BEFORE committing so the card body
-  // update is part of the same step commit as the code changes.
+  // Phase 28.3: persist implementation guideline to per-run substrate (NOT
+  // to card body). Write BEFORE commitStep so the substrate file is part of
+  // the step's run-dir state at the moment of commit (mirrors the pre-28.3
+  // ordering where appendSection ran before commitStep).
   const guideline = [
     `### Step ${diff.step} — ${diff.commit_subject}`,
     '',
@@ -134,14 +165,15 @@ export async function implement(args: ImplementArgs): Promise<Diff> {
     diff.notes || '_(no notes)_',
   ].join('\n');
 
-  await appendSection(card.path, 'Implementation Guidelines', guideline);
+  await new RunArtifactWriter({ repo, runId }).write('implement', guideline);
 
-  // Stage only what this step touched: the diff files + the card markdown.
-  // Critical: commitStep no longer accepts an empty list and no longer
-  // runs `git add .` (T6-1 fix). Anything else in the working tree must
-  // be handled by the user outside conductor's scope.
-  const cardRelative = relative(repo, card.path).replace(/\\/g, '/');
-  const filesToCommit = [...diff.files.map((f) => f.path), cardRelative];
+  // Stage only what this step touched: the diff files. Phase 28.3 removed
+  // the card.md from filesToCommit because implement no longer mutates the
+  // card body (substrate is the single writer). commitStep no longer
+  // accepts an empty list and no longer runs `git add .` (T6-1 fix);
+  // anything else in the working tree must be handled by the user outside
+  // conductor's scope.
+  const filesToCommit = diff.files.map((f) => f.path);
 
   await commitStep(repo, {
     type: diff.commit_type,

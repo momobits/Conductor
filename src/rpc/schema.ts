@@ -114,7 +114,7 @@ export const ChatParams = z.object({
 
 export const RunArtifactGetParams = z.object({
   runId: z.string().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/, 'runId must match [a-zA-Z0-9_-]+'),
-  op: z.enum(['analyze', 'plan']),
+  op: z.enum(['analyze', 'plan', 'review', 'verify', 'notebook', 'implement']),
 });
 
 export const CardChatHistoryParams = z.object({

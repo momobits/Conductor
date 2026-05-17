@@ -67,13 +67,22 @@ export async function renderCardDetail(
   const streamEl = root.querySelector<HTMLElement>('#stream')!;
   const workBtn = root.querySelector<HTMLButtonElement>('#work-btn')!;
 
-  // Phase 21: artifact panel renders analyze.md + plan.md as the run progresses.
+  // Phase 28.3: artifact panel renders all 6 per-op artifacts as the run
+  // progresses. The set below mirrors the writer-side ArtifactOp union at
+  // src/agent/run_artifact.ts and the RPC enum at src/rpc/schema.ts; keep
+  // in sync if more ops migrate to the substrate in future phases.
+  type ArtifactOp = 'analyze' | 'plan' | 'review' | 'verify' | 'notebook' | 'implement';
+  const ARTIFACT_OPS = new Set<ArtifactOp>(['analyze', 'plan', 'review', 'verify', 'notebook', 'implement']);
+  function isArtifactOp(op: string | undefined): op is ArtifactOp {
+    return op !== undefined && (ARTIFACT_OPS as Set<string>).has(op);
+  }
+
   const article = root.querySelector<HTMLElement>('.body')!;
   const artifactsEl = document.createElement('section');
   artifactsEl.className = 'ops-artifacts';
   article.appendChild(artifactsEl);
 
-  async function renderArtifact(runId: string, op: 'analyze' | 'plan'): Promise<void> {
+  async function renderArtifact(runId: string, op: ArtifactOp): Promise<void> {
     try {
       const r = await rpc.call<{ text: string | null }>('run_artifact_get', { runId, op });
       if (!r.text) return;
@@ -170,7 +179,7 @@ export async function renderCardDetail(
       case 'op_start': appendEvent(`▸ ${evt.operation}`); break;
       case 'op_complete': {
         appendEvent(`✓ ${evt.operation}`);
-        if (ev.runId && (evt.operation === 'analyze' || evt.operation === 'plan')) {
+        if (ev.runId && isArtifactOp(evt.operation)) {
           renderArtifact(ev.runId, evt.operation);
         }
         break;
