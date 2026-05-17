@@ -1,16 +1,17 @@
-# Phase 26 — Polish bundle (Relay Phase 16, 4 items)
+# Phase 26 — Polish bundle (5 items)
 
 **Dependencies:** Phase 25 closed (`phase-25-keyboard-layer-closed`)
-**Estimated duration:** ~1-2 sessions (4 XS items; bundle as one PR)
+**Estimated duration:** ~1-2 sessions (5 XS items; bundle as one PR)
 
 ## Goal
-Close out Relay Phase 16 — the polish & cosmetics cluster surfaced by the Phase 21 Playwright dogfood. Four independent micro-fixes that share no engine surface, ready to ship as one bundled docs/copy PR. Phase 16 #35 (transition-dialog phase terminology) was already closed by Phase 25.3 grouped run; Phase 16 #39 (footer-R) was migrated to Phase 17 and closed by Phase 25.4. This phase handles the remaining four.
+Close out Relay Phase 16 — the polish & cosmetics cluster surfaced by the Phase 21 Playwright dogfood — plus one 2026-05-17 dogfood follow-up (stream label clipping). Five independent micro-fixes that share no engine surface, ready to ship as one bundled docs/copy PR. Phase 16 #35 (transition-dialog phase terminology) was already closed by Phase 25.3 grouped run; Phase 16 #39 (footer-R) was migrated to Phase 17 and closed by Phase 25.4. This phase handles the remaining four Relay Phase 16 items plus the new stream-label-clipping issue.
 
 ## Outcome
 - Card deeplinks to non-existent cards no longer silently render Board — a clear "not found" empty shell renders instead.
 - The Board's `archived` column shows a `terminal` policy badge (visual consistency with the other six columns).
 - The masthead's `Vol. 18 · N° 01` edition stamp is either runtime-populated from real state OR removed (decision pinned during impl).
 - Daemon serves a `/favicon.ico` (or `/favicon.svg`) — no more 404 on every page load.
+- Card-detail's `LIVE FEED ⌁` label on `.stream::before` sits clear of the `#work-btn` above it (no more letterform clipping).
 
 ## Where we were, end of Phase 25
 
@@ -33,7 +34,8 @@ All must be verified before `/phase-close` advances:
 - [ ] Archived-column policy badge: visual confirmation on Board that column `U archived` shows a `terminal` policy badge styled consistently with the other six
 - [ ] Edition stamp: either runtime-populated from a deterministic source OR removed entirely (no hardcoded stale values)
 - [ ] Favicon: browser request to `/favicon.ico` (or `/favicon.svg` via `<link rel="icon">`) returns 200 with appropriate content-type
-- [ ] Smoke test: each of the four fixes walked end-to-end against the running daemon
+- [ ] Stream LIVE FEED label: visual confirmation on any card-detail view (at default + 200% zoom) that the `LIVE FEED ⌁` label is fully visible above the stream border without clipping into the `#work-btn` above
+- [ ] Smoke test: each of the five fixes walked end-to-end against the running daemon
 - [ ] Working tree is clean
 - [ ] All commits follow the `<type>(<phase>.<step>): <subject>` convention
 - [ ] Phase will be tagged `phase-26-polish-bundle-closed` by `/phase-close`
