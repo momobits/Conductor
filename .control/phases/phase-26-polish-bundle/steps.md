@@ -1,6 +1,6 @@
 # Phase 26 Steps
 
-- [ ] 26.1 — Relay Phase 16 #34: `ui-card-deeplink-not-found-silently-renders-board` (P2, XS). Try/catch around `renderCardDetail` in `src/ui/main.ts dispatch()`; on `CARD_NOT_FOUND`, render a clear empty-shell with the card id instead of falling through to Board.
+- [x] 26.1 — Relay Phase 16 #34: `ui-card-deeplink-not-found-silently-renders-board` (P2, XS). Try/catch around `renderCardDetail` in `src/ui/main.ts dispatch()`; on `CARD_NOT_FOUND`, render a clear empty-shell with the card id instead of falling through to Board.
 - [ ] 26.2 — Relay Phase 16 #36: `ui-archived-column-missing-policy-badge` (P3, XS). Render a `terminal` policy badge for the `archived` column (Option B from the issue: dedicated class + label).
 - [ ] 26.3 — Relay Phase 16 #37: `ui-edition-stamp-hardcoded-stale` (P3, XS). Decision-time pick: (a) runtime-populate `data-edition-vol` / `data-edition-no` from STATE.md or an `engine_state` RPC, or (b) rip the stamp entirely. Implement the chosen option.
 - [ ] 26.4 — Relay Phase 16 #38: `ui-favicon-missing` (P3, XS). Ship a `src/ui/favicon.svg` (16x16 viewBox, `§` glyph on `--ink-500`) + `<link rel="icon" type="image/svg+xml">` in `index.html` + update `scripts/build-ui.mjs` to copy it.
