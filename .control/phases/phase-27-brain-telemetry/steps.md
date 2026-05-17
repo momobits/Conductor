@@ -2,7 +2,7 @@
 
 - [x] 27.1 — Relay Phase 15 #31: `ui-monitor-stop-button-no-stopping-state-and-tight-race-window` (P2, S). Add intermediate `stopping…` state on the Stop button when `conductor_stop` RPC is in flight (handler at `src/ui/views/monitor.ts:101-108`; disabled flip driven solely by `brain.running` at lines 88-89 currently misses the drain window). Surface a clear label + disabled state during the `inst.stop(); await ctx.conductor?.runPromise;` drain in `src/rpc/methods.ts:278-285`.
 - [x] 27.2 — Relay Phase 15 #32: `ui-brain-fires-two-halts-19ms-apart-for-single-wedge-event` (P3, S). Coalesce duplicate `conductor-halt` events that fire for the same logical wedge — the verify-fail-then-meta-halt sequence currently publishes both the immediate `unrecognized-error` halt and the meta `idle: halted twice in a row` halt to the SSE bus. Decide during analysis: drop the meta-halt, suppress it within a short window, or restructure so only one fires.
-- [ ] 27.3 — Relay Phase 15 #33: `ui-brain-log-timestamps-show-paint-time-not-event-time` (P3, XS). Render brain-log row timestamps from the SSE envelope's event-fired `ts` field rather than from `Date.now()` at paint time (`src/ui/views/monitor.ts:54-59`). Visual fix; preserve display format `HH:MM:SS`.
+- [x] 27.3 — Relay Phase 15 #33: `ui-brain-log-timestamps-show-paint-time-not-event-time` (P3, XS). Render brain-log row timestamps from the SSE envelope's event-fired `ts` field rather than from `Date.now()` at paint time (`src/ui/views/monitor.ts:54-59`). Visual fix; preserve display format `HH:MM:SS`.
 
 ## Step detail
 
