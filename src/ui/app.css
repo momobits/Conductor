@@ -788,7 +788,7 @@ button.danger {
 button.danger:hover:not(:disabled) { background: var(--paper); color: var(--ink-000); }
 
 /* Work button (primary action on card) */
-#work-btn { width: 100%; padding: 14px; font-size: 12px; }
+#work-btn { width: 100%; padding: 14px; font-size: 12px; margin-bottom: 18px; }
 
 /* =====================================================================
    DIALOG
