@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+  <rect width="16" height="16" fill="#3a3a45"/>
+  <text x="8" y="13" text-anchor="middle"
+        font-family="Georgia, 'Times New Roman', serif"
+        font-size="14" font-weight="bold" font-style="italic"
+        fill="#f3ece0">§</text>
+</svg>

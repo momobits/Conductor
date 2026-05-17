@@ -34,8 +34,8 @@ async function main() {
   await mkdir(DST, { recursive: true });
   await mkdir(VENDOR_DST, { recursive: true });
 
-  // Copy HTML / CSS — anything that isn't TypeScript.
-  await copyTree(SRC, DST, (name) => name.endsWith('.html') || name.endsWith('.css'));
+  // Copy HTML / CSS / SVG — anything that isn't TypeScript.
+  await copyTree(SRC, DST, (name) => name.endsWith('.html') || name.endsWith('.css') || name.endsWith('.svg'));
 
   // Vendor marked and DOMPurify from node_modules.
   await copyFile(MARKED_SRC, join(VENDOR_DST, 'marked.esm.js'));
