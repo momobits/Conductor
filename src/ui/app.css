@@ -387,6 +387,7 @@ main#root.page {
 .badge.manual { color: var(--signal); }
 .badge.assist { color: var(--amber); }
 .badge.auto   { color: var(--acid); }
+.badge.final  { color: var(--mute); }
 
 /* Card tiles */
 .column-tiles { display: flex; flex-direction: column; gap: 8px; }

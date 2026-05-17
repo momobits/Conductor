@@ -35,16 +35,18 @@ interface ProjectConfigShape {
   autonomy: { transitions: Record<string, 'manual' | 'assist' | 'auto'> };
 }
 
-function policyBadge(policy: 'manual' | 'assist' | 'auto'): string {
+function policyBadge(policy: 'manual' | 'assist' | 'auto' | 'final'): string {
   return `<span class="badge ${policy}">${policy}</span>`;
 }
 
-function policyForExit(config: ProjectConfigShape, from: Column): 'manual' | 'assist' | 'auto' | null {
+function policyForExit(config: ProjectConfigShape, from: Column): 'manual' | 'assist' | 'auto' | 'final' | null {
   // Show the badge for the forward-exit transition only (the most common move).
   // Forward map lives in the shared board_validate module (single source of
   // truth for drag-drop validation and Phase 17 keyboard validation).
+  // Phase 26.2: terminal columns (no forward transition) surface as 'final'
+  // so the column-head badge slot stays visually consistent across all 7 columns.
   const next = nextColumn(from);
-  if (!next) return null;
+  if (!next) return 'final';
   return config.autonomy.transitions[`${from}_to_${next}`] ?? 'manual';
 }
 
