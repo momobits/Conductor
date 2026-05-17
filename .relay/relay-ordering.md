@@ -262,7 +262,7 @@ Structural follow-up filed as a closure obligation during Phase 12's grouped-run
 
 | #  | Item                                                                                                                | File                                                                                              | Complexity | Depends on                                              |
 |----|--------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------|------------|---------------------------------------------------------|
-| 44 | `review`/`verify`/`notebook`/`implement` ops still append to card body; plan-op dual-write compat shim ready to sunset | [engine-ops-still-append-to-card-body.md](issues/engine-ops-still-append-to-card-body.md)         | M          | Phase 12 ✓ (RunArtifactWriter substrate landed); **gates Phase 20 (Frame B)** |
+| 44 | `review`/`verify`/`notebook`/`implement` ops still append to card body; plan-op dual-write compat shim ready to sunset — **Step 28.1 of 3 shipped 2026-05-17** (review op migrated; plan-op shim sunset; verify/notebook/implement migrations pending in 28.2/28.3) | [engine-ops-still-append-to-card-body.md](issues/engine-ops-still-append-to-card-body.md)         | M          | Phase 12 ✓ (RunArtifactWriter substrate landed); **gates Phase 20 (Frame B)** |
 
 ---
 
