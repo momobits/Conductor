@@ -196,8 +196,13 @@ export class TaskAgent {
         yield await this.emit({ kind: 'op_start', cardId: this.cardId, operation: 'verify', model: modelFor(c, 'verify') });
         const t = Date.now();
         const report = await verify({
-          card: c, adapter: this.adapter, model: modelFor(c, 'verify'),
-          command: this.config.verify_command, runner: this.runner,
+          card: c,
+          adapter: this.adapter,
+          model: modelFor(c, 'verify'),
+          command: this.config.verify_command,
+          runner: this.runner,
+          repo: this.repo,
+          runId: this.runId,
         });
         yield await this.emit({ kind: 'op_complete', cardId: this.cardId, operation: 'verify', durationMs: Date.now() - t });
         if (report.outcome === 'PASS') {
@@ -223,7 +228,12 @@ export class TaskAgent {
         const c = await readCard(cardPath);
         yield await this.emit({ kind: 'op_start', cardId: this.cardId, operation: 'notebook' });
         const t = Date.now();
-        await notebook({ repo: this.repo, card: c, command: this.config.verify_command });
+        await notebook({
+          repo: this.repo,
+          card: c,
+          command: this.config.verify_command,
+          runId: this.runId,
+        });
         yield await this.emit({ kind: 'op_complete', cardId: this.cardId, operation: 'notebook', durationMs: Date.now() - t });
         let halted = false;
         for await (const { event, halted: h } of this.transitionWithGate(cardPath, 'verifying', 'shipped')) {

@@ -2,17 +2,20 @@
 //
 // Operation: produce a minimal Jupyter notebook documenting the card's
 // verification. Deterministic — no LLM. Writes
-// .conductor/archive/notebooks/<id>.ipynb.
+// .conductor/archive/notebooks/<id>.ipynb. Reads the Verification Report
+// from the per-run substrate (Phase 28.2 — replaces extractSection on
+// card.body) and writes notebook metadata to the same substrate.
 
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import type { Card } from '../types.js';
-import { appendSection, extractSection } from '../state/card.js';
+import { RunArtifactWriter, findLatestArtifactRunId } from '../../agent/run_artifact.js';
 
 export interface NotebookArgs {
   repo: string;
   card: Card;
   command: string;
+  runId: string;
 }
 
 export interface NotebookResult {
@@ -28,9 +31,19 @@ interface NbCell {
 }
 
 export async function notebook(args: NotebookArgs): Promise<NotebookResult> {
-  const { repo, card, command } = args;
+  const { repo, card, command, runId } = args;
 
-  const verifySection = extractSection(card.body, 'Verification Report') ?? '_(none)_';
+  if (typeof runId !== 'string' || runId.length === 0) {
+    throw new Error(`notebook: runId arg required (received: ${JSON.stringify(runId)}).`);
+  }
+
+  // Phase 28.2: read Verification Report from per-run substrate (NOT card body).
+  // Preserve the `?? '_(none)_'` soft-fail fallback so cards without prior
+  // verify substrate (e.g., test fixtures that bootstrap directly to verifying
+  // column, or manually-moved cards) still produce a notebook with placeholder
+  // content. Matches pre-28.2 behavior.
+  const found = await findLatestArtifactRunId(repo, card.frontmatter.id, 'verify');
+  const verifySection = found?.text ?? '_(none)_';
 
   const cells: NbCell[] = [
     {
@@ -77,9 +90,9 @@ export async function notebook(args: NotebookArgs): Promise<NotebookResult> {
   await mkdir(dirname(outPath), { recursive: true });
   await writeFile(outPath, JSON.stringify(nb, null, 2), 'utf8');
 
-  await appendSection(
-    card.path,
-    'Notebook',
+  // Phase 28.2: persist notebook metadata to per-run substrate (NOT card body).
+  await new RunArtifactWriter({ repo, runId }).write(
+    'notebook',
     `Generated: \`archive/notebooks/${card.frontmatter.id}.ipynb\``,
   );
 

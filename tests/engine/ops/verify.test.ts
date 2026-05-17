@@ -4,10 +4,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { verify } from '../../../src/engine/ops/verify.js';
 import { readCard } from '../../../src/engine/state/card.js';
+import { readRunArtifact } from '../../../src/agent/run_artifact.js';
 import { MockAdapter } from '../../../src/adapters/mock.js';
 
 let tmp: string;
 let cardPath: string;
+const VERIFY_RUN_ID = 'r-verify';
 
 beforeEach(async () => {
   tmp = await mkdtemp(join(tmpdir(), 'conductor-verify-'));
@@ -40,7 +42,7 @@ beforeEach(async () => {
 afterEach(async () => { await rm(tmp, { recursive: true, force: true }); });
 
 describe('verify op', () => {
-  it('runs the runner, passes results to the model, parses PASS', async () => {
+  it('runs the runner, passes results to the model, parses PASS — writes verify.md substrate (no body mutation)', async () => {
     const adapter = new MockAdapter();
     adapter.push({
       text: JSON.stringify({
@@ -51,17 +53,26 @@ describe('verify op', () => {
       inputTokens: 1, outputTokens: 1,
     });
     const card = await readCard(cardPath);
+    const bodyBefore = card.body;
     const runner = async () => ({ stdout: 'ok', stderr: '', exitCode: 0 });
     const report = await verify({
       card, adapter, model: 'mock-model',
       command: 'npm test', runner,
+      repo: tmp, runId: VERIFY_RUN_ID,
     });
     expect(report.outcome).toBe('PASS');
     expect(report.exit_code).toBe(0);
     expect(report.failures).toEqual([]);
+
+    // Substrate write: verdict text persisted to .conductor/runs/<runId>/verify.md
+    const verifyArt = await readRunArtifact(tmp, VERIFY_RUN_ID, 'verify');
+    expect(verifyArt).toContain('**Outcome:** PASS');
+    expect(verifyArt).toContain('all green');
+
+    // Body byte-identical (Phase 28.2: no appendSection).
     const after = await readCard(cardPath);
-    expect(after.body).toContain('## Verification Report');
-    expect(after.body).toContain('PASS');
+    expect(after.body).toBe(bodyBefore);
+    expect(after.body).not.toContain('## Verification Report');
   });
 
   it('parses FAIL with failure list', async () => {
@@ -79,6 +90,7 @@ describe('verify op', () => {
     const report = await verify({
       card, adapter, model: 'mock-model',
       command: 'npm test', runner,
+      repo: tmp, runId: VERIFY_RUN_ID,
     });
     expect(report.outcome).toBe('FAIL');
     expect(report.exit_code).toBe(1);
@@ -100,6 +112,7 @@ describe('verify op', () => {
     const report = await verify({
       card, adapter, model: 'mock-model',
       command: 'echo no-op', runner,
+      repo: tmp, runId: VERIFY_RUN_ID,
     });
     expect(report.outcome).toBe('SKIP');
   });
@@ -115,6 +128,7 @@ describe('verify op', () => {
     await expect(verify({
       card, adapter, model: 'mock-model',
       command: 'npm test', runner,
+      repo: tmp, runId: VERIFY_RUN_ID,
     })).rejects.toThrow(/Invalid outcome/);
   });
 });

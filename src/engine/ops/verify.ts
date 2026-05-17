@@ -1,11 +1,13 @@
 // src/engine/ops/verify.ts
 //
 // Operation: run the project's verify command, ask the model to
-// classify the outcome, append a Verification Report.
+// classify the outcome, write the formatted Verification Report to
+// the per-run substrate (.conductor/runs/<runId>/verify.md). Phase 28.2
+// migrated this op off card-body appends.
 
 import type { ModelAdapter } from '../../adapters/adapter.js';
 import type { Card, VerifyReport, VerifyOutcome } from '../types.js';
-import { appendSection } from '../state/card.js';
+import { RunArtifactWriter } from '../../agent/run_artifact.js';
 import { parseJsonResponse } from '../util/parse_json_response.js';
 
 export interface RunnerResult {
@@ -22,6 +24,8 @@ export interface VerifyArgs {
   model: string;
   command: string;
   runner: Runner;
+  repo: string;
+  runId: string;
 }
 
 const VALID_OUTCOMES: VerifyOutcome[] = ['PASS', 'FAIL', 'SKIP'];
@@ -47,7 +51,14 @@ function truncate(s: string, max = 4000): string {
 }
 
 export async function verify(args: VerifyArgs): Promise<VerifyReport> {
-  const { card, adapter, model, command, runner } = args;
+  const { card, adapter, model, command, runner, repo, runId } = args;
+
+  if (typeof repo !== 'string' || repo.length === 0) {
+    throw new Error(`verify: repo arg required (received: ${JSON.stringify(repo)}).`);
+  }
+  if (typeof runId !== 'string' || runId.length === 0) {
+    throw new Error(`verify: runId arg required (received: ${JSON.stringify(runId)}).`);
+  }
 
   const result = await runner(command);
 
@@ -107,7 +118,8 @@ export async function verify(args: VerifyArgs): Promise<VerifyReport> {
       : '**Failures:** (none)',
   ].join('\n');
 
-  await appendSection(card.path, 'Verification Report', sectionBody);
+  // Phase 28.2: persist to per-run substrate (NOT to card body).
+  await new RunArtifactWriter({ repo, runId }).write('verify', sectionBody);
   return report;
 }
 

@@ -14,13 +14,13 @@ import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { listRuns } from './runlog_store.js';
 
-// Writer-side op kinds. Phase 28.1 adds 'review'; 'verify' / 'notebook' /
-// 'implement' will widen the union in Phase 28.2 / 28.3.
+// Writer-side op kinds. Phase 28.1 added 'review'; Phase 28.2 adds 'verify'
+// and 'notebook'; 'implement' widens in Phase 28.3.
 // Note: the RPC boundary enum at `rpc/schema.ts` (RunArtifactGetParams.op)
 // stays narrower until 28.3 (Card Detail UI verify-all-6); the intentional
 // divergence preserves the `run_artifact_get rejects unknown op values`
 // test contract until the UI render typing widens together with the RPC.
-export type ArtifactOp = 'analyze' | 'plan' | 'review';
+export type ArtifactOp = 'analyze' | 'plan' | 'review' | 'verify' | 'notebook';
 
 // Path-traversal guard: op name must match a safe charset. Defense-in-depth
 // for RPC-driven reads (run_artifact_get) — the Zod enum at the RPC boundary
