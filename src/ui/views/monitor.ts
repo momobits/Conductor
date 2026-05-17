@@ -21,7 +21,12 @@ export async function renderMonitor(
 ): Promise<{ cleanup: () => void; refresh: () => Promise<void> }> {
   let sessions: Session[] = [];
   let brain: BrainStatus = { running: false, iteration: 0, halts: 0 };
-  const brainLog: string[] = [];
+  // Phase 27.3: each entry carries the wall-clock time of the underlying event
+  // (captured at SSE arrival or RPC-error-handler invocation), not the paint
+  // time. Render derives the per-row timestamp via new Date(entry.ts) so
+  // multiple events with different arrival times render with their actual
+  // timestamps even within a single paint cycle.
+  const brainLog: Array<{ ts: number; line: string }> = [];
   // Phase 27.1: client-only optimistic flag. true between Stop click and the click
   // handler's finally block. Drives both the button (disabled + 'stopping…' text)
   // and the pill (data-running='stopping' + label) so the user sees feedback within
@@ -60,9 +65,9 @@ export async function renderMonitor(
       : (brain.running ? 'live · in transit' : 'idle · standby');
     const logRowsHtml = brainLog.length === 0
       ? `<div class="row"><span class="ts">--:--:--</span><span>awaiting telemetry…</span></div>`
-      : brainLog.slice(-200).map((line) => {
-          const ts = new Date().toLocaleTimeString('en-GB', { hour12: false });
-          return `<div class="row"><span class="ts">${ts}</span><span>${escape(line)}</span></div>`;
+      : brainLog.slice(-200).map((entry) => {
+          const ts = new Date(entry.ts).toLocaleTimeString('en-GB', { hour12: false });
+          return `<div class="row"><span class="ts">${ts}</span><span>${escape(entry.line)}</span></div>`;
         }).join('');
     root.innerHTML = `
       <div class="monitor">
@@ -106,7 +111,7 @@ export async function renderMonitor(
     `;
 
     root.querySelector('[data-act="start"]')?.addEventListener('click', async () => {
-      try { await rpc.call('conductor_start', {}); } catch (e) { brainLog.push(`start failed: ${(e as Error).message}`); }
+      try { await rpc.call('conductor_start', {}); } catch (e) { brainLog.push({ ts: Date.now(), line: `start failed: ${(e as Error).message}` }); }
       await refresh();
     });
     root.querySelector('[data-act="stop"]')?.addEventListener('click', async () => {
@@ -120,7 +125,7 @@ export async function renderMonitor(
       try {
         await rpc.call('conductor_stop', {});
       } catch (e) {
-        brainLog.push(`stop failed: ${(e as Error).message}`);
+        brainLog.push({ ts: Date.now(), line: `stop failed: ${(e as Error).message}` });
       } finally {
         stoppingBrain = false;
         await refresh();
@@ -134,15 +139,15 @@ export async function renderMonitor(
     if (e.kind === 'session-start' || e.kind === 'session-end' || e.kind === 'session-operation') {
       void refresh();
     } else if (e.kind === 'conductor-iteration') {
-      brainLog.push(`[iter ${(e as unknown as { iteration: number }).iteration}] ${(e as unknown as { cardId: string }).cardId}`);
+      brainLog.push({ ts: Date.now(), line: `[iter ${(e as unknown as { iteration: number }).iteration}] ${(e as unknown as { cardId: string }).cardId}` });
       void refresh();
     } else if (e.kind === 'conductor-decision') {
       const ev = e as unknown as { cardId: string; action: string; reason: string };
-      brainLog.push(`[decision] ${ev.cardId} → ${ev.action}: ${ev.reason}`);
+      brainLog.push({ ts: Date.now(), line: `[decision] ${ev.cardId} → ${ev.action}: ${ev.reason}` });
       paint();
     } else if (e.kind === 'conductor-halt') {
       const ev = e as unknown as { reason: string; cardId?: string };
-      brainLog.push(`[halt] ${ev.cardId ?? '(queue)'}: ${ev.reason}`);
+      brainLog.push({ ts: Date.now(), line: `[halt] ${ev.cardId ?? '(queue)'}: ${ev.reason}` });
       void refresh();
     } else if (e.kind === 'conductor-status') {
       void refresh();
