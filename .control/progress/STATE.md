@@ -3,10 +3,10 @@
 > Single source of truth. Read this first every session. Updated at every
 > `/session-end` and by the `PreCompact` hook. Every field has a purpose -- fill each.
 
-**Last updated:** 2026-05-16 by /session-end (sid-2026-05-16-phase-25-keyboard-layer)
-**Current phase:** 26 — Polish bundle (Relay Phase 16, 4 items)
+**Last updated:** 2026-05-17 by mid-session housekeeping (sid-2026-05-17-phase-26-kickoff)
+**Current phase:** 26 — Polish bundle (5 items)
 **Current step:** 26.1 — Relay Phase 16 #34 (`ui-card-deeplink-not-found-silently-renders-board`)
-**Status:** kicked-off (Phase 25 closed cleanly at tag `phase-25-keyboard-layer-closed`; 5 steps shipped including the smoke-surfaced 25.5 ergonomics revision (QWERTYU column keys + A refresh); Phase 26 scaffold authored with 4 steps mapping to remaining Relay Phase 16 items (#34, #36, #37, #38 — #35 closed by 25.3 grouped run, #39 closed by 25.4 grouped run); session-end at 734 tests / 13 Control phase tags placed; ready to resume with `/relay-analyze ui-card-deeplink-not-found-silently-renders-board.md`)
+**Status:** kicked-off (Phase 25 closed cleanly at tag `phase-25-keyboard-layer-closed`; 5 steps shipped including the smoke-surfaced 25.5 ergonomics revision (QWERTYU column keys + A refresh); Phase 26 scaffold authored with 4 steps mapping to remaining Relay Phase 16 items (#34, #36, #37, #38 — #35 closed by 25.3 grouped run, #39 closed by 25.4 grouped run); 2026-05-17 mid-session housekeeping added step 26.5 (`ui-stream-live-feed-label-clipped-by-work-button`, dogfood follow-up) bringing Phase 26 to 5 steps; session-end at 734 tests / 13 Control phase tags placed; ready to resume with `/relay-analyze ui-card-deeplink-not-found-silently-renders-board.md`)
 
 ---
 
@@ -19,19 +19,20 @@
 
 ## Next action
 
-**Phase 26 active — Relay Phase 16 polish bundle (4 XS items) is the next target.** Phase 25 closed cleanly (tag `phase-25-keyboard-layer-closed`); the entire Phase 17 keyboard layer shipped across 5 steps including the smoke-surfaced 25.5 ergonomics revision (QWERTYU column keys + A refresh, replacing the original 1–7 + R scheme). Suite at 734/734 (modulo the known pre-existing parallel-runner flake on `tests/conductor/loop.test.ts > Daemon shutdown stops the conductor brain` — passed during phase-close).
+**Phase 26 active — polish bundle (5 XS items) is the next target.** Phase 25 closed cleanly (tag `phase-25-keyboard-layer-closed`); the entire Phase 17 keyboard layer shipped across 5 steps including the smoke-surfaced 25.5 ergonomics revision (QWERTYU column keys + A refresh, replacing the original 1–7 + R scheme). Suite at 734/734 (modulo the known pre-existing parallel-runner flake on `tests/conductor/loop.test.ts > Daemon shutdown stops the conductor brain` — passed during phase-close).
 
-Phase 26 has **4 steps** mapping 1:1 to remaining Relay Phase 16 items:
+Phase 26 has **5 steps** — 4 mapping 1:1 to remaining Relay Phase 16 items plus 1 dogfood follow-up filed 2026-05-17:
 - **26.1 — `ui-card-deeplink-not-found-silently-renders-board`** (#34, P2, XS — try/catch around renderCardDetail; render empty-shell on CARD_NOT_FOUND)
 - **26.2 — `ui-archived-column-missing-policy-badge`** (#36, P3, XS — render `terminal` badge for archived column)
 - **26.3 — `ui-edition-stamp-hardcoded-stale`** (#37, P3, XS — runtime-populate OR rip; decide during analysis)
 - **26.4 — `ui-favicon-missing`** (#38, P3, XS — ship `src/ui/favicon.svg` + `<link rel="icon">` + build-ui asset copy)
+- **26.5 — `ui-stream-live-feed-label-clipped-by-work-button`** (2026-05-17 dogfood, P3, XS — one-line CSS: `margin-bottom: 18px` on `#work-btn`)
 
-Phase 16 #35 was closed in Phase 25.3's grouped run (transition-dialog phase-terminology copy fix bundled with the shared dialog extract). Phase 16 #39 (footer-R) was migrated to Phase 17 and closed by 25.4's grouped run. All four remaining items ship as one bundled PR (the relay-ordering recommends bundling per the "Polish & cosmetics" cluster).
+Phase 16 #35 was closed in Phase 25.3's grouped run (transition-dialog phase-terminology copy fix bundled with the shared dialog extract). Phase 16 #39 (footer-R) was migrated to Phase 17 and closed by 25.4's grouped run. All five remaining items ship as one bundled PR (the relay-ordering recommends bundling per the "Polish & cosmetics" cluster).
 
 Top item: **`.relay/issues/ui-card-deeplink-not-found-silently-renders-board.md`** (P2, the only non-cosmetic). Starts the pipeline: `/relay-analyze ui-card-deeplink-not-found-silently-renders-board.md`.
 
-Pipeline (per step; repeated 4× for steps 26.1 → 26.4):
+Pipeline (per step; repeated 5× for steps 26.1 → 26.5):
 
 1. `/relay-analyze` on the issue file.
 2. `/relay-plan` (single-pass; all four are XS).
@@ -42,15 +43,15 @@ Pipeline (per step; repeated 4× for steps 26.1 → 26.4):
 
 Phase 26 README + steps authored at `.control/phases/phase-26-polish-bundle/`.
 
-**After Phase 26**: 4 active items remain in `.relay/issues/` — Phase 15 brain-telemetry cluster (#31, #32, #33 in `src/ui/views/monitor.ts` + `src/conductor/loop.ts`) plus the Phase 21 follow-up `engine-ops-still-append-to-card-body`. Phase 15 is the natural Phase-27 candidate.
+**After Phase 26**: 5 active items remain in `.relay/issues/` — Phase 15 brain-telemetry cluster (#31, #32, #33 in `src/ui/views/monitor.ts` + `src/conductor/loop.ts`), the Phase 21 follow-up `engine-ops-still-append-to-card-body`, and the 2026-05-17 P2 dogfood `ui-markdown-render-breaks-partway-through-content` (card-detail markdown pipeline render breaks partway through — requires repro/bisect pass before fix can be planned, so not bundled with Phase 26 cosmetics). Phase 15 brain-telemetry cluster remains the natural Phase-27 candidate; the markdown-render issue and the `engine-ops-still-append-to-card-body` follow-up are independent Phase-27-or-later candidates. Frame B card-pipeline UI cluster (7 designed feature files in `.relay/features/`, depends on `engine-ops-still-append-to-card-body`) is the substantive Phase-28+ candidate.
 
 ---
 
 ## Git state
 - **Branch:** main
-- **Last commit:** `fa2045d` — feat(25.5): remap Board column keys to QWERTYU + refresh to A (ergonomics). Predecessors: `48b81ad` (docs(25.4) /relay-resolve), `05c1d0c` (feat(25.4) footer + help overlay), `0ad5f00` (docs(25.3) /relay-resolve grouped run), `e21aab9` (feat(25.3) shared approval-dialog helper), `ac55c5f` (docs(25.2) /relay-resolve), `00d6c29` (feat(25.2) board focus + move chord), `218dfb2` (docs(25.1) /relay-resolve), `5862ce0` (feat(25.1) global keyboard dispatcher).
-- **Uncommitted changes:** about to land in this `/phase-close` commit (Phase 26 scaffold + STATE.md update + next.md regeneration).
-- **Last phase tag:** `phase-25-keyboard-layer-closed` (created during this `/phase-close`; predecessor `phase-24-board-transition-ux-closed`).
+- **Last commit:** `92cb8bb` — chore(phase-26): append step 26.5 — stream label clipping. Predecessors: `af61a17` (chore(phase-26) file 2 dogfood issues + Frame B design), `eb9d578` (docs(state) session end for step 25.5), `2ad46d3` (chore(phase-25) close phase 25, kick off phase 26), `fa2045d` (feat(25.5) remap Board column keys to QWERTYU), `48b81ad` (docs(25.4) /relay-resolve), `05c1d0c` (feat(25.4) footer + help overlay), `0ad5f00` (docs(25.3) /relay-resolve grouped run), `e21aab9` (feat(25.3) shared approval-dialog helper).
+- **Uncommitted changes:** STATE.md + next.md regeneration about to land in this `docs(state)` commit.
+- **Last phase tag:** `phase-25-keyboard-layer-closed` (created at end of Phase 25; predecessor `phase-24-board-transition-ux-closed`).
 
 ---
 
@@ -59,8 +60,7 @@ Phase 26 README + steps authored at `.control/phases/phase-26-polish-bundle/`.
 
 ---
 
-## In-flight work
-- Phase 26 step 26.1 about to begin: `/relay-analyze` on Relay Phase 16 issue #34 `ui-card-deeplink-not-found-silently-renders-board.md` (P2, XS, the only non-cosmetic). Steps 26.2–26.4 follow with #36, #37, #38 (all P3 cosmetics). Bundle ships as one PR per the relay-ordering's "Polish & cosmetics" cluster recommendation.
+- Phase 26 step 26.1 about to begin: `/relay-analyze` on Relay Phase 16 issue #34 `ui-card-deeplink-not-found-silently-renders-board.md` (P2, XS, the only non-cosmetic). Steps 26.2–26.5 follow with #36, #37, #38, and the dogfood stream-label-clipping fix (all P3 cosmetics). Bundle ships as one PR per the relay-ordering's "Polish & cosmetics" cluster recommendation.
 
 ---
 
@@ -107,12 +107,13 @@ Control phase tags placed: `phase-13-...-closed` through `phase-25-keyboard-laye
 
 ## Notes for next session
 
-Phase 26 (`polish-bundle`) closes Relay Phase 16 — 4 XS items, all independent, ship as one bundled PR:
+Phase 26 (`polish-bundle`) closes Relay Phase 16 + 1 dogfood follow-up — 5 XS items, all independent, ship as one bundled PR:
 
 - **26.1 — `ui-card-deeplink-not-found-silently-renders-board`** (#34, P2, XS): try/catch around `renderCardDetail` in `src/ui/main.ts dispatch()`; render empty-shell on `CARD_NOT_FOUND` with the bad id surfaced.
 - **26.2 — `ui-archived-column-missing-policy-badge`** (#36, P3, XS): render a `terminal` policy badge for the `archived` column. `policyForExit` currently returns `null` for the terminal column → no badge rendered → visual inconsistency with the other six.
 - **26.3 — `ui-edition-stamp-hardcoded-stale`** (#37, P3, XS): masthead `Vol. 18 · N° 01` is hardcoded. Decision-time pick: runtime-populate from STATE.md/RPC OR rip the stamp.
 - **26.4 — `ui-favicon-missing`** (#38, P3, XS): ship `src/ui/favicon.svg` (16x16, `§` glyph, `--ink-500` background) + `<link rel="icon">` + update `scripts/build-ui.mjs`.
+- **26.5 — `ui-stream-live-feed-label-clipped-by-work-button`** (2026-05-17 dogfood, P3, XS): add `margin-bottom: 18px` to `#work-btn` at `src/ui/app.css:790` so the `.stream::before` `LIVE FEED ⌁` label sits clear of the button above it. Verify at default + 200% zoom.
 
 Pipeline per step (all XS): `/relay-analyze` → `/relay-plan` (single-pass) → `/relay-review` → implement → `/relay-verify` → `/relay-resolve`. Bundle as one PR per the relay-ordering's "Polish & cosmetics" cluster recommendation. Top item: `.relay/issues/ui-card-deeplink-not-found-silently-renders-board.md`.
 
@@ -127,7 +128,7 @@ ADR filing remains deferred per operator decision. Two strongest candidates: pur
 
 Carry-forward into Phase 26: Phase 25's Deferred section was empty (`<none yet>` placeholder; lacks em-dash). The Phase 26 README's `## Why this phase exists` section keeps its `<Fill in during phase kickoff.>` placeholder and should be authored at the Phase 26 start.
 
-After Phase 26: 4 active items remain — Phase 15 (brain telemetry, #31, #32, #33 in `src/ui/views/monitor.ts` + `src/conductor/loop.ts`) plus the Phase 21 follow-up `engine-ops-still-append-to-card-body`. Phase 15's brain-telemetry cluster is a natural Phase 27 candidate (3 independent fixes; bundle as one PR).
+After Phase 26: 5 active items remain — Phase 15 (brain telemetry, #31, #32, #33 in `src/ui/views/monitor.ts` + `src/conductor/loop.ts`), the Phase 21 follow-up `engine-ops-still-append-to-card-body`, and the 2026-05-17 dogfood P2 `ui-markdown-render-breaks-partway-through-content` (card-detail markdown pipeline produces mixed-render output — first portion renders correctly, then mid-content flips to raw text). Phase 15's brain-telemetry cluster remains the natural Phase 27 candidate (3 independent fixes; bundle as one PR). The markdown-render P2 is its own work-item — scope uncertain until repro is captured ("specifics need to be pinned during analysis" per issue file), so it doesn't fold cleanly into Phase 26 polish bundling. Frame B card-pipeline UI cluster (7 features designed in `.relay/features/`, depends on `engine-ops-still-append-to-card-body` as prerequisite) is the substantive Phase-28+ candidate; see `.relay/features/card-pipeline-ui_brainstorm.md` (status DESIGN COMPLETE).
 
 Phase 25.2's `boardInMoveMode` dispatcher gate (in `src/ui/lib/keys.ts`) is now structurally inert after the 25.5 ergonomics revision (column keys are letters now, no collision with view-switch `1/2/3`). Kept defensively. Low-priority cleanup candidate for a future session; not blocking any new work.
 
