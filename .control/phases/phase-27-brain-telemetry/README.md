@@ -17,7 +17,7 @@ Phase 26 (`phase-26-polish-bundle-closed`) shipped 5 polish-and-cosmetics fixes 
 
 ## Why this phase exists
 
-<Fill in during phase kickoff.>
+Phase 21's Playwright dogfood of conductor brain orchestration surfaced three independent telemetry gaps in the Monitor surface, all filed 2026-05-15 as Relay Phase 15 issues (#31 P2, #32 P3, #33 P3). They share a single architectural surface — the brain-event pipeline through `src/conductor/loop.ts` (server-side event publish) → SSE bus → `src/ui/views/monitor.ts` (client-side render). Closing them as a cluster lets one analysis pass cover the whole surface, avoids three separate review/verify cycles, and keeps halt-event semantics coherent in one PR. **#31 is the highest-impact**: the Stop button has no `stopping…` intermediate state during the `conductor_stop` RPC drain and the tight race window between brain self-halt and user click leaves users unable to reliably issue Stop — this is a real usability gap that hides correct server behavior behind a UI race. **#32 is the cleanest fix** (deduplicate one event source) but requires a decision-time pick between three strategies during analysis. **#33 is the smallest** — a one-line render change (derive row timestamp from event payload's `ts` instead of paint-time `Date.now()`). Bundling them honors the cluster's natural cohesion and matches the Phase 25 / Phase 26 precedent of one Relay phase = one Control phase. Phase 26's last-mile reminder applies: a known parallel-runner flake on `tests/conductor/loop.test.ts > Daemon shutdown stops the conductor brain` touches this exact surface; Phase 27 will incidentally test it under modification, so watch closely for it to resolve OR surface as a real regression.
 
 ## Steps
 See `steps.md` for the detailed checklist.
