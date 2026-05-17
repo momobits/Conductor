@@ -66,6 +66,14 @@ export class Conductor {
   // a CPU-bound spin at ~50k iter/sec.
   private lastIterationCard: string | undefined;
   private lastIterationAdvanced = false;
+  // Phase 27.2: tracks whether the previous iteration's runOneCard published a
+  // conductor-halt event. The wedge detector uses this to suppress its own
+  // meta-halt publish (and the corresponding haltCount increment) when the
+  // previous halt already surfaced the cause — avoiding redundant "halted twice
+  // in a row" telemetry rows for the verify-fail-then-wedge sequence the Phase
+  // 21 Playwright dogfood surfaced. The `break;` itself is always still
+  // executed; this only conditionally elides the redundant publish + counter.
+  private lastIterationHalted = false;
 
   constructor(args: ConductorArgs) {
     this.repo = args.repo;
@@ -91,12 +99,18 @@ export class Conductor {
         const cardId = await this.pickEligibleCard();
         if (!cardId) break;
         if (cardId === this.lastIterationCard && !this.lastIterationAdvanced) {
-          this.haltCount += 1;
-          this.bus.publish({
-            kind: 'conductor-halt',
-            reason: `idle: ${cardId} halted twice in a row with no progress; queue wedged`,
-            cardId,
-          });
+          // Phase 27.2: suppress the redundant meta-halt publish + haltCount
+          // increment when the previous iteration already published its own
+          // conductor-halt event (e.g., runOneCard's verify-fail path). The
+          // `break;` below is the load-bearing thing and always executes.
+          if (!this.lastIterationHalted) {
+            this.haltCount += 1;
+            this.bus.publish({
+              kind: 'conductor-halt',
+              reason: `idle: ${cardId} halted twice in a row with no progress; queue wedged`,
+              cardId,
+            });
+          }
           break;
         }
         const breach = checkCostCeilings({
@@ -111,9 +125,10 @@ export class Conductor {
         this.iteration += 1;
         this.currentCard = cardId;
         this.bus.publish({ kind: 'conductor-iteration', cardId, iteration: this.iteration });
-        const { queueHalted, advanced } = await this.runOneCard(cardId);
+        const { queueHalted, advanced, halted } = await this.runOneCard(cardId);
         this.lastIterationCard = cardId;
         this.lastIterationAdvanced = advanced;
+        this.lastIterationHalted = halted;
         if (queueHalted) break;
       }
     } finally {
@@ -127,7 +142,7 @@ export class Conductor {
     this.stopRequested = true;
   }
 
-  private async runOneCard(cardId: string): Promise<{ queueHalted: boolean; advanced: boolean }> {
+  private async runOneCard(cardId: string): Promise<{ queueHalted: boolean; advanced: boolean; halted: boolean }> {
     const cardPath = join(this.repo, '.conductor', 'cards', `${cardId}.md`);
     let advancedTo: Column | undefined;
     let escalated = false;
@@ -148,7 +163,7 @@ export class Conductor {
           if (decision.action === 'halt') {
             this.haltCount += 1;
             this.bus.publish({ kind: 'conductor-halt', reason: decision.reason, cardId });
-            return { queueHalted: true, advanced: false };
+            return { queueHalted: true, advanced: false, halted: true };
           }
           if (decision.action === 'escalate') {
             escalated = true;
@@ -183,13 +198,13 @@ export class Conductor {
       const reason = classifyHalt(haltReason);
       this.haltCount += 1;
       this.bus.publish({ kind: 'conductor-halt', reason: `${reason}: ${haltReason}`, cardId });
-      return { queueHalted: false, advanced: false };
+      return { queueHalted: false, advanced: false, halted: true };
     }
-    if (escalated) return { queueHalted: false, advanced: advancedTo !== undefined };
+    if (escalated) return { queueHalted: false, advanced: advancedTo !== undefined, halted: false };
     if (advancedTo === 'archived' && this.onCardComplete) {
       try { await this.onCardComplete(cardId); } catch { /* best-effort */ }
     }
-    return { queueHalted: false, advanced: advancedTo !== undefined };
+    return { queueHalted: false, advanced: advancedTo !== undefined, halted: false };
   }
 
   private effectiveMode(_cardId: string): ConductMode {

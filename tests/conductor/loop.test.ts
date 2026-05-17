@@ -143,7 +143,7 @@ describe('Conductor loop', () => {
     expect(decisions.length).toBe(1);
   });
 
-  it('idle detection: breaks loop when same card halts twice with no progress', async () => {
+  it('idle detection: breaks loop after agent halts twice (no duplicate meta-halt published, post-27.2)', async () => {
     const repo = setupRepoWithOrdering(['card-1']);
     const runtime = new InMemoryRuntime();
     const bus = new EventBus();
@@ -154,7 +154,7 @@ describe('Conductor loop', () => {
       factoryCalls += 1;
       return (async function* () {
         // Halts with no transition_request and no complete. Causes
-        // runOneCard to return { advanced: false }. Without idle
+        // runOneCard to return { advanced: false, halted: true }. Without idle
         // detection the brain would spin re-picking this card forever.
         yield { kind: 'halt', cardId, reason: 'wedged', finalColumn: 'discovered' };
       })();
@@ -171,11 +171,51 @@ describe('Conductor loop', () => {
     // BEFORE invoking the agent factory again.
     expect(factoryCalls).toBe(1);
 
+    // Phase 27.2: the agent's halt event was published by runOneCard, AND
+    // runOneCard returned halted: true. The wedge detector's next-iteration
+    // trigger fires (same card, no progress) but its OWN meta-halt publish is
+    // suppressed because lastIterationHalted=true. The loop still breaks.
+    // Result: exactly ONE conductor-halt event, not two.
     const halts = events.filter((e) => e.kind === 'conductor-halt');
-    const idleHalt = halts.find(
-      (h) => h.kind === 'conductor-halt' && /idle.*wedged/i.test(h.reason),
-    );
-    expect(idleHalt).toBeDefined();
+    expect(halts.length).toBe(1);
+    const halt = halts[0];
+    expect(halt?.kind === 'conductor-halt' && /unrecognized-error|wedged/i.test(halt.reason)).toBe(true);
+  });
+
+  it('idle detection: meta-halt STILL publishes when previous iteration did NOT halt (escalation-wedge regression pin, post-27.2)', async () => {
+    const repo = setupRepoWithOrdering(['card-1']);
+    const runtime = new InMemoryRuntime();
+    const bus = new EventBus();
+    const config = ProjectConfigSchema.parse({ autonomy: { default: 'assist' } });
+
+    let factoryCalls = 0;
+    const agentFactory = (cardId: string): AsyncIterable<TaskEvent> => {
+      factoryCalls += 1;
+      return (async function* () {
+        // Agent emits a recommendation but no halt — runOneCard sets
+        // escalated=true and returns {queueHalted:false, advanced:false,
+        // halted:false}. No conductor-halt is published this iteration. The
+        // next iteration's wedge detector SHOULD still publish the meta-halt
+        // because lastIterationHalted=false (backward-compat path).
+        yield {
+          kind: 'recommendation',
+          cardId,
+          recommendation: { operation: 'analyze', recommended: 'approve', confidence: 0.5 },
+        } as unknown as TaskEvent;
+      })();
+    };
+
+    const events: DaemonEvent[] = [];
+    bus.subscribe((e) => events.push(e));
+
+    const conductor = new Conductor({ repo, config, runtime, bus, agentFactory, iterationLimit: 10_000 });
+    await conductor.start();
+
+    expect(factoryCalls).toBe(1);
+    const halts = events.filter((e) => e.kind === 'conductor-halt');
+    expect(halts.length).toBe(1);
+    const halt = halts[0];
+    expect(halt?.kind === 'conductor-halt' && /idle.*wedged/i.test(halt.reason)).toBe(true);
   });
 
   it('cost-ceiling breach halts before spawning agent', async () => {
