@@ -975,3 +975,686 @@ Categorization:
 All 6 plan steps implemented as written. All test fixture migrations land correctly (the plan covered 3 test files in scope; verify-time discovery added 5 more — all are documented Verification Fixes, not deviations from the plan's design). Suite at 758/758 (baseline 744 + 14 new regression pins). Typecheck clean. Critical scope-seal (`methods.test.ts:529-532` rejects `op: 'review'`) verified green, confirming the 28.1↔28.3 boundary. No outstanding issues.
 
 The plan-op dual-write compat shim is sunset; `extractSection(card.body, 'Implementation Plan')` and `appendSection(card.path, 'Implementation Plan' | 'Adversarial Review', ...)` all have zero remaining call sites in `src/` (grep audit confirmed). Card body for `discovered → planned → approved` transitions is byte-identical to pre-plan state — the user-owned single-writer contract for the body is restored for review's surface (verify/notebook/implement migrations remain pending in steps 28.2/28.3).
+
+---
+
+## Analysis
+
+*Analyzed: 2026-05-17 (scope: step 28.2 — verify + notebook migrations)*
+
+### Validation
+
+- **Problem still exists: YES.**
+  - `src/engine/ops/verify.ts:8` imports `appendSection`. `verify.ts:110` calls `appendSection(card.path, 'Verification Report', sectionBody)`. The op does NOT receive `repo` or `runId` in args (must add to `VerifyArgs`).
+  - `src/engine/ops/notebook.ts:10` imports both `appendSection, extractSection`. `notebook.ts:33` calls `extractSection(card.body, 'Verification Report') ?? '_(none)_'`. `notebook.ts:80` calls `appendSection(card.path, 'Notebook', ...)`. The op DOES receive `repo` in args (line 13) — needs `runId` added.
+  - `src/agent/task_agent.ts:192-195` passes `{ card, adapter, model, command, runner }` to `verify` — needs `repo, runId` added.
+  - `src/agent/task_agent.ts:219-220` passes `{ repo, card, command }` to `notebook` — needs `runId` added.
+
+- **Proposed approach still valid: YES.** Mechanical application of the Phase 28.1 pattern. The helper `findLatestArtifactRunId` is generic over op (already in place at `src/agent/run_artifact.ts`); notebook reuses it with `op = 'verify'`. The `ArtifactOp` union widens from `'analyze' | 'plan' | 'review'` → `'analyze' | 'plan' | 'review' | 'verify' | 'notebook'`. RPC enum at `schema.ts:117` stays narrow (28.3 widens it together with UI render typing — same scope-seal as 28.1).
+
+### Root Cause
+
+Phase 21 deferred verify/notebook/implement migrations (along with review) due to L-complexity scope. Step 28.1 closed review + the plan-op shim sunset; 28.2 extends the same substrate pattern to verify + notebook. No new design decisions — the runId-lookup, prompt-shape, and fixture protocol patterns established in 28.1 apply directly.
+
+### What This Means (User Impact)
+
+**In plain terms:** Cards moving through `building → verifying → shipped` currently accumulate `## Verification Report` (~70 lines) and `## Notebook` (~3 lines) in their card body on top of the substrate writes. After 28.2 ships, the body stays byte-identical to pre-verify state for these transitions. The notebook op's inter-op read of `Verification Report` (via `extractSection` regex on body) becomes a substrate read via `findLatestArtifactRunId`, eliminating the last regex-based inter-op exchange site that the deferred scope still carries.
+
+**Scenario (continuing from 28.1's scenario):** The `fix-payment-rounding` card has now passed through `discovered → planned → approved` byte-clean (28.1 already shipped). Pre-28.2, when the user runs the implement op (28.3 scope, still appending body) and verify, the body grows by `## Implementation Guidelines` + `## Verification Report` + `## Notebook` (~180 lines combined). After 28.2 ships: `## Verification Report` + `## Notebook` disappear from body (~73 lines reduction); only `## Implementation Guidelines` remains until 28.3 lands.
+
+**Before / After (step 28.2 segment only):**
+
+1-5. Identical to 28.1 (body stays at 30 lines through `discovered → approved`).
+6. Brain runs implement (28.3 scope — still appends ~110 lines until 28.3 ships). Body: ~140 lines.
+7. **Before 28.2**: verify appends `## Verification Report` (~70 lines). Body: ~210 lines. Then notebook reads `## Verification Report` from body via `extractSection` (succeeds for cards verified post-28.1); appends `## Notebook` (~3 lines). Body: ~213 lines.
+7'. **After 28.2**: verify writes `<runId>/verify.md`. Body stays at ~140 lines. Notebook reads `<runId>/verify.md` via `findLatestArtifactRunId` (succeeds for cards with substrate verify); writes `<runId>/notebook.md`. Body stays at ~140 lines.
+
+### Blast Radius
+
+**Files affected (step 28.2 only):**
+
+- `src/engine/ops/verify.ts` — drop `appendSection` import; add `RunArtifactWriter` import; add `repo: string` + `runId: string` to `VerifyArgs`; add defensive arg guards (mirror 28.1's `review.ts` pattern); replace line 110 `appendSection(...)` with `await new RunArtifactWriter({ repo, runId }).write('verify', sectionBody)`.
+- `src/engine/ops/notebook.ts` — drop `appendSection, extractSection` imports; add `RunArtifactWriter, findLatestArtifactRunId` imports; add `runId: string` to `NotebookArgs` (`repo` already present); replace line 33 `extractSection(card.body, 'Verification Report') ?? '_(none)_'` with `(await findLatestArtifactRunId(repo, cardId, 'verify'))?.text ?? '_(none)_'` (preserves the soft-fail fallback semantic — verify substrate missing → notebook still produces output with `_(none)_` placeholder, matching pre-28.2 behavior); replace line 80-84 `appendSection(card.path, 'Notebook', ...)` with `await new RunArtifactWriter({ repo, runId }).write('notebook', ...)`.
+- `src/agent/run_artifact.ts:18` — extend `ArtifactOp` union: `'analyze' | 'plan' | 'review'` → `'analyze' | 'plan' | 'review' | 'verify' | 'notebook'`.
+- `src/agent/task_agent.ts:192-195` — extend `verify({...})` call to pass `repo: this.repo, runId: this.runId`.
+- `src/agent/task_agent.ts:219-220` — extend `notebook({...})` call to pass `runId: this.runId`.
+- `src/engine/state/card.ts:1-13` — refresh the header comment listing what still accretes via `appendSection` (drop `## Verification Report` and `## Notebook` from the list; only `## Implementation Guidelines` remains pending 28.3).
+- `tests/engine/ops/verify.test.ts` — Test 1 (`runs the runner, passes results to the model, parses PASS`) asserts `card.body.toContain('## Verification Report')` and `'PASS'` at lines 62-64; migrate to substrate-write assertion on `<runId>/verify.md`. Tests 2-4 (FAIL, SKIP, UNKNOWN throw) don't assert on body — they only check the `report` return object — so they're stable. Need to add `repo, runId` args to all 4 `verify()` calls.
+- `tests/engine/ops/notebook.test.ts` — Both tests: fixture bootstrap needs to seed a substrate verify run (with both `events.jsonl` and `verify.md`) instead of `## Verification Report` in card body, using the canonical `<YYYYMMDDTHHMMSS>-<cardId>` runId shape. Test 2 (line 59-65) asserts `card.body.toContain('## Notebook')` — flip to substrate read assertion on `<runId>/notebook.md`. Both `notebook()` calls need `runId` arg.
+- Possible cascade in **Phase 2 work tests**: `tests/cli/work-phase2.test.ts` has "building → verifying" (line 114) and "verifying → shipped" (line 128). Neither asserts on body content for verify/notebook sections — both pass. The notebook op's `_(none)_` fallback semantic is preserved post-28.2 so the substrate-missing path still works. **Expected: no cascade.**
+
+**Callers and consumers:**
+- `verify()` called once: `task_agent.ts:192-195` (`building` column case).
+- `notebook()` called once: `task_agent.ts:219-220` (`verifying` column case).
+- `extractSection(card.body, 'Verification Report')` has a single call site: `notebook.ts:33`. After 28.2, that final inter-op exchange site for verify→notebook is gone — the regex-based substrate is fully removed from the engine ops.
+- `appendSection(card.path, 'Verification Report', ...)` single call site: `verify.ts:110`. Migrated in 28.2.
+- `appendSection(card.path, 'Notebook', ...)` single call site: `notebook.ts:80`. Migrated in 28.2.
+- `RunArtifactWriter` consumers expand from {analyze, plan, review} to {analyze, plan, review, verify, notebook}.
+- `findLatestArtifactRunId` consumers expand from {review} to {review, notebook}.
+
+**Test coverage status:**
+- `tests/engine/ops/verify.test.ts` (4 tests; Test 1 needs body→substrate migration).
+- `tests/engine/ops/notebook.test.ts` (2 tests; both need fixture migration to seed verify substrate + Test 2 body→substrate migration).
+- No new regression-pin tests strictly required — the helper edge cases were pinned in 28.1's run_artifact.test.ts. Could optionally add: "notebook reads verify from substrate (not body)" pin mirroring 28.1's review-from-substrate pin.
+
+**Config interactions:** None.
+
+**Cross-item interactions (active `.relay/issues/`, `.relay/features/`):**
+- Same Frame B feature cluster dependency — Phase 28 completion (28.1 + 28.2 + 28.3) unblocks Frame B planning. 28.2 alone is necessary-but-not-sufficient.
+- No other active issues affected.
+
+**Past work regression risk:**
+- **Phase 21 + 28.1 substrate**: 28.2 extends the established pattern. Low risk; same write/read shape as plan and review.
+- **Phase 27 brain telemetry**: independent; no overlap.
+- **`runlog_store.ts` listRuns**: 28.2's new reader (notebook calling `findLatestArtifactRunId(repo, cardId, 'verify')`) reuses the existing infrastructure proven stable in 28.1.
+
+### Related Work
+
+*Search dimensions executed: live codepath audit | backlog codepath | subsystem | archive | implemented | contract drift*
+*Tooling: grep (Serena MCP not configured)*
+*Re-using landscape from 28.1's analysis (same backlog state; only 28.1 closed structurally since).*
+
+#### Findings
+
+- **Target:** Frame B 6 feature files at `.relay/features/` (same as 28.1's analysis)
+  - **Kind:** existing item (feature, DESIGNED)
+  - **Evidence:** strong
+  - **Why related:** Downstream consumers of complete Phase 28 (substrate single-owner body semantics). 28.2 progresses Phase 28's gate but does not unlock it (28.3 still pending).
+  - **Suggested handling:** keep narrow.
+
+- **Target:** Step 28.3 follow-up (implement migration + UI artifact panel verify-all-6)
+  - **Kind:** existing item (this same issue file, pending sub-step)
+  - **Evidence:** strong (same Relay issue; next sub-step)
+  - **Why related:** 28.3 completes Phase 28. After 28.2, only `## Implementation Guidelines` remains accreting in body; 28.3 sunsets that + widens RPC enum + extends Card Detail UI render typing for all 6 op artifacts.
+  - **Suggested handling:** keep narrow.
+
+#### Unfiled candidates
+
+None new. The two unfiled candidates from 28.1's analysis (deprecate `appendSection`/`extractSection` after Phase 28 closes; ADR for JSONL/markdown-writer family at n=7) still apply at Phase 28 close, not at 28.2.
+
+#### Search Bounds
+
+- Live codepath audit: complete — read `verify.ts`, `notebook.ts`, `task_agent.ts:192-220`, `verify.test.ts`, `notebook.test.ts` in full.
+- Backlog codepath: complete (continuation from 28.1's full scan).
+- Subsystem / Archive / Implementation: complete (continuation).
+- Contract drift: complete — `ArtifactOp` union extension is the only contract surface that needs widening; `extractSection` symbol's call site at `notebook.ts:33` is the last remaining inter-op exchange use.
+
+### Scope Decision
+
+*Mode:* keep narrow
+*Decided:* 2026-05-17
+*Rationale:* Single-purpose sub-step of the engine-ops body-sunset refactor. Same scope rationale as 28.1 — no medium/strong same-root-cause same-file findings outside the issue itself; Frame B is downstream-consumer dependency. The Phase 28 sub-step Control structure provides the right granularity.
+
+### Approach
+
+**Recommended approach (step 28.2 scope only):**
+
+1. **Extend `ArtifactOp` union** at `src/agent/run_artifact.ts:18`: `'analyze' | 'plan' | 'review'` → `'analyze' | 'plan' | 'review' | 'verify' | 'notebook'`. Two new literals.
+
+2. **Migrate `verify.ts`** — drop `appendSection` import; add `RunArtifactWriter` import; extend `VerifyArgs` with `repo: string` + `runId: string`; add defensive arg guards (mirroring 28.1's `review.ts` pattern: throw if empty string); replace `appendSection(card.path, 'Verification Report', sectionBody)` at line 110 with `await new RunArtifactWriter({ repo, runId }).write('verify', sectionBody)`.
+
+3. **Migrate `notebook.ts`** — drop `appendSection, extractSection` imports; add `RunArtifactWriter, findLatestArtifactRunId` imports; extend `NotebookArgs` with `runId: string` (`repo` already present); add defensive arg guards for `runId` (pattern mirrors 28.1); replace line 33's body read with `const found = await findLatestArtifactRunId(repo, card.frontmatter.id, 'verify'); const verifySection = found?.text ?? '_(none)_';`; replace line 80-84's `appendSection(card.path, 'Notebook', ...)` with `await new RunArtifactWriter({ repo, runId }).write('notebook', 'Generated: \`archive/notebooks/<id>.ipynb\`')`. Preserve the `?? '_(none)_'` soft-fail fallback so cards without prior verify substrate still produce a notebook with placeholder content.
+
+4. **Update `task_agent.ts`** — line 192-195 verify call: add `repo: this.repo, runId: this.runId`. Line 219-220 notebook call: add `runId: this.runId` (repo already passed).
+
+5. **Refresh `src/engine/state/card.ts` header** — drop `## Verification Report` and `## Notebook` from the still-accreting list. Only `## Implementation Guidelines` remains (pending 28.3).
+
+6. **Update test fixtures + assertions:**
+   - `tests/engine/ops/verify.test.ts`: add `repo: tmp, runId: 'r-verify'` (or canonical-shape runId) to all 4 `verify()` calls. Test 1 (PASS path): replace `after.body.toContain('## Verification Report')` + `'PASS'` with `(await readRunArtifact(tmp, runId, 'verify')).toContain('PASS')` + body byte-identity check.
+   - `tests/engine/ops/notebook.test.ts`: rewrite `beforeEach` to seed substrate verify run via the canonical `seedRun(repo, runId, { verify: '<text>' })` pattern (events.jsonl + verify.md). Drop the `## Verification Report` body section from the card fixture. Pass `runId` to both `notebook()` calls. Test 2: replace `after.body.toContain('## Notebook')` + path string with `readRunArtifact(tmp, runId, 'notebook').toContain('archive/notebooks/2026-05-07-x.ipynb')` + body byte-identity.
+   - Optionally add 1-2 regression pins (e.g., "notebook reads Verification Report from substrate, not body" mirroring 28.1's review-from-substrate pin).
+
+**Alternatives considered:**
+
+- **Skip widening notebook's runId arg, derive it inline** — rejected. notebook needs `runId` to write its own `<runId>/notebook.md`. Passing through from caller is the same pattern as 28.1's review.
+- **Drop `_(none)_` fallback in notebook** — rejected. The fallback is a soft-fail safety net for cards without prior verify substrate (e.g., cards manually moved to `verifying` column for fixture purposes); preserving it matches pre-28.2 behavior and prevents test cascade.
+
+**Open questions:** None. The architecture is settled from 28.1; 28.2 is pattern application.
+
+---
+
+## Implementation Plan
+
+*Generated: 2026-05-17 via /relay-plan (single-pass; scope: step 28.2 — verify + notebook migrations)*
+
+### Strategy
+
+Mechanical application of the substrate pattern proven in step 28.1. Same `RunArtifactWriter` write surface, same `findLatestArtifactRunId` lookup helper (reused unchanged; generic over op), same defensive arg guards, same fixture protocol (events.jsonl + artifact file). The only step-specific concern is preserving notebook's `?? '_(none)_'` soft-fail fallback so cards without prior verify substrate still produce a notebook with placeholder content (matches pre-28.2 behavior and prevents cascade in Phase 2 work tests). All architectural decisions inherit from 28.1 — no superplan needed.
+
+### Step 1: Extend `ArtifactOp` union to include `'verify'` and `'notebook'`
+
+**File**: `src/agent/run_artifact.ts:22`
+
+**Before**:
+```typescript
+// Writer-side op kinds. Phase 28.1 adds 'review'; 'verify' / 'notebook' /  // ← stale: 28.2 adds verify+notebook
+// 'implement' will widen the union in Phase 28.2 / 28.3.                   // ← refresh post-28.2
+// ... scope-seal note ...
+export type ArtifactOp = 'analyze' | 'plan' | 'review';                      // ← widen +verify +notebook
+```
+
+**After**:
+```typescript
+// Writer-side op kinds. Phase 28.1 added 'review'; Phase 28.2 adds          // ← refreshed comment
+// 'verify' and 'notebook'; 'implement' widens in Phase 28.3.                 // ←
+// ... scope-seal note unchanged ...
+export type ArtifactOp = 'analyze' | 'plan' | 'review' | 'verify' | 'notebook';  // ← +verify +notebook
+```
+
+**Why**: Unblocks `RunArtifactWriter.write('verify' | 'notebook', ...)` and `readRunArtifact / findLatestArtifactRunId(..., 'verify' | 'notebook')` typechecks. Pure additive change to a string-literal union.
+
+**Risk**: Drift between writer-side union and RPC enum (`schema.ts:117` stays `['analyze', 'plan']`) is intentional and load-bearing per the 28.1↔28.3 scope-seal. The `tests/rpc/methods.test.ts:529-532` test asserts `op:'review'` is rejected; widening RPC to include verify/notebook would flip it red. Stay narrow.
+
+**Verify**: `npm run typecheck` clean. `npx vitest run tests/agent/run_artifact.test.ts tests/rpc/methods.test.ts` green.
+
+**Rollback**: Narrow the union back to `'analyze' | 'plan' | 'review'`.
+
+### Step 2: Migrate `verify.ts` to substrate write
+
+**File**: `src/engine/ops/verify.ts` (full file rewrite, ~10 lines change)
+
+**Before** (lines 6-10 + 19-25 + 49-50 + 109-110):
+```typescript
+import type { ModelAdapter } from '../../adapters/adapter.js';
+import type { Card, VerifyReport, VerifyOutcome } from '../types.js';
+import { appendSection } from '../state/card.js';                            // ← drop import
+import { parseJsonResponse } from '../util/parse_json_response.js';
+
+// ...
+
+export interface VerifyArgs {                                                // ← extend
+  card: Card;
+  adapter: ModelAdapter;
+  model: string;
+  command: string;
+  runner: Runner;
+}                                                                            // ← need repo + runId
+
+// ...
+
+export async function verify(args: VerifyArgs): Promise<VerifyReport> {
+  const { card, adapter, model, command, runner } = args;                    // ← destructure new fields
+
+// ...
+
+  await appendSection(card.path, 'Verification Report', sectionBody);        // ← replace with substrate write
+  return report;
+}
+```
+
+**After**:
+```typescript
+import type { ModelAdapter } from '../../adapters/adapter.js';
+import type { Card, VerifyReport, VerifyOutcome } from '../types.js';
+import { RunArtifactWriter } from '../../agent/run_artifact.js';             // ← NEW substrate import
+import { parseJsonResponse } from '../util/parse_json_response.js';
+
+// ...
+
+export interface VerifyArgs {                                                // ← extended
+  card: Card;
+  adapter: ModelAdapter;
+  model: string;
+  command: string;
+  runner: Runner;
+  repo: string;                                                              // ← NEW: substrate root
+  runId: string;                                                             // ← NEW: this run's id for writing verify.md
+}
+
+// ...
+
+export async function verify(args: VerifyArgs): Promise<VerifyReport> {
+  const { card, adapter, model, command, runner, repo, runId } = args;       // ← destructure new fields
+
+  // Defensive arg validation (mirroring 28.1's review.ts pattern).
+  if (typeof repo !== 'string' || repo.length === 0) {
+    throw new Error(`verify: repo arg required (received: ${JSON.stringify(repo)}).`);
+  }
+  if (typeof runId !== 'string' || runId.length === 0) {
+    throw new Error(`verify: runId arg required (received: ${JSON.stringify(runId)}).`);
+  }
+
+// ... rest of function unchanged until the substrate-write replacement at line 110 ...
+
+  // Phase 28.2: persist to per-run substrate (NOT to card body).
+  await new RunArtifactWriter({ repo, runId }).write('verify', sectionBody);  // ← substrate write
+  return report;
+}
+```
+
+**Why**: Closes the body-append surface for the verify op. Notebook (Step 3) needs the substrate read path; verify (Step 2) must write to substrate for notebook to read from. Same shape as 28.1's review.ts migration. Defensive guards at the boundary catch caller programming errors (TaskAgent forgetting to wire `repo`/`runId`).
+
+**Risk**:
+- Caller contract change: `task_agent.ts:192-195` must pass `repo` + `runId` (Step 4).
+- Tests assert `card.body.toContain('## Verification Report')` (verify.test.ts:63-64); fixture migration in Step 6.
+
+**Verify**: `npm run typecheck` clean (after Steps 3 + 4 land). `npx vitest run tests/engine/ops/verify.test.ts` green after Step 6.
+
+**Rollback**: `git checkout src/engine/ops/verify.ts`.
+
+### Step 3: Migrate `notebook.ts` to substrate read (verify) + substrate write (notebook)
+
+**File**: `src/engine/ops/notebook.ts` (full file rewrite, ~12 lines change)
+
+**Before** (lines 7-10 + 12-16 + 30-33 + 80-84):
+```typescript
+import { writeFile, mkdir } from 'node:fs/promises';
+import { join, dirname } from 'node:path';
+import type { Card } from '../types.js';
+import { appendSection, extractSection } from '../state/card.js';            // ← drop both
+
+export interface NotebookArgs {                                              // ← extend
+  repo: string;
+  card: Card;
+  command: string;
+}                                                                            // ← need runId
+
+// ...
+
+export async function notebook(args: NotebookArgs): Promise<NotebookResult> {
+  const { repo, card, command } = args;                                      // ← destructure runId
+
+  const verifySection = extractSection(card.body, 'Verification Report') ?? '_(none)_';  // ← substrate read
+
+// ...
+
+  await appendSection(                                                       // ← substrate write
+    card.path,
+    'Notebook',
+    `Generated: \`archive/notebooks/${card.frontmatter.id}.ipynb\``,
+  );
+```
+
+**After**:
+```typescript
+import { writeFile, mkdir } from 'node:fs/promises';
+import { join, dirname } from 'node:path';
+import type { Card } from '../types.js';
+import { RunArtifactWriter, findLatestArtifactRunId } from '../../agent/run_artifact.js';  // ← NEW substrate imports
+
+export interface NotebookArgs {                                              // ← extended
+  repo: string;
+  card: Card;
+  command: string;
+  runId: string;                                                             // ← NEW: this run's id for writing notebook.md
+}
+
+// ...
+
+export async function notebook(args: NotebookArgs): Promise<NotebookResult> {
+  const { repo, card, command, runId } = args;                               // ← destructure new field
+
+  // Defensive arg validation.
+  if (typeof runId !== 'string' || runId.length === 0) {
+    throw new Error(`notebook: runId arg required (received: ${JSON.stringify(runId)}).`);
+  }
+
+  // Phase 28.2: read Verification Report from per-run substrate (NOT card body).
+  // Preserve the `?? '_(none)_'` soft-fail fallback so cards without prior
+  // verify substrate (e.g., test fixtures that bootstrap directly to verifying
+  // column, or manually-moved cards) still produce a notebook with placeholder
+  // content. Matches pre-28.2 behavior; prevents Phase 2 work-test cascade.
+  const found = await findLatestArtifactRunId(repo, card.frontmatter.id, 'verify');
+  const verifySection = found?.text ?? '_(none)_';
+
+// ...
+
+  // Phase 28.2: persist notebook metadata to per-run substrate (NOT card body).
+  await new RunArtifactWriter({ repo, runId }).write(
+    'notebook',
+    `Generated: \`archive/notebooks/${card.frontmatter.id}.ipynb\``,
+  );
+```
+
+**Why**: Closes the last `extractSection(card.body, ...)` call site (verify→notebook inter-op exchange) AND the `appendSection(card.path, 'Notebook', ...)` call site. After Step 3, the verify→notebook substrate-exchange pair joins plan→review (28.1) as the second op pair to migrate off body-based exchange.
+
+**Risk**:
+- Preserves `?? '_(none)_'` fallback — cards without prior verify substrate still produce a notebook. Critical for Phase 2 work-test cascade prevention.
+- Note: Notebook does NOT take `repo` from `card.path` derivation. `repo` is already explicit in `NotebookArgs` (line 13 of pre-28.2 source). Only `runId` is added.
+
+**Verify**: `npm run typecheck` clean (after Steps 4 also lands). `npx vitest run tests/engine/ops/notebook.test.ts` green after Step 6.
+
+**Rollback**: `git checkout src/engine/ops/notebook.ts`.
+
+### Step 4: Wire `repo` + `runId` into task_agent.ts verify + notebook calls
+
+**File**: `src/agent/task_agent.ts` (two edits)
+
+**Before** (lines 192-195 verify call):
+```typescript
+const report = await verify({
+  card: c, adapter: this.adapter, model: modelFor(c, 'verify'),
+  command: this.config.verify_command, runner: this.runner,
+});
+```
+
+**After**:
+```typescript
+const report = await verify({
+  card: c,
+  adapter: this.adapter,
+  model: modelFor(c, 'verify'),
+  command: this.config.verify_command,
+  runner: this.runner,
+  repo: this.repo,                                                           // ← NEW
+  runId: this.runId,                                                         // ← NEW
+});
+```
+
+**Before** (lines 219-220 notebook call):
+```typescript
+await notebook({ repo: this.repo, card: c, command: this.config.verify_command });
+```
+
+**After**:
+```typescript
+await notebook({
+  repo: this.repo,
+  card: c,
+  command: this.config.verify_command,
+  runId: this.runId,                                                         // ← NEW
+});
+```
+
+**Why**: Required by Steps 2 + 3. `this.repo` and `this.runId` are TaskAgent class properties (already established).
+
+**Risk**: None at the call site; TypeScript catches signature mismatches.
+
+**Verify**: `npm run typecheck` clean. `npx vitest run tests/agent/` green.
+
+**Rollback**: Restore single-line calls.
+
+### Step 5: Refresh `src/engine/state/card.ts` header documentation
+
+**File**: `src/engine/state/card.ts:5-13`
+
+**Before**:
+```typescript
+// Body sections that still accrete via `appendSection` (Relay-style):
+//   ## Verification Report  (verify op — Phase 28.2 migration pending)
+//   ## Notebook             (notebook op — Phase 28.2 migration pending)
+//   ## Implementation Guidelines (implement op — Phase 28.3 migration pending)
+// As of Phase 28.1, analyze + plan + review + chat outputs live in sibling
+// artifacts (NOT card body):
+//   .conductor/runs/<runId>/analyze.md  (analyze op output)
+//   .conductor/runs/<runId>/plan.md     (plan op output; Phase 28.1 sunset dual-write)
+//   .conductor/runs/<runId>/review.md   (review op output, Phase 28.1)
+//   .conductor/cards/<id>.chat.jsonl    (chat history)
+```
+
+**After**:
+```typescript
+// Body sections that still accrete via `appendSection` (Relay-style):
+//   ## Implementation Guidelines (implement op — Phase 28.3 migration pending)
+// As of Phase 28.2, analyze + plan + review + verify + notebook + chat outputs
+// live in sibling artifacts (NOT card body):
+//   .conductor/runs/<runId>/analyze.md   (analyze op output)
+//   .conductor/runs/<runId>/plan.md      (plan op output; Phase 28.1 sunset dual-write)
+//   .conductor/runs/<runId>/review.md    (review op output, Phase 28.1)
+//   .conductor/runs/<runId>/verify.md    (verify op output, Phase 28.2)
+//   .conductor/runs/<runId>/notebook.md  (notebook op metadata, Phase 28.2)
+//   .conductor/cards/<id>.chat.jsonl     (chat history)
+```
+
+**Why**: Documentation drift hygiene. Only `## Implementation Guidelines` remains accreting after 28.2.
+
+**Risk**: None — pure comment.
+
+**Verify**: `npm run typecheck` clean.
+
+**Rollback**: Revert comment block.
+
+### Step 6: Test fixture migrations + assertions
+
+**6a. `tests/engine/ops/verify.test.ts`**
+
+All 4 `verify({...})` calls need `repo: tmp, runId: 'r-verify'` (or canonical-shape runId; the verify op's own runId is only used for writing — no lookup constraint on shape). Test 1 ("parses PASS") asserts `after.body.toContain('## Verification Report')` and `'PASS'` at lines 62-64; migrate to:
+```typescript
+const verifyArt = await readRunArtifact(tmp, 'r-verify', 'verify');
+expect(verifyArt).toContain('PASS');
+expect(verifyArt).toContain('**Outcome:** PASS');
+// Body byte-identity:
+const after = await readCard(cardPath);
+expect(after.body).toBe(bodyBefore);
+expect(after.body).not.toContain('## Verification Report');
+```
+Tests 2-4 don't assert on body — only on the `report` return object — so only the args-update is needed.
+
+Import addition: `import { readRunArtifact } from '../../../src/agent/run_artifact.js';`.
+
+**6b. `tests/engine/ops/notebook.test.ts`**
+
+Rewrite the `beforeEach` to seed a substrate verify run via the canonical `seedRun(repo, runId, { verify: '<text>' })` pattern (events.jsonl + verify.md). Drop the `## Verification Report` body section from the card fixture. CardId is `2026-05-07-x`; planRunId would be `20260507T000000-2026-05-07-x` (length 16 + 12 = 28, matches the prefix-regex + length-equality guards).
+
+```typescript
+const CARD_ID = '2026-05-07-x';
+const VERIFY_RUN_ID = `20260507T000000-${CARD_ID}`;
+const NOTEBOOK_RUN_ID = `20260507T000001-${CARD_ID}`;
+
+async function seedRun(repoArg: string, runId: string, artifacts: Record<string, string>): Promise<void> {
+  const dir = join(repoArg, '.conductor', 'runs', runId);
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, 'events.jsonl'),
+    '{"ts":"2026-05-07T00:00:00.000Z","kind":"op_start","card_id":"x"}\n', 'utf8');
+  for (const [op, content] of Object.entries(artifacts)) {
+    await writeFile(join(dir, `${op}.md`), content, 'utf8');
+  }
+}
+
+beforeEach(async () => {
+  // ... existing card setup but WITHOUT the `## Verification Report` body section ...
+  await seedRun(tmp, VERIFY_RUN_ID, { verify: '**Outcome:** PASS\n**Command:** `npm test`' });
+});
+```
+
+Both `notebook(...)` calls need `runId: NOTEBOOK_RUN_ID`. Test 1 (`writes a valid ipynb to the archive`) is unchanged in its assertions — still checks ipynb file shape. Test 2 (`appends a Notebook section to the card with the relative path`) migrates body assertion to substrate:
+```typescript
+const notebookArt = await readRunArtifact(tmp, NOTEBOOK_RUN_ID, 'notebook');
+expect(notebookArt).toContain('archive/notebooks/2026-05-07-x.ipynb');
+const after = await readCard(cardPath);
+expect(after.body).not.toContain('## Notebook');
+expect(after.body).toBe(bodyBefore); // byte-identity
+```
+Rename Test 2 to reflect substrate semantics.
+
+Import addition: `import { readRunArtifact } from '../../../src/agent/run_artifact.js';`.
+
+**6c. Expected cascade tests (Phase 2 work flow)**
+
+`tests/cli/work-phase2.test.ts` has "building → verifying" (line 114) and "verifying → shipped" (line 128). Neither asserts on body content for verify/notebook sections — they check `finalColumn` and ipynb file presence. Should pass without fixture changes because:
+- "building → verifying": verify runs, writes substrate, transitions. Test doesn't read body.
+- "verifying → shipped": notebook runs, calls `findLatestArtifactRunId(repo, cardId, 'verify')` — returns null for the test fixture (no prior verify run seeded; the test bootstraps `verifying` column directly without going through `building`). Soft-fail fallback `'_(none)_'` kicks in. Notebook produces ipynb with placeholder content. Transitions to shipped. Test passes.
+
+**If cascade does fire** (test failures): apply the same `seedRun(repo, planRunId, { verify: '<text>' })` pattern to the relevant bootstrap helper. Same protocol as Phase 28.1's Verification Fixes.
+
+**6d. Optional regression pin (recommended)**
+
+Add to `tests/engine/ops/notebook.test.ts`:
+```typescript
+it('reads Verification Report from substrate (not body)', async () => {
+  // Card body contains a STALE `## Verification Report` section; substrate has FRESH content.
+  // Notebook prompt must surface substrate, not body.
+  // ... rewrite card with STALE body section, seed FRESH substrate, run notebook,
+  //     assert ipynb cell content contains FRESH-but-not-STALE.
+});
+```
+
+Mirrors 28.1's "reads Implementation Plan from substrate (not card body)" pin.
+
+## Test Changes
+
+- `tests/engine/ops/verify.test.ts`: 4 tests; Test 1 migrates body→substrate assertion + byte-identity pin; Tests 2-4 just get the new `repo, runId` args. +0 new tests; 1 assertion migrated.
+- `tests/engine/ops/notebook.test.ts`: 2 tests migrate body→substrate; +1 substrate-vs-body regression pin (optional but recommended); fixture seeds a verify substrate run. Net: +1 test; 1 assertion migrated.
+
+## Post-Implementation Checks
+
+1. `npm run typecheck` — clean (engine + UI).
+2. `npx vitest run tests/agent/run_artifact.test.ts tests/engine/ops/verify.test.ts tests/engine/ops/notebook.test.ts` — green.
+3. `npx vitest run tests/cli/work-phase2.test.ts` — green (cascade check; expect no failures).
+4. `npx vitest run tests/rpc/methods.test.ts` — green; the `op:'review'` rejection test stays red against `op:'review'` (RPC enum unchanged).
+5. `npm test` — full suite. Baseline 758 → expected ~759 (one optional regression pin added). Should be green.
+6. Grep audit: `Grep "extractSection\(card.body, 'Verification Report'"` and `Grep "appendSection\(card.path, 'Verification Report'"` and `Grep "appendSection\(card.path, 'Notebook'"` should all return zero in `src/`.
+
+## Risks & Mitigations
+
+| Risk | Likelihood | Severity | Mitigation |
+|---|---|---|---|
+| Phase 2 work-test cascade on notebook's substrate read (no seeded verify run) | Low | Medium | `?? '_(none)_'` fallback preserves soft-fail semantic; test asserts on ipynb file + finalColumn, not on `## Verification Report` content |
+| RPC enum drift if someone widens schema.ts:117 in 28.2 | Low | High (test red) | Stay narrow. The 28.1↔28.3 scope-seal documented in run_artifact.ts:18 comment block |
+| Notebook test fixture mistake (verify substrate not findable) | Low | Low | Use canonical `<YYYYMMDDTHHMMSS>-<cardId>` runId shape with both events.jsonl and verify.md; protocol documented in 28.1's tests/agent/run_artifact.test.ts seedRun helper |
+| Old cards in production with `## Verification Report` already in body | Low | Low | Inert post-28.2 (read by nothing); same caveat as 28.1's stale `## Implementation Plan` body sections |
+| Re-running verify on a card creates a new `<reviewRunId>/verify.md` substrate file (no body duplicate) | Low | None (improvement) | Same semantic improvement as 28.1; history queryable via `findLatestArtifactRunId` |
+
+## Rollback Plan
+
+Single atomic git commit covering 4 source + 3 test file changes. Rollback: `git revert <commit-sha>`.
+
+Post-revert state:
+- `verify.ts` returns to body-append.
+- `notebook.ts` returns to body-extractSection read + body-append write.
+- `ArtifactOp` union narrows back to `'analyze' | 'plan' | 'review'`.
+- `task_agent.ts` verify/notebook calls return to prior arg shape.
+- Test fixtures revert in parallel.
+- Existing `<runId>/verify.md` and `<runId>/notebook.md` files become orphan (cleaned by `pruneRuns`).
+
+**Step-close commit message**: `feat(28.2): verify + notebook ops consume run-artifact substrate`
+
+---
+
+## Adversarial Review
+
+*Reviewed: 2026-05-17 (scope: step 28.2)*
+
+### Source Verification
+
+Re-read the affected files post-28.1 to confirm no drift:
+
+- `src/engine/ops/verify.ts:110` — `appendSection(card.path, 'Verification Report', sectionBody)` confirmed.
+- `src/engine/ops/notebook.ts:33` — `extractSection(card.body, 'Verification Report') ?? '_(none)_'` confirmed.
+- `src/engine/ops/notebook.ts:80-84` — multi-line `appendSection(card.path, 'Notebook', ...)` confirmed.
+- `src/agent/task_agent.ts:198-201` — verify call (plan cited `:192-195`; drift = +6 lines from 28.1's review-call multi-line expansion).
+- `src/agent/task_agent.ts:226` — notebook call (plan cited `:219-220`; drift = +6 lines).
+- `src/engine/state/card.ts:5-13` — header block confirmed (matches plan's BEFORE).
+- `src/agent/run_artifact.ts:22` — `ArtifactOp = 'analyze' | 'plan' | 'review'` confirmed (28.1's state).
+- `findLatestArtifactRunId` helper confirmed at `src/agent/run_artifact.ts` end-of-file (28.1's contribution); generic over `op` — reusing for `'verify'` works without modification.
+- `tests/engine/ops/verify.test.ts` — 4 tests, only Test 1 asserts on body (lines 62-64); confirmed.
+- `tests/engine/ops/notebook.test.ts` — 2 tests, both reference body content (`## Verification Report` in fixture body lines 35-37, `## Notebook` in Test 2 assertion lines 62-64); confirmed.
+
+`tests/rpc/methods.test.ts:529-532` (`run_artifact_get rejects unknown op values` with literal `op: 'review'`) still present; RPC enum stays narrow per the 28.1↔28.3 scope-seal. The plan correctly does NOT widen `RunArtifactGetParams.op`.
+
+### Issues Found
+
+**Issue 1 — LOW: Plan's `task_agent.ts` line citations are stale by +6 lines**
+
+- **Plan has** (Step 4): "task_agent.ts (lines 192-195 verify call) and (lines 219-220 notebook call)".
+- **Should be**: Lines `:198-201` and `:226`. The 28.1 commit (`8b2166d`) expanded the review call at line 127 from single-line to 6-line block, shifting everything below by +6 lines.
+- **Impact**: Cosmetic only — the implementation uses string-anchor Edit commands, not line-number-based edits. Documentation drift, not a planning error.
+- **Resolution**: Note the correct line numbers in the implementation comments. No plan change required; document for clarity.
+
+**Issue 2 — LOW (advisory; inherited from 28.1): New error path in `notebook.ts` on substrate read failure**
+
+- **Plan**: `notebook.ts` now calls `findLatestArtifactRunId(repo, cardId, 'verify')`. The helper iterates `listRuns()` and calls `readRunArtifact` per matching candidate. `readRunArtifact` returns null on ENOENT but THROWS on non-ENOENT errors (EACCES, EISDIR, etc.).
+- **Pre-28.2 behavior**: `notebook.ts:33` calls `extractSection(card.body, 'Verification Report')` — operates on the in-memory `card.body` string. No filesystem access at this point in the function. Cannot fail with EACCES.
+- **Post-28.2 behavior**: notebook can fail with FS errors during the substrate read (before the ipynb file is written). This is a NEW failure mode introduced by 28.2.
+- **Impact**: Vanishingly unlikely in practice (user owns `.conductor/runs/`). Inherited from 28.1's review op (which also throws on substrate-read errors). Acceptable consistent precedent.
+- **Resolution**: No change needed — this is a documented architectural choice from 28.1. Note for the verification pass: surface as an inherited concern in the Risks register, not a 28.2-specific bug.
+
+### Edge Cases Tested
+
+Walked the plan's edge cases against the source:
+
+1. **Notebook test fixture in `verifying` column with no prior verify run** (current Phase 2 work-test "verifying → shipped"): Test bootstraps verifying directly. Notebook calls `findLatestArtifactRunId(...) → null`. `verifySection = '_(none)_'` fallback. ipynb written with placeholder content. ✓ Soft-fail preserved; no cascade.
+2. **Multiple verify runs for the same card** (verify FAIL → re-verify): listRuns returns mtime-DESC; newer verify run wins. Notebook reads from the latest verify.md. ✓ Same semantic as 28.1's review→plan lookup.
+3. **Empty/whitespace verify.md** (concurrent write race or pruned partial): `findLatestArtifactRunId`'s `trim().length === 0` guard skips it, iterates to next candidate. ✓ Inherited from 28.1.
+4. **Verify substrate runId-suffix false-match against an unrelated card**: 28.1's length-equality + prefix-regex guards block this. ✓ Inherited.
+5. **Card body has stale `## Verification Report` from pre-28.2 era**: Body content is inert post-28.2 (notebook reads substrate only). Identical caveat to 28.1's stale `## Implementation Plan` body sections. ✓ Documented.
+6. **Re-running notebook for the same card**: Each TaskAgent invocation has a fresh runId; each notebook call writes `<thisRunId>/notebook.md`. No body duplication. Strict improvement over pre-28.2 which would have produced duplicate `## Notebook` sections. ✓
+7. **MOCK provider**: Verify uses adapter for outcome classification; notebook is deterministic (no adapter). MOCK contract preserved. ✓
+8. **`parseJsonResponse()` invariant**: verify still funnels through `parseJsonResponse` (line 75). ✓
+9. **Run-log retention / pruneRuns**: If a card's verify run is older than `keep_days: 30` AND there are 200+ newer runs, the verify substrate could be pruned. Notebook then gets `'_(none)_'` fallback (soft-fail). Same as 28.1's review→plan substrate dependency. ✓ Acceptable.
+
+### Regression Risk
+
+Checked Phase 2 work-test cascade explicitly:
+
+- **`tests/cli/work-phase2.test.ts:114` "building → verifying when verify returns PASS"**: bootstraps `building` column with body containing `## Analysis` + `## Implementation Plan` (post-28.1's bootstrap update). runWork → TaskAgent → verify (writes substrate, no body assertion in test). Transitions to `verifying`. Test asserts `finalColumn === 'verifying'`. ✓ Passes.
+- **`tests/cli/work-phase2.test.ts:128` "verifying → shipped after notebook"**: bootstraps `verifying` column. No verify substrate seeded. Notebook calls `findLatestArtifactRunId(...) → null`. Fallback `'_(none)_'`. ipynb written. Transitions to shipped. Test asserts ipynb file exists + finalColumn. ✓ Passes (soft-fail fallback critical here).
+- **`tests/cli/work-phase2.test.ts:89,106` "approved + step → building / approved without step halts"**: Don't touch verify/notebook. ✓
+- **`tests/cli/work-phase3.test.ts` routing precedence tests**: All bootstrap `planned` column (review path); don't fire verify or notebook. ✓ No cascade.
+- **`tests/integration/phase21-end-to-end.test.ts`**: Discovered → planned only (Phase 21 scope). No verify/notebook. ✓
+- **`tests/integration/end-to-end.test.ts:23` "drives a card through the Phase 1 lifecycle"**: Calls runWork then manual transition. Per the test code, it's discovered → planned → approved (manual). Doesn't fire verify/notebook in the Phase 1 lifecycle (Phase 1 stops at approved). ✓
+- **`tests/agent/task_agent.test.ts`**: TaskAgent unit tests; bootstraps various columns. The "emits halt when an op refuses to advance (review NEEDS-CHANGES)" test (line 97) is for the `planned` column; doesn't fire verify/notebook. ✓
+- **`tests/agent/recommendation.test.ts`**: Recommendation event tests in `discovered` or `planned`; no verify/notebook coverage. ✓
+
+Net cascade prediction: **zero new test failures**. Phase 2's verifying→shipped test is the only one with verify/notebook substrate read pressure, and the soft-fail fallback (`?? '_(none)_'`) preserves the path.
+
+### Verdict
+
+**APPROVED**
+
+Both issues found are LOW-severity advisories (line-number drift; inherited error-path concern from 28.1). The core architecture (substrate write via `RunArtifactWriter`, substrate read via the existing `findLatestArtifactRunId` helper, RPC enum stays narrow, soft-fail fallback preserved) is sound. Cascade prediction: zero. Ready for implementation.
+
+---
+
+## Implementation Guidelines
+
+*Date: 2026-05-17 (step 28.2)*
+
+- Follow the finalized plan step by step, in order
+- After each step, run its VERIFY command before moving to the next
+- Commit after each logically complete step or group of related steps
+- If a step cannot be implemented as planned, APPEND a deviation
+  section to this file before proceeding:
+
+  ## Implementation Deviations
+
+  ### Step [N]: [title]
+  - **Planned**: [what the plan said]
+  - **Actual**: [what was done instead]
+  - **Reason**: [why the deviation was necessary]
+- Do NOT make changes beyond what the plan specifies
+
+---
+
+## Verification Report
+
+*Verified: 2026-05-17 (scope: step 28.2 — verify + notebook migrations)*
+
+### Implementation Status
+
+| Step | Planned | Implemented | Correct |
+|------|---------|-------------|---------|
+| 1 | Extend `ArtifactOp` union with `'verify' \| 'notebook'` | YES | YES |
+| 2 | Migrate `verify.ts` to substrate write | YES | YES |
+| 3 | Migrate `notebook.ts` to substrate read + write | YES | YES |
+| 4 | Wire `repo` + `runId` into task_agent verify + notebook calls | YES | YES |
+| 5 | Refresh `card.ts` header documentation | YES | YES |
+| 6a | `verify.test.ts` assertion migration + args update | YES | YES |
+| 6b | `notebook.test.ts` fixture rewrite + assertion migration | YES | YES |
+| 6d | Optional regression pins (substrate-read, soft-fail, defensive guard) | YES — 3 added | YES |
+
+All steps implemented as planned; no deviations.
+
+### Test Results
+
+- **`npm run typecheck`**: clean.
+- **Full suite (`npm test`)**: 761/761 across 111 test files in ~16s.
+- **Net delta**: 758 → 761 (+3 from new `notebook.test.ts` pins: reads-from-substrate, soft-fail-fallback, defensive-guard).
+- **Zero cascade confirmed**: Phase 2 work tests (`tests/cli/work-phase2.test.ts` "building → verifying" and "verifying → shipped") passed without any fixture changes. The `?? '_(none)_'` soft-fail fallback in `notebook.ts` preserves the no-prior-verify-substrate path.
+- **RPC scope-seal**: `tests/rpc/methods.test.ts:529-532` (`run_artifact_get rejects unknown op values` with literal `op: 'review'`) stays green. RPC enum unchanged.
+
+### Issues Found
+
+None. Implementation was a single-pass clean run. Both adversarial-review LOW-severity advisories (line-drift, inherited error-path from 28.1) were cosmetic / inherited — no code-level concerns surfaced during implementation.
+
+### Verification Fixes
+
+None required. Zero test cascade.
+
+### Verdict
+
+**COMPLETE**
+
+All 5 source files + 2 test files migrated per the plan. Suite at 761/761 (baseline 758 + 3 new pins). Typecheck clean. Grep audit confirms zero remaining `extractSection(card.body, 'Verification Report')`, `appendSection(card.path, 'Verification Report', ...)`, or `appendSection(card.path, 'Notebook', ...)` call sites in `src/`. The verify→notebook substrate-exchange pair joins plan→review as the second op pair to migrate off body-based exchange.
+
+After step 28.2: card body for `discovered → planned → approved → building → verifying → shipped` transitions is byte-identical to pre-plan state for analyze + plan + review + verify + notebook. Only the `implement` op's `## Implementation Guidelines` body append remains (pending step 28.3).
