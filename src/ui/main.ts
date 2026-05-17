@@ -10,6 +10,7 @@ import { EventStream } from './events.js';
 import { renderCardDetail } from './views/card_detail.js';
 import { installGlobalKeys, type KeyContext, type ViewName } from './lib/keys.js';
 import { updateFooter, openHelpOverlay } from './lib/footer.js';
+import { renderEmptyShell, escapeHtml } from './lib/empty_shell.js';
 
 interface AppContext {
   rpc: RpcClient;
@@ -72,12 +73,11 @@ async function bootstrap(): Promise<AppContext | null> {
   const token = readToken();
   if (!token) {
     setStatus('no token', 'failed');
-    document.getElementById('root')!.innerHTML = `
-      <section class="empty-shell">
-        <h1>No transmission token.</h1>
-        <p>Open the URL printed by <code>conductor daemon start</code> — it now includes a <code>?token=</code> query parameter.</p>
-        <p>If the daemon is already running, copy the UUID from <code>.conductor/auth.token</code> in your project and append <code>?token=&lt;uuid&gt;</code> to this URL.</p>
-      </section>`;
+    document.getElementById('root')!.innerHTML = renderEmptyShell({
+      titleHtml: 'No transmission token.',
+      bodyHtml: `<p>Open the URL printed by <code>conductor daemon start</code> — it now includes a <code>?token=</code> query parameter.</p><p>If the daemon is already running, copy the UUID from <code>.conductor/auth.token</code> in your project and append <code>?token=&lt;uuid&gt;</code> to this URL.</p>`,
+      kind: 'no-token',
+    });
     return null;
   }
   const rpc = makeClient(token);
@@ -86,11 +86,11 @@ async function bootstrap(): Promise<AppContext | null> {
     setStatus('connected', 'connected');
   } catch (err) {
     setStatus('auth failed', 'failed');
-    document.getElementById('root')!.innerHTML = `
-      <section class="empty-shell">
-        <h1>Authentication failed.</h1>
-        <p>${(err as Error).message}</p>
-      </section>`;
+    document.getElementById('root')!.innerHTML = renderEmptyShell({
+      titleHtml: 'Authentication failed.',
+      bodyHtml: `<p>${(err as Error).message}</p>`,
+      kind: 'auth-failed',
+    });
     return null;
   }
   const stream = new EventStream(token);
@@ -124,13 +124,26 @@ async function dispatch(ctx: AppContext) {
     ctx.boardInMoveMode = boardKeys.isInMoveMode;
   } else if (view === 'card' && params[0]) {
     const cardId = params[0];
-    const result = await renderCardDetail(ctx.rpc, ctx.stream, root, cardId);
-    detailCleanup = result.cleanup;
-    ctx.refreshCurrentView = async () => {
-      detailCleanup?.();
-      const fresh = await renderCardDetail(ctx.rpc, ctx.stream, root, cardId);
-      detailCleanup = fresh.cleanup;
-    };
+    try {
+      const result = await renderCardDetail(ctx.rpc, ctx.stream, root, cardId);
+      detailCleanup = result.cleanup;
+      ctx.refreshCurrentView = async () => {
+        detailCleanup?.();
+        const fresh = await renderCardDetail(ctx.rpc, ctx.stream, root, cardId);
+        detailCleanup = fresh.cleanup;
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.startsWith('Card file not found')) {
+        root.innerHTML = renderEmptyShell({
+          titleHtml: 'Card not found.',
+          bodyHtml: `<p>No card with id <code>${escapeHtml(cardId)}</code> exists. <a href="#/board">Back to Board</a>.</p>`,
+          kind: 'card-not-found',
+        });
+      } else {
+        throw err;
+      }
+    }
   } else if (view === 'monitor') {
     const { renderMonitor } = await import('./views/monitor.js');
     const result = await renderMonitor(ctx.rpc, ctx.stream, root);
@@ -173,9 +186,9 @@ async function main() {
 
 main().catch((err) => {
   console.error(err);
-  document.getElementById('root')!.innerHTML = `
-    <section class="empty-shell">
-      <h1>Fatal transmission error.</h1>
-      <p>${err.message}</p>
-    </section>`;
+  document.getElementById('root')!.innerHTML = renderEmptyShell({
+    titleHtml: 'Fatal transmission error.',
+    bodyHtml: `<p>${err.message}</p>`,
+    kind: 'fatal',
+  });
 });
