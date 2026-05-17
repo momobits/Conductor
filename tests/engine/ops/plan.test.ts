@@ -25,8 +25,8 @@ afterEach(async () => {
   await rm(tmp, { recursive: true, force: true });
 });
 
-describe('plan (Phase 21: in-memory analysis + dual-write)', () => {
-  it('persists output to .conductor/runs/<runId>/plan.md AND appends `## Implementation Plan` to card body (compat shim)', async () => {
+describe('plan (Phase 28.1: substrate is sole storage; dual-write shim removed)', () => {
+  it('persists output to .conductor/runs/<runId>/plan.md ONLY (no card-body append)', async () => {
     const adapter = new MockAdapter();
     adapter.push({
       text: '### Step 1\nWHAT: ...\nHOW: ...\nWHY: ...\nRISK: ...\nVERIFY: ...\nROLLBACK: ...',
@@ -35,15 +35,27 @@ describe('plan (Phase 21: in-memory analysis + dual-write)', () => {
     });
 
     const card = await readCard(cardPath);
+    const bodyBefore = card.body;
     const result = await plan({ card, adapter, model: 'claude-opus-4-7', analysis: ANALYSIS, repo: tmp, runId: 'r1' });
 
-    // Artifact substrate (primary)
+    // Substrate is sole storage
     expect(await readRunArtifact(tmp, 'r1', 'plan')).toContain('Step 1');
-    // Compatibility shim: body still gets `## Implementation Plan`
+    // Body byte-identical (Phase 28.1 single-writer guarantee)
     const updated = await readCard(cardPath);
-    expect(updated.body).toContain('## Implementation Plan');
-    expect(updated.body).toContain('Step 1');
+    expect(updated.body).toBe(bodyBefore);
+    expect(updated.body).not.toContain('## Implementation Plan');
+    expect(updated.body).not.toContain('Step 1');
     expect(result.tokens).toBe(120);
+  });
+
+  it('plan op does NOT mutate card body (Phase 28.1 byte-identity regression pin)', async () => {
+    const adapter = new MockAdapter();
+    adapter.push({ text: 'arbitrary plan text', inputTokens: 1, outputTokens: 1 });
+    const card = await readCard(cardPath);
+    const bodyBefore = card.body;
+    await plan({ card, adapter, model: 'claude-opus-4-7', analysis: ANALYSIS, repo: tmp, runId: 'r-identity' });
+    const updated = await readCard(cardPath);
+    expect(updated.body).toBe(bodyBefore);
   });
 
   it('reads analysis from in-memory PlanArgs.analysis (no card.body extractSection regex)', async () => {
@@ -105,7 +117,7 @@ describe('plan (Phase 21: in-memory analysis + dual-write)', () => {
     expect(sys).toMatch(/\[need:\][^]*defect/);
   });
 
-  it('preserves preamble + steps when the model emits the new output shape (Phase 5 H3-under-H2 body position)', async () => {
+  it('preserves preamble + steps order in the substrate artifact (Phase 5 H3 ordering invariant, re-pinned to substrate)', async () => {
     const adapter = new MockAdapter();
     adapter.push({
       text: [
@@ -127,21 +139,25 @@ describe('plan (Phase 21: in-memory analysis + dual-write)', () => {
     const card = await readCard(cardPath);
     await plan({ card, adapter, model: 'claude-opus-4-7', analysis: ANALYSIS, repo: tmp, runId: 'r6' });
 
-    // Phase 5 invariant: H3 preamble nested under H2 `## Implementation Plan`
-    // in the card body. Preserved by the dual-write compat shim.
-    const updated = await readCard(cardPath);
-    expect(updated.body).toContain('## Implementation Plan');
-    expect(updated.body).toContain('### Resolved decisions from analysis');
-    expect(updated.body).toContain('### Step 1.1');
-
-    const planSectionStart = updated.body.indexOf('## Implementation Plan');
-    const preambleStart = updated.body.indexOf('### Resolved decisions from analysis');
-    const firstStep = updated.body.indexOf('### Step 1.1');
-    expect(preambleStart).toBeGreaterThan(planSectionStart);
+    // Phase 5 invariant migrated to substrate: preamble appears before first step
+    // in the plan.md artifact. (The H2 `## Implementation Plan` wrapper was an
+    // artifact of the dual-write shim's appendSection; substrate file IS the
+    // plan output and has no H2 wrapper.)
+    const planArt = (await readRunArtifact(tmp, 'r6', 'plan')) ?? '';
+    expect(planArt).toContain('### Resolved decisions from analysis');
+    expect(planArt).toContain('### Step 1.1');
+    const preambleStart = planArt.indexOf('### Resolved decisions from analysis');
+    const firstStep = planArt.indexOf('### Step 1.1');
+    expect(preambleStart).toBeGreaterThanOrEqual(0);
     expect(preambleStart).toBeLessThan(firstStep);
+
+    // And: body has neither section (Phase 28.1 single-writer body)
+    const updated = await readCard(cardPath);
+    expect(updated.body).not.toContain('## Implementation Plan');
+    expect(updated.body).not.toContain('### Resolved decisions from analysis');
   });
 
-  it('does not emit [need:] for decisions the analysis already resolved (T1-1 regression)', async () => {
+  it('does not emit [need:] for decisions the analysis already resolved (T1-1 regression, substrate-pinned)', async () => {
     const analysis = 'Decision: use path `/health` (the endpoint must be served at /health).';
 
     const adapter = new MockAdapter();
@@ -173,10 +189,10 @@ describe('plan (Phase 21: in-memory analysis + dual-write)', () => {
     const card = await readCard(cardPath);
     await plan({ card, adapter, model: 'claude-opus-4-7', analysis, repo: tmp, runId: 'r7' });
 
-    const updated = await readCard(cardPath);
-    expect(updated.body).toContain('### Resolved decisions from analysis');
-    expect(updated.body).toContain('Path: `/health`');
-    expect(updated.body).not.toMatch(/\[need:[^\]]*path[^\]]*\]/i);
-    expect(updated.body).toMatch(/\[need:[^\]]*unhealthy[^\]]*\]/i);
+    const planArt = (await readRunArtifact(tmp, 'r7', 'plan')) ?? '';
+    expect(planArt).toContain('### Resolved decisions from analysis');
+    expect(planArt).toContain('Path: `/health`');
+    expect(planArt).not.toMatch(/\[need:[^\]]*path[^\]]*\]/i);
+    expect(planArt).toMatch(/\[need:[^\]]*unhealthy[^\]]*\]/i);
   });
 });

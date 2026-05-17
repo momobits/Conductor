@@ -42,10 +42,15 @@ async function bootstrap(column: string): Promise<void> {
     '# Original Issue',
     'body',
     '',
-    '## Analysis',
-    'a',
-    '',
-    '## Implementation Plan',
+  ].join('\n'));
+  // Phase 28.1: seed a plan substrate run so review can find it via
+  // findLatestArtifactRunId. Pre-28.1 fixtures used `## Implementation Plan`
+  // in card body for review's extractSection; that read path was removed.
+  const planRunId = `20260507T000000-${ID}`;
+  const runDir = join(tmp, '.conductor', 'runs', planRunId);
+  await mkdir(runDir, { recursive: true });
+  await writeFile(join(runDir, 'events.jsonl'), '{"ts":"2026-05-07T00:00:00.000Z","kind":"op_start","card_id":"x"}\n', 'utf8');
+  await writeFile(join(runDir, 'plan.md'), [
     '### 1.1',
     'WHAT: write file',
     'HOW: src/x.ts',
@@ -54,7 +59,7 @@ async function bootstrap(column: string): Promise<void> {
     'VERIFY: file exists',
     'ROLLBACK: delete',
     '',
-  ].join('\n'));
+  ].join('\n'), 'utf8');
   await g.add('.');
   await g.commit('seed');
 }

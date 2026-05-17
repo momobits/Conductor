@@ -57,10 +57,13 @@ describe('end-to-end: discovered -> approved', () => {
     // 6. Verify final state
     const card = await readCard(cardPath);
     expect(card.frontmatter.column).toBe('approved');
-    // Phase 21: analyze stops appending to card body; plan still appends (dual-write compat shim).
-    // The `Root cause: middleware` text is now in `.conductor/runs/<runId>/analyze.md`, not body.
+    // Phase 28.1: neither analyze nor plan appends to card body — both live in
+    // the per-run substrate at .conductor/runs/<runId>/<op>.md. The Phase 21
+    // dual-write compat shim was sunset when review migrated to the substrate
+    // read path. The `Root cause: middleware` text is now in analyze.md; the
+    // step body lives in plan.md.
     expect(card.body).not.toContain('## Analysis');
-    expect(card.body).toContain('## Implementation Plan');
-    expect(card.body).toContain('Add expiry check');
+    expect(card.body).not.toContain('## Implementation Plan');
+    expect(card.body).not.toContain('Add expiry check');
   });
 });

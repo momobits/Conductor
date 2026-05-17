@@ -124,7 +124,13 @@ export class TaskAgent {
         const c = await readCard(cardPath);
         yield await this.emit({ kind: 'op_start', cardId: this.cardId, operation: 'review', model: modelFor(c, 'review') });
         const t = Date.now();
-        const verdict = await review({ card: c, adapter: this.adapter, model: modelFor(c, 'review') });
+        const verdict = await review({
+          card: c,
+          adapter: this.adapter,
+          model: modelFor(c, 'review'),
+          repo: this.repo,
+          runId: this.runId,
+        });
         yield await this.emit({ kind: 'op_complete', cardId: this.cardId, operation: 'review', durationMs: Date.now() - t });
         if (verdict.decision === 'APPROVED') {
           let halted = false;

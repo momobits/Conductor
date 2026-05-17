@@ -6,7 +6,6 @@
 
 import type { ModelAdapter } from '../../adapters/adapter.js';
 import type { Card } from '../types.js';
-import { appendSection } from '../state/card.js';
 import { RunArtifactWriter } from '../../agent/run_artifact.js';
 
 export interface PlanArgs {
@@ -87,17 +86,11 @@ export async function plan(args: PlanArgs): Promise<PlanResult> {
     user: userPrompt,
   });
 
-  // Phase 21: persist to per-run artifact substrate (primary substrate).
+  // Phase 21 → Phase 28.1: substrate is now sole storage. Review reads plan
+  // from the substrate via findLatestArtifactRunId; card body is no longer
+  // mutated by the plan op (user-owned single-writer body).
   const artifacts = new RunArtifactWriter({ repo, runId });
   await artifacts.write('plan', resp.text);
-
-  // Compatibility shim: also append `## Implementation Plan` to card body so
-  // the deferred-scope review op (review.ts:41 reads via extractSection and
-  // throws if missing) continues to work for the planned→approved transition
-  // until the follow-up issue migrates review to the substrate. Removes the
-  // ## Analysis + ## Chat appends (~50 lines vs ~114 pre-Phase-21); full
-  // close-out of the body-bloat anti-pattern awaits the deferred refactor.
-  await appendSection(card.path, 'Implementation Plan', resp.text);
 
   return {
     text: resp.text,

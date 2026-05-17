@@ -1,12 +1,19 @@
 // src/engine/ops/review.ts
 //
 // Operation: adversarially review a planned card. Reads the card's
-// Implementation Plan, asks the model to find weaknesses, returns a
-// typed Verdict and appends an Adversarial Review section.
+// Implementation Plan from the per-run substrate (.conductor/runs/<runId>/
+// plan.md) via findLatestArtifactRunId, asks the model to find weaknesses,
+// returns a typed Verdict, and writes the formatted decision text to the
+// per-run substrate (.conductor/runs/<runId>/review.md). Phase 28.1
+// migrated this op off card-body appends; pairs with the plan-op
+// dual-write compat-shim removal.
 
 import type { ModelAdapter } from '../../adapters/adapter.js';
 import type { Card, Verdict, VerdictDecision } from '../types.js';
-import { appendSection, extractSection } from '../state/card.js';
+import {
+  RunArtifactWriter,
+  findLatestArtifactRunId,
+} from '../../agent/run_artifact.js';
 import { parseJsonResponse } from '../util/parse_json_response.js';
 
 const VALID_DECISIONS: VerdictDecision[] = ['APPROVED', 'NEEDS-CHANGES', 'NEEDS-INFO'];
@@ -15,6 +22,8 @@ export interface ReviewArgs {
   card: Card;
   adapter: ModelAdapter;
   model: string;
+  repo: string;
+  runId: string;
 }
 
 const SYSTEM_PROMPT = `You are an adversarial software reviewer. Evaluate the
@@ -36,19 +45,43 @@ NEEDS-CHANGES when concrete edits would make it acceptable. Use
 NEEDS-INFO when more facts must be gathered before review can complete.`.trim();
 
 export async function review(args: ReviewArgs): Promise<Verdict> {
-  const { card, adapter, model } = args;
+  const { card, adapter, model, repo, runId } = args;
 
-  const plan = extractSection(card.body, 'Implementation Plan');
-  if (!plan) {
-    throw new Error(`Card ${card.frontmatter.id} has no Implementation Plan; run plan first.`);
+  if (typeof repo !== 'string' || repo.length === 0) {
+    throw new Error(`review: repo arg required (received: ${JSON.stringify(repo)}).`);
+  }
+  if (typeof runId !== 'string' || runId.length === 0) {
+    throw new Error(`review: runId arg required (received: ${JSON.stringify(runId)}).`);
   }
 
+  // Phase 28.1: locate prior plan run for this card via substrate, not card body.
+  // Pairs with the plan-op dual-write shim removal in plan.ts.
+  const found = await findLatestArtifactRunId(repo, card.frontmatter.id, 'plan');
+  if (!found) {
+    // Preserve the `/no Implementation Plan/` substring for the existing test
+    // contract at tests/engine/ops/review.test.ts ("throws when ... no
+    // Implementation Plan ...").
+    throw new Error(
+      `Card ${card.frontmatter.id} has no Implementation Plan in any prior run; run plan first.`,
+    );
+  }
+  const { runId: planRunId, text: plan } = found;
+
+  // Splice both signals into the prompt: user description (card body) +
+  // plan text (substrate). Pre-28.1 cards may still carry a stale
+  // `## Implementation Plan` section in body from Phase 21's dual-write
+  // shim era — accepted minor prompt-duplication in the narrow mid-
+  // lifecycle window (no correctness issue).
   const userPrompt = [
     `Card: ${card.frontmatter.id}`,
     `Title: ${card.frontmatter.title}`,
+    `Plan run: ${planRunId}`,
     '',
-    '--- Card body (Analysis + Plan) ---',
+    '--- Card body (user description) ---',
     card.body.trim(),
+    '',
+    '--- Implementation Plan (from substrate) ---',
+    plan,
   ].join('\n');
 
   const resp = await adapter.invoke({
@@ -87,6 +120,7 @@ export async function review(args: ReviewArgs): Promise<Verdict> {
       : '**Changes required:** (none)',
   ].join('\n');
 
-  await appendSection(card.path, 'Adversarial Review', sectionBody);
+  // Phase 28.1: persist to per-run substrate (NOT to card body).
+  await new RunArtifactWriter({ repo, runId }).write('review', sectionBody);
   return verdict;
 }

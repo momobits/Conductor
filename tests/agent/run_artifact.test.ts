@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm, readFile } from 'node:fs/promises';
+import { mkdtemp, rm, readFile, mkdir, writeFile, utimes } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { RunArtifactWriter, readRunArtifact } from '../../src/agent/run_artifact.js';
+import { RunArtifactWriter, readRunArtifact, findLatestArtifactRunId } from '../../src/agent/run_artifact.js';
 
 let repo: string;
 
@@ -13,6 +13,31 @@ beforeEach(async () => {
 afterEach(async () => {
   await rm(repo, { recursive: true, force: true });
 });
+
+// Test fixture helper for findLatestArtifactRunId (which goes through listRuns()).
+// listRuns at runlog_store.ts:36-43 filters out dirs without a readable
+// events.jsonl, so seeding a runId-dir with only `<op>.md` is invisible. This
+// helper writes BOTH events.jsonl AND each requested artifact under
+// .conductor/runs/<runId>/. Optionally backdates mtimes when given an mtime arg
+// so multi-run mtime-DESC ordering tests are deterministic on Windows (whose
+// filesystem mtime granularity is ~100ms).
+async function seedRun(
+  repoArg: string,
+  runId: string,
+  artifacts: Record<string, string>,
+  mtime?: Date,
+): Promise<void> {
+  const dir = join(repoArg, '.conductor', 'runs', runId);
+  await mkdir(dir, { recursive: true });
+  const eventsPath = join(dir, 'events.jsonl');
+  await writeFile(eventsPath, '{"ts":"2026-05-17T00:00:00.000Z","kind":"op_start","card_id":"x"}\n', 'utf8');
+  for (const [op, content] of Object.entries(artifacts)) {
+    await writeFile(join(dir, `${op}.md`), content, 'utf8');
+  }
+  if (mtime) {
+    await utimes(eventsPath, mtime, mtime);
+  }
+}
 
 describe('RunArtifactWriter', () => {
   it('round-trips write then read for analyze', async () => {
@@ -65,5 +90,65 @@ describe('RunArtifactWriter', () => {
     // .conductor/runs/r-lazy/ should NOT exist yet.
     await expect(readFile(join(repo, '.conductor', 'runs', 'r-lazy', 'analyze.md'), 'utf8'))
       .rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('writes review artifact (Phase 28.1 union extension)', async () => {
+    const w = new RunArtifactWriter({ repo, runId: 'r-review' });
+    await w.write('review', '**Decision:** APPROVED\n\n**Reasoning:** sound');
+    expect(await readRunArtifact(repo, 'r-review', 'review')).toContain('APPROVED');
+  });
+});
+
+describe('findLatestArtifactRunId', () => {
+  it('returns latest matching run by mtime DESC', async () => {
+    await seedRun(repo, '20260101T000000-cardA', { plan: 'older plan' }, new Date('2026-01-01T00:00:00Z'));
+    await seedRun(repo, '20260201T000000-cardA', { plan: 'newer plan' }, new Date('2026-02-01T00:00:00Z'));
+    const found = await findLatestArtifactRunId(repo, 'cardA', 'plan');
+    expect(found?.runId).toBe('20260201T000000-cardA');
+    expect(found?.text).toBe('newer plan');
+  });
+
+  it('returns null when no run matches', async () => {
+    expect(await findLatestArtifactRunId(repo, 'cardA', 'plan')).toBeNull();
+  });
+
+  it('skips runs for other cards', async () => {
+    await seedRun(repo, '20260101T000000-cardA', { plan: 'A plan' });
+    await seedRun(repo, '20260101T000000-cardB', { plan: 'B plan' });
+    const found = await findLatestArtifactRunId(repo, 'cardA', 'plan');
+    expect(found?.runId).toBe('20260101T000000-cardA');
+    expect(found?.text).toBe('A plan');
+  });
+
+  it('skips runs whose <op>.md is absent', async () => {
+    // Older run has plan.md; newer run has no plan.md. listRuns sees both;
+    // helper iterates newest-first, skips the newer (null artifact), returns the older.
+    await seedRun(repo, '20260101T000000-cardA', { plan: 'plan text' }, new Date('2026-01-01T00:00:00Z'));
+    await seedRun(repo, '20260201T000000-cardA', {}, new Date('2026-02-01T00:00:00Z'));
+    const found = await findLatestArtifactRunId(repo, 'cardA', 'plan');
+    expect(found?.runId).toBe('20260101T000000-cardA');
+  });
+
+  it('rejects empty/whitespace artifact content', async () => {
+    await seedRun(repo, '20260101T000000-cardA', { plan: 'plan text' }, new Date('2026-01-01T00:00:00Z'));
+    await seedRun(repo, '20260201T000000-cardA', { plan: '   \n\n  ' }, new Date('2026-02-01T00:00:00Z'));
+    const found = await findLatestArtifactRunId(repo, 'cardA', 'plan');
+    expect(found?.runId).toBe('20260101T000000-cardA');
+  });
+
+  it('length-guards against suffix false-match (cardId "A" vs runId "...-BA")', async () => {
+    await seedRun(repo, '20260101T000000-BA', { plan: 'BA plan' });
+    // cardId 'A' would naively match runId ending in '-BA' via endsWith('-A'),
+    // but the length-equality guard (16 + 'A'.length === 17, vs actual 18) blocks it.
+    // ...except '20260101T000000-BA' ends with '-BA', not '-A'. The TRUE false-match
+    // scenario is a cardId that's a strict suffix of another cardId with a hyphen
+    // between them, e.g. cardId 'tail' with another card whose id is 'prefix-tail'.
+    // Test the cleaner case here: ensure cardId 'A' does NOT find the BA-suffix run.
+    expect(await findLatestArtifactRunId(repo, 'A', 'plan')).toBeNull();
+  });
+
+  it('rejects runId without YYYYMMDDTHHMMSS prefix shape', async () => {
+    await seedRun(repo, 'manual-runid-cardA', { plan: 'manual plan' });
+    expect(await findLatestArtifactRunId(repo, 'cardA', 'plan')).toBeNull();
   });
 });

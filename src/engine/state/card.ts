@@ -3,13 +3,14 @@
 // Card persistence: read, write, list, and append-section.
 // Cards are markdown files with YAML frontmatter at .conductor/cards/<id>.md.
 // Body sections that still accrete via `appendSection` (Relay-style):
-//   ## Implementation Plan  (plan op — dual-write shim; see Phase 21 follow-up)
-//   ## Adversarial Review   (review op — deferred refactor)
-//   ## Verification Report  (verify op — deferred refactor)
-//   ## Notebook             (notebook op — deferred refactor)
-//   ## Implementation Guidelines (implement op — deferred refactor)
-// As of Phase 21, analyze + chat outputs live in sibling artifacts (NOT card body):
+//   ## Verification Report  (verify op — Phase 28.2 migration pending)
+//   ## Notebook             (notebook op — Phase 28.2 migration pending)
+//   ## Implementation Guidelines (implement op — Phase 28.3 migration pending)
+// As of Phase 28.1, analyze + plan + review + chat outputs live in sibling
+// artifacts (NOT card body):
 //   .conductor/runs/<runId>/analyze.md  (analyze op output)
+//   .conductor/runs/<runId>/plan.md     (plan op output; Phase 28.1 sunset dual-write)
+//   .conductor/runs/<runId>/review.md   (review op output, Phase 28.1)
 //   .conductor/cards/<id>.chat.jsonl    (chat history)
 
 import { readFile, writeFile, readdir, mkdir } from 'node:fs/promises';

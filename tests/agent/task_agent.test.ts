@@ -82,16 +82,17 @@ describe('TaskAgent', () => {
     // plan.md exists in run-dir
     expect(await readRunArtifact(repo, agent.runId, 'plan')).toContain('### Step 1.1');
 
-    // Card body: no `## Analysis` (analyze stopped appending in Phase 21)
+    // Phase 28.1: neither analyze nor plan appends to card body — both live in
+    // the per-run substrate. The Phase 21 dual-write shim was removed when
+    // review migrated to the substrate read path.
     const after = readFileSync(cardPath, 'utf8');
     expect(after).not.toContain('## Analysis');
-    // Card body: `## Implementation Plan` IS present (plan dual-writes for review compat)
-    expect(after).toContain('## Implementation Plan');
-    // Frontmatter `column` changed from discovered → planned (transition); body otherwise grew by plan section only
+    expect(after).not.toContain('## Implementation Plan');
+    // Frontmatter `column` changed from discovered → planned (transition); body
+    // is byte-identical to pre-work-card state (single-writer guarantee).
     const beforeBody = before.split('---').slice(2).join('---');
     const afterBody = after.split('---').slice(2).join('---');
-    // The afterBody contains the original body + only the plan section; no analyze append.
-    expect(afterBody).toContain(beforeBody.trim());
+    expect(afterBody).toBe(beforeBody);
   });
 
   it('emits halt when an op refuses to advance (review NEEDS-CHANGES)', async () => {
@@ -100,8 +101,13 @@ describe('TaskAgent', () => {
     const cardPath = join(repo, '.conductor', 'cards', `${cardId}.md`);
     let body = await fs.readFile(cardPath, 'utf8');
     body = body.replace('column: discovered', 'column: planned');
-    body += `\n## Implementation Plan\n\n### Step 1.1 — do thing\n\n- WHAT: do thing\n- HOW: change file\n- VERIFY: tests pass\n- COMMIT: feat\n\n## Rollback\n\nrevert commit\n`;
     await fs.writeFile(cardPath, body, 'utf8');
+    // Phase 28.1: review reads plan from substrate. Seed a plan run.
+    const planRunId = `20260507T000000-${cardId}`;
+    const runDir = join(repo, '.conductor', 'runs', planRunId);
+    await fs.mkdir(runDir, { recursive: true });
+    await fs.writeFile(join(runDir, 'events.jsonl'), '{"ts":"2026-05-07T00:00:00.000Z","kind":"op_start","card_id":"x"}\n', 'utf8');
+    await fs.writeFile(join(runDir, 'plan.md'), '### Step 1.1 — do thing\n- WHAT: do thing\n- HOW: change file\n- VERIFY: tests pass\n- COMMIT: feat\n', 'utf8');
 
     const adapter = new MockAdapter([
       JSON.stringify({ decision: 'NEEDS-CHANGES', reasoning: 'missing tests', changes_required: ['add tests'] }),

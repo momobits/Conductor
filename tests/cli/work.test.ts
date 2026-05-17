@@ -47,9 +47,11 @@ describe('runWork', () => {
 
     const card = await readCard(join(tmp, '.conductor', 'cards', `${id}.md`));
     expect(card.frontmatter.column).toBe('planned');
-    // Phase 21: analyze no longer appends to card body; plan still does (dual-write compat shim).
+    // Phase 28.1: neither analyze nor plan appends to card body — both write to
+    // the per-run substrate at .conductor/runs/<runId>/<op>.md instead. The
+    // dual-write shim that Phase 21 retained was removed in 28.1.
     expect(card.body).not.toContain('## Analysis');
-    expect(card.body).toContain('## Implementation Plan');
+    expect(card.body).not.toContain('## Implementation Plan');
   });
 
   it('halts at planned when review returns NEEDS-CHANGES', async () => {

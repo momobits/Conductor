@@ -80,8 +80,10 @@ describe('Phase 21 end-to-end: card-body persistence decoupling', () => {
     const planArt = await methods.run_artifact_get(ctx, { runId: result.runId, op: 'plan' }) as { text: string | null };
     expect(planArt.text).toContain('### Step 1.1');
 
-    // Compat shim: `## Implementation Plan` IS in body (so review can read it)
-    expect(afterBody).toContain('## Implementation Plan');
+    // Phase 28.1: `## Implementation Plan` is NOT in body — review reads
+    // the plan artifact from substrate via findLatestArtifactRunId. The
+    // dual-write compat shim that landed in Phase 21 is removed.
+    expect(afterBody).not.toContain('## Implementation Plan');
 
     // Original body content preserved (frontmatter `column` change is permitted)
     expect(afterBody).toContain(beforeBody.split('\n')[0]);

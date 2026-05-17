@@ -170,15 +170,21 @@ describe('Phase 3 end-to-end: mixed-provider routing', () => {
       '# Original Issue',
       'body',
       '',
-      '## Analysis',
-      'a',
-      '',
-      '## Implementation Plan',
-      '### 1.1',
-      'WHAT: w\nHOW: h\nWHY: y\nRISK: r\nVERIFY: v\nROLLBACK: rb',
-      '',
     ].join('\n');
     await writeCard(card);
+    // Phase 28.1: seed a plan substrate run so review can find it via
+    // findLatestArtifactRunId. Pre-28.1 fixtures used `## Implementation Plan`
+    // in card body; that read path was removed.
+    const { mkdir, writeFile } = await import('node:fs/promises');
+    const planRunId = `20260507T000000-${id}`;
+    const runDir = join(tmp, '.conductor', 'runs', planRunId);
+    await mkdir(runDir, { recursive: true });
+    await writeFile(join(runDir, 'events.jsonl'), '{"ts":"2026-05-07T00:00:00.000Z","kind":"op_start","card_id":"x"}\n', 'utf8');
+    await writeFile(
+      join(runDir, 'plan.md'),
+      '### 1.1\nWHAT: w\nHOW: h\nWHY: y\nRISK: r\nVERIFY: v\nROLLBACK: rb\n',
+      'utf8',
+    );
 
     const claude = new MockAdapter();
     const gemini = new MockAdapter();

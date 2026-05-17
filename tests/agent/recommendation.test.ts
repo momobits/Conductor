@@ -2,6 +2,17 @@ import { describe, it, expect } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+function seedPlanRun(repo: string, runId: string, planText: string): void {
+  const dir = join(repo, '.conductor', 'runs', runId);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    join(dir, 'events.jsonl'),
+    '{"ts":"2026-05-08T00:00:00.000Z","kind":"op_start","card_id":"x"}\n',
+    'utf8',
+  );
+  writeFileSync(join(dir, 'plan.md'), planText, 'utf8');
+}
 import { TaskAgent } from '../../src/agent/task_agent.js';
 import { MockAdapter } from '../../src/adapters/mock.js';
 import { ProjectConfigSchema } from '../../src/config/schema.js';
@@ -119,10 +130,12 @@ labels: []
 blocked_by: []
 ---
 
-## Implementation Plan
+# Original Issue
 
-1. step
+x
 `, 'utf8');
+    // Phase 28.1: review reads plan from per-run substrate, not card body.
+    seedPlanRun(repo, `20260508T000000-${cardId}`, '1. step');
     const adapter = new MockAdapter([
       JSON.stringify({ decision: 'NEEDS-CHANGES', reasoning: 'risk', changes_required: ['split step 2'] }),
     ]);
