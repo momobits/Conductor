@@ -203,3 +203,15 @@ Append-only, newest on top. One entry per session, short. Minor fixes land here 
 ## YYYY-MM-DD — Session bootstrap (initial template — never run)
 - Control framework installed (commit `<short-sha>`).
 - Next: define phase plan before any implementation.
+
+## 2026-05-17 — Phase 26 closed, Phase 27 kicked off
+
+Phase 26 closed (tag: `phase-26-polish-bundle-closed`, commit: `<chore-sha-pending>`); Phase 27 (brain-telemetry) kicked off.
+
+- Phase 26 shipped 5 steps + 1 corrective: 26.1 card-detail not-found empty shell (renderEmptyShell helper extraction, n=4 shared-module precedent); 26.2 archived column FINAL badge; 26.3 edition stamp ripped (operator-bound Option A over date-derived/version-derived after analysis surfaced no engine_state RPC exists); 26.4 favicon SVG; 26.5 LIVE FEED label clipping (two-pass: original fix shipped a non-bug correction; Playwright smoke during phase-close revealed actual cause was .stream overflow clipping its own ::before pseudo; corrective 26.5b split visual frame from scroll container).
+- Suite: 734 → 743 (+9 from tests/ui/empty_shell.test.ts at 26.1; steps 26.2/26.3/26.4/26.5/26.5b added zero new tests).
+- Pattern precedents: pure-helper-extraction now at n=15; shared-module-for-cross-feature-consumption now at n=4. ADR filing remains deferred per 2026-05-15 operator decision.
+- New heuristic captured in `.relay/implemented/ui-stream-live-feed-label-clipped-by-work-button.md` § Verification Fix (26.5b): future XS visual-fix analyses must explicitly check parent-overflow as a candidate cause when an absolutely-positioned descendant is being cropped. The Phase 26.5 first-pass missed this.
+- All 5 visual smokes verified via Playwright against running daemon at phase-close gate (round 2 after the 26.5b corrective fix).
+- Carry-forward: Phase 26 had only `- <none yet>` in `## Deferred to Phase 27 (or later)` — non-conforming bullet (lacks em-dash separator), seeding skipped per runbook rule.
+- Phase 27 scaffold authored with 3 steps targeting Relay Phase 15 brain-telemetry cluster (#31 P2 S Stop button stopping-state + race, #32 P3 S halt-event deduplication, #33 P3 XS brain-log timestamps from event-ts not paint-time). Top item: `/relay-analyze ui-monitor-stop-button-no-stopping-state-and-tight-race-window.md`. The `## Why this phase exists` section keeps its placeholder pending Phase 27 kickoff authorship.
