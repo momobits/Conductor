@@ -4,7 +4,7 @@ Append-only, newest on top. One entry per session, short. Minor fixes land here 
 
 ## 2026-05-17 — Phase 27 closed (Relay Phase 15 brain telemetry cluster, 3 steps); Phase 28 kicked off
 
-Phase 27 closed (tag: `phase-27-brain-telemetry-closed`, commit: `<chore-sha-pending>`); Phase 28 (engine-ops body sunset; Frame B prerequisite) kicked off. Single drive shipped all 3 Phase 27 steps end-to-end + operator manual smoke verified all 3 visible behaviors against restarted daemon.
+Phase 27 closed (tag: `phase-27-brain-telemetry-closed`, commit: `5f57f20`); Phase 28 (engine-ops body sunset; Frame B prerequisite) kicked off. Single drive shipped all 3 Phase 27 steps end-to-end + operator manual smoke verified all 3 visible behaviors against restarted daemon.
 
 - **Phase 27** (`brain-telemetry`) closed via `/phase-close`. Tag: `phase-27-brain-telemetry-closed`. Shipped 3 brain-telemetry fixes closing Relay Phase 15 across **3 step closures in one session**:
   - **27.1** Stop button stopping-state + race (`0313db8` + `d90036e`): client-side optimistic flag (`stoppingBrain`) flips Stop button (disabled + "stopping…" text) and pill (amber "stopping · graceful drain" + pulsing dot) within ~10ms of click — before the RPC await yields. Defensive Start-button-disabled guard prevents click-Start-mid-stop races. Scenario A (drain-window no-feedback) fully resolved. Scenario B (tight self-halt race) partially resolved per issue's option #3 acceptance semantic: click-LANDS sub-case absorbed by optimistic UI; click-MISSES sub-case recoverable via brain-log row showing auto-halt reason. Phase 27 kickoff README authored in same docs commit. NEW `.brain-live[data-running="stopping"]` CSS variant uses `var(--amber)`.

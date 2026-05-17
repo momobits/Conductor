@@ -3,7 +3,7 @@
 > Single source of truth. Read this first every session. Updated at every
 > `/session-end` and by the `PreCompact` hook. Every field has a purpose -- fill each.
 
-**Last updated:** 2026-05-17 by Phase 27 close-out (sid-2026-05-17-phase-27-close)
+**Last updated:** 2026-05-17 by session-end after Phase 27 close (sid-2026-05-17-phase-27-session-end)
 **Current phase:** 28 — Engine ops body sunset (Frame B prerequisite)
 **Current step:** 28.1 — Migrate `review` op + sunset plan-op compat shim
 **Status:** kicked-off (Phase 27 closed cleanly at tag `phase-27-brain-telemetry-closed`; 3 steps shipped closing Relay Phase 15 brain-telemetry cluster; cumulative Monitor UX impact: optimistic Stop feedback within 10ms, single halt row per logical wedge, accurate per-row brain-log timestamps; operator manual smoke confirmed all 3 behaviors against restarted daemon; suite at 744/744; 15 Control phase tags placed; Phase 28 scaffold authored targeting the engine-ops body-sunset refactor (Frame B prerequisite); ready to resume with `/relay-analyze engine-ops-still-append-to-card-body.md`)
@@ -39,8 +39,8 @@ Phase 28 README + steps authored at `.control/phases/phase-28-engine-ops-body-su
 
 ## Git state
 - **Branch:** main
-- **Last commit:** `e2524c7` — docs(27.3): /relay-resolve close out Phase 15 #33. Predecessors: `94b906e` (fix(27.3) brain-log uses event ts, not paint time), `f30fc09` (docs(27.2) /relay-resolve close out Phase 15 #32), `076bd47` (feat(27.2) dedupe verify-fail-then-wedge halt events), `d90036e` (docs(27.1) /relay-resolve + Phase 27 kickoff README), `0313db8` (feat(27.1) surface stopping state on Stop brain button), `d7e26df` (docs(state) session end for step 27.1), `27c687f` (chore(phase-26) close phase 26, kick off phase 27).
-- **Uncommitted changes:** STATE.md + journal.md + next.md regeneration about to land in this `chore(phase-27):` close + `docs(state):` session-end cycle.
+- **Last commit:** `5f57f20` — chore(phase-27): close phase 27, kick off phase 28. Predecessors: `e2524c7` (docs(27.3) /relay-resolve close out Phase 15 #33), `94b906e` (fix(27.3) brain-log uses event ts, not paint time), `f30fc09` (docs(27.2) /relay-resolve close out Phase 15 #32), `076bd47` (feat(27.2) dedupe verify-fail-then-wedge halt events), `d90036e` (docs(27.1) /relay-resolve + Phase 27 kickoff README), `0313db8` (feat(27.1) surface stopping state on Stop brain button), `d7e26df` (docs(state) session end for step 27.1), `27c687f` (chore(phase-26) close phase 26, kick off phase 27).
+- **Uncommitted changes:** STATE.md + journal.md + next.md regeneration about to land in this `docs(state):` session-end commit (self-reference pattern; the hook's commit-mismatch detector auto-suppresses this offset for docs(state) commits whose parent matches the recorded SHA).
 - **Last phase tag:** `phase-27-brain-telemetry-closed` (created at end of Phase 27; predecessor `phase-26-polish-bundle-closed`).
 
 ---
