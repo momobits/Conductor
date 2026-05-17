@@ -931,6 +931,16 @@ dialog .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top
   width: 7px; height: 7px; border-radius: 50%;
   background: var(--mute-2);
 }
+.brain-live[data-running="stopping"] {
+  color: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 50%, var(--hairline));
+}
+.brain-live[data-running="stopping"]::before {
+  content: '';
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--amber);
+  animation: pulse 2s ease-in-out infinite;
+}
 .brain-metrics {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

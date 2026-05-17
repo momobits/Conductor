@@ -22,6 +22,11 @@ export async function renderMonitor(
   let sessions: Session[] = [];
   let brain: BrainStatus = { running: false, iteration: 0, halts: 0 };
   const brainLog: string[] = [];
+  // Phase 27.1: client-only optimistic flag. true between Stop click and the click
+  // handler's finally block. Drives both the button (disabled + 'stopping…' text)
+  // and the pill (data-running='stopping' + label) so the user sees feedback within
+  // ~10ms regardless of how long the conductor_stop RPC blocks during drain.
+  let stoppingBrain = false;
 
   async function refresh() {
     const [sessResult, brainResult] = await Promise.all([
@@ -49,8 +54,10 @@ export async function renderMonitor(
             `).join('')}
           </tbody>
         </table>`;
-    const runningState = brain.running ? 'true' : 'false';
-    const runningLabel = brain.running ? 'live · in transit' : 'idle · standby';
+    const runningState = stoppingBrain ? 'stopping' : (brain.running ? 'true' : 'false');
+    const runningLabel = stoppingBrain
+      ? 'stopping · graceful drain'
+      : (brain.running ? 'live · in transit' : 'idle · standby');
     const logRowsHtml = brainLog.length === 0
       ? `<div class="row"><span class="ts">--:--:--</span><span>awaiting telemetry…</span></div>`
       : brainLog.slice(-200).map((line) => {
@@ -85,8 +92,8 @@ export async function renderMonitor(
               </div>
             </div>
             <div class="brain-actions">
-              <button data-act="start" ${brain.running ? 'disabled' : ''}>Start brain</button>
-              <button class="secondary" data-act="stop" ${brain.running ? '' : 'disabled'}>Stop</button>
+              <button data-act="start" ${(brain.running || stoppingBrain) ? 'disabled' : ''}>Start brain</button>
+              <button class="secondary" data-act="stop" ${(brain.running && !stoppingBrain) ? '' : 'disabled'}>${stoppingBrain ? 'stopping…' : 'Stop'}</button>
             </div>
           </div>
           <div class="brain-log">${logRowsHtml}</div>
@@ -103,8 +110,21 @@ export async function renderMonitor(
       await refresh();
     });
     root.querySelector('[data-act="stop"]')?.addEventListener('click', async () => {
-      try { await rpc.call('conductor_stop', {}); } catch (e) { brainLog.push(`stop failed: ${(e as Error).message}`); }
-      await refresh();
+      // Phase 27.1: optimistic UI flip BEFORE awaiting the RPC. Flush via paint()
+      // so the user sees "stopping…" + amber pill within ~10ms regardless of how
+      // long conductor_stop blocks draining the in-flight iteration. finally
+      // clears the flag whether RPC succeeded or failed; refresh() re-paints with
+      // brain.running now false → button settles into idle-disabled state.
+      stoppingBrain = true;
+      paint();
+      try {
+        await rpc.call('conductor_stop', {});
+      } catch (e) {
+        brainLog.push(`stop failed: ${(e as Error).message}`);
+      } finally {
+        stoppingBrain = false;
+        await refresh();
+      }
     });
   }
 
