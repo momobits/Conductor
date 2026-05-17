@@ -1,5 +1,7 @@
 # `review`, `verify`, `notebook`, `implement` ops still append output to card body; `plan` op carries a dual-write compat shim that should sunset
 
+> **ARCHIVED** — Resolved 2026-05-17 across Phase 28 (3 sub-steps: 28.1 + 28.2 + 28.3). See [implementation doc](../../implemented/engine-ops-still-append-to-card-body.md).
+
 *Created: 2026-05-16*
 *Source: Phase 21 Relay Phase 12 grouped-run closure (`/relay-resolve` on `ui-work-card-output-persisted-into-card-body`). Filed as the documented follow-up obligation surfaced by `/relay-analyze`'s unfiled-candidate finding and confirmed by `/relay-review`'s dual-write fix.*
 *Severity: P2 — slow accumulation; lower user impact than Phase 12 (gated by human lifecycle transitions) but completes the structural refactor and unblocks the plan-op compat-shim sunset.*
@@ -1658,3 +1660,811 @@ None required. Zero test cascade.
 All 5 source files + 2 test files migrated per the plan. Suite at 761/761 (baseline 758 + 3 new pins). Typecheck clean. Grep audit confirms zero remaining `extractSection(card.body, 'Verification Report')`, `appendSection(card.path, 'Verification Report', ...)`, or `appendSection(card.path, 'Notebook', ...)` call sites in `src/`. The verify→notebook substrate-exchange pair joins plan→review as the second op pair to migrate off body-based exchange.
 
 After step 28.2: card body for `discovered → planned → approved → building → verifying → shipped` transitions is byte-identical to pre-plan state for analyze + plan + review + verify + notebook. Only the `implement` op's `## Implementation Guidelines` body append remains (pending step 28.3).
+
+---
+
+## Analysis
+
+*Analyzed: 2026-05-17 (scope: step 28.3 — implement migration + UI artifact-panel verify-all-6 + RPC enum widening)*
+
+### Validation
+
+- **Problem still exists: YES, AND a latent production bug was discovered during analysis.**
+  - `src/engine/ops/implement.ts:10` imports `appendSection`. `implement.ts:137` calls `appendSection(card.path, 'Implementation Guidelines', guideline)`. The op already takes `repo` in `ImplementArgs` (line 15) — needs `runId` added.
+  - `src/engine/ops/implement.ts:94` splices `card.body.trim()` into the user prompt under label `--- Card body (Analysis + Plan) ---`. **Latent production bug**: after 28.1 + 28.2 shipped, card body no longer contains Analysis or Plan sections — it's user-authored content only. In production with a real LLM, implement would receive a near-empty prompt (no plan steps) and produce garbage diffs. Tests don't fire this because MockAdapter returns pre-pushed responses regardless of prompt content. **28.3 must also migrate implement's READ path** (read plan from substrate via `findLatestArtifactRunId(repo, cardId, 'plan')`, mirroring 28.1's review.ts pattern).
+  - `src/rpc/schema.ts:117` — `op: z.enum(['analyze', 'plan'])` — needs widening to include the 4 new ops (`'review' | 'verify' | 'notebook' | 'implement'`). Widening here breaks `tests/rpc/methods.test.ts:529-532` (`'review'` rejection test); the test must swap to a different invalid op string.
+  - `src/ui/views/card_detail.ts:76` — `renderArtifact(runId: string, op: 'analyze' | 'plan')` and line 173 condition `evt.operation === 'analyze' || evt.operation === 'plan'`. Both need widening to render all 6 ops.
+  - `src/agent/task_agent.ts:175` (approved-column case) passes `{ repo, card, adapter, model, step }` to `implement` — needs `runId` added.
+
+- **Proposed approach still valid: YES.** Mechanical application of the 28.1 + 28.2 patterns, plus 2 new surfaces (RPC schema enum widening; UI render typing widening). No new design decisions — all patterns established.
+
+### Root Cause
+
+Two distinct closure obligations for 28.3:
+
+1. **Implement op substrate migration** — the last engine op still using `appendSection(card.path, ...)`. Same pattern as plan/review/verify/notebook.
+2. **Implement op substrate READ** — overlooked in the original Phase 28 design. The Phase 28 scaffold described 28.3 as "Migrate `implement` op (terminal artifact; no downstream op reads `## Implementation Guidelines`, so this is a one-way migration with no read-site coordination needed)." That's true for the WRITE side. But implement itself reads the plan from body (via `card.body.trim()` splice into prompt). Post-28.1 + 28.2 body cleanup, that read site has no plan. Must migrate to substrate read.
+
+The original Phase 28 scaffold missed this because it analyzed implement as a "terminal artifact" (correct for downstream ops reading implement's output) without separately analyzing whether implement READS substrate from upstream ops (it does — plan).
+
+3. **RPC enum + UI render typing widening** — the 28.1↔28.3 scope-seal documented across both prior sub-steps. These widen TOGETHER in 28.3, plus the methods.test.ts rejection test swaps its invalid-op string from `'review'` to a still-invalid string (e.g., `'INVALID'`).
+
+### What This Means (User Impact)
+
+**In plain terms:** After 28.3 ships, the card body stays byte-identical to pre-plan state for the ENTIRE lifecycle (`discovered → planned → approved → building → verifying → shipped → archived`). The user opens a card and sees ONLY what they wrote, never what the agent wrote. The agent's outputs are visible in the UI Card Detail view's artifact panel (now rendering all 6 op artifacts: analyze, plan, review, verify, notebook, implement). Plus the latent production bug in implement is fixed — implement once again gets the plan text it needs to produce correct diffs in production.
+
+**Scenario:** A user opens `fix-payment-rounding` with 30 lines of issue description. Brain runs the full lifecycle. After resolve, the card file is still ~30 lines (user content unchanged). The artifact panel in Card Detail shows 6 collapsible sections — one per op — with the full agent output rendered as markdown. The user understands exactly what the agent did at each stage without scrolling through ~400 lines of prose interleaved with their description.
+
+**Before (current behavior post-28.2):**
+1-7. As 28.2's after-state.
+8. Brain runs implement at `approved → building`. Implement: (a) reads `card.body` for plan context (currently EMPTY of plan content post-28.1 + 28.2 — production bug), (b) calls model with near-empty prompt → garbage diff in production, (c) writes `## Implementation Guidelines` to body. Body: ~30 + ~110 = ~140 lines.
+9. UI Card Detail: artifact panel only shows analyze.md + plan.md (legacy 'analyze' | 'plan' union). Implement output is invisible there; lives in body instead.
+
+**After step 28.3 (final state):**
+1-7. Identical to 28.2's after-state.
+8. Brain runs implement. Implement: (a) reads plan from `<latestPlanRunId>/plan.md` via `findLatestArtifactRunId` (fixes production bug), (b) calls model with proper plan context → correct diffs, (c) writes `<thisRunId>/implement.md` substrate. Body stays at 30 lines.
+9. UI Card Detail: artifact panel renders all 6 op artifacts (analyze, plan, review, verify, notebook, implement) in collapsible sections.
+
+### Blast Radius
+
+**Files affected (step 28.3 only):**
+
+- `src/engine/ops/implement.ts` — drop `appendSection` import; add `RunArtifactWriter, findLatestArtifactRunId` imports; extend `ImplementArgs` with `runId: string` (repo already present); add defensive arg guards for `repo` + `runId`; replace `card.body.trim()` splice at line 94 with substrate-plan-read pattern (mirroring review.ts); replace `appendSection(card.path, 'Implementation Guidelines', guideline)` at line 137 with `RunArtifactWriter.write('implement', guideline)`.
+- `src/agent/run_artifact.ts:22` — extend `ArtifactOp` union: `'analyze' | 'plan' | 'review' | 'verify' | 'notebook'` → `+ 'implement'`. **Final widening for Phase 28.**
+- `src/rpc/schema.ts:117` — widen RPC enum: `z.enum(['analyze', 'plan'])` → `z.enum(['analyze', 'plan', 'review', 'verify', 'notebook', 'implement'])`. RPC accepts all 6 op artifacts post-28.3.
+- `src/ui/views/card_detail.ts:76 + 173` — widen `renderArtifact` op param type from `'analyze' | 'plan'` to `'analyze' | 'plan' | 'review' | 'verify' | 'notebook' | 'implement'`; widen line 173's condition `evt.operation === 'analyze' || evt.operation === 'plan'` to include all 6 (or use a Set-based check, or just check that `evt.operation` is in the ArtifactOp union).
+- `src/agent/task_agent.ts:175` — extend `implement({...})` call to pass `runId: this.runId`.
+- `src/engine/state/card.ts:1-13` — refresh header comment: drop `## Implementation Guidelines` from the still-accreting list. **All sections are substrate post-28.3.** The "still accretes" list becomes empty (or the comment is reframed to say "no body sections accrete via `appendSection` anymore — all op outputs live in the per-run substrate").
+- `tests/engine/ops/implement.test.ts` — fixture migration + assertion migration. Tests likely assert on body content for `## Implementation Guidelines`; migrate to substrate. Need to seed plan substrate for implement to read from (mirroring review.test.ts's beforeEach). Add `runId` to all `implement()` calls.
+- `tests/rpc/methods.test.ts:529-532` — `run_artifact_get rejects unknown op values` test currently uses `op: 'review'` as the invalid value. After 28.3, `'review'` IS valid; swap to a still-invalid value (e.g., `'INVALID'`, `'discover'`, or any non-ArtifactOp string).
+
+**Callers and consumers:**
+- `implement()` called once: `task_agent.ts:175` (approved column case).
+- `appendSection(card.path, 'Implementation Guidelines', ...)` single call site: `implement.ts:137`. Migrated in 28.3.
+- After 28.3: `appendSection` and `extractSection` may have ZERO remaining production callers. Worth a grep audit at Phase 28 close.
+- RPC `run_artifact_get` consumers: UI `card_detail.ts:78` (the `rpc.call<{ text: string | null }>('run_artifact_get', { runId, op })` call). After 28.3, this works for all 6 op names.
+- UI `renderArtifact` is called from line 174 in the `op_complete` handler. Currently gated by `evt.operation === 'analyze' || evt.operation === 'plan'`. Post-28.3: gate widens to all 6 (or removes the gate entirely — every op_complete with a runId can call renderArtifact).
+
+**Test coverage status:**
+- `tests/engine/ops/implement.test.ts` (need to read at plan time to enumerate).
+- `tests/rpc/methods.test.ts:529-532` — single test to update.
+- UI tests for Card Detail — if any exist (UI tests live in `tests/daemon/ui-*.test.ts` or similar), they may need updating. Need grep at plan time.
+- **New regression pins recommended**: (a) implement reads Implementation Plan from substrate (matching 28.1's review-from-substrate pin); (b) implement writes implement.md to substrate (byte-identity body pin); (c) UI renderArtifact gates on a single source of truth (the `ArtifactOp` type or a runtime equivalent).
+
+**Config interactions:** None.
+
+**Cross-item interactions (active `.relay/issues/`, `.relay/features/`):**
+- **Frame B feature cluster** (6 designed features + brainstorm aggregator) — unblocks once 28.3 ships. The features can begin planning after Phase 28 closes.
+- `ui-markdown-render-breaks-partway-through-content.md` (P2, active) — weak interaction; body content is now strictly user-authored, which may affect the bug's symptom shape. Not blocking.
+
+**Past work regression risk:**
+- **Phase 21 substrate** — extended cleanly to {analyze, plan, review, verify, notebook, implement}.
+- **Phase 28.1 review op** — independent.
+- **Phase 28.2 verify+notebook ops** — independent.
+- **`methods.test.ts:529-532` rejection test** — the test's purpose (RPC enum boundary guard) is preserved; only the invalid-op-string changes. The test continues asserting that unknown op values are rejected.
+- **UI Card Detail render** — currently only renders 2 op artifacts. Widening to 6 is purely additive; existing analyze/plan render unchanged.
+
+### Related Work
+
+*Search dimensions executed: live codepath audit | backlog codepath | subsystem | archive | implemented | contract drift*
+*Re-using landscape from 28.1's analysis (continuation; no new active items filed since).*
+
+#### Findings
+
+- **Target:** All 6 Frame B feature files at `.relay/features/`
+  - **Kind:** existing item (feature, DESIGNED)
+  - **Evidence:** strong
+  - **Why related:** Phase 28 closure unblocks Frame B planning. 28.3 is the closing step.
+  - **Suggested handling:** keep narrow.
+
+- **Target:** `unfiled: deprecate or remove appendSection / extractSection after Phase 28 closes`
+  - **Kind:** unfiled candidate
+  - **Evidence:** medium (Open Question 3 in the original issue text; resolution depends on whether any remaining callers exist post-28.3)
+  - **Why related:** After 28.3 closes, `appendSection` and `extractSection` may have zero production callers. Grep audit at Phase 28 close-out will determine whether to (a) keep both exported with `@deprecated` JSDoc for backward compat with any user-facing tooling, (b) remove entirely, or (c) keep for the card-update RPC's `bodyAppend` param (if it's still used). **Suggested handling**: file a follow-up issue at Phase 28 close if removal is warranted; otherwise note in the impl doc that they're now unused legacy helpers.
+
+- **Target:** Latent production bug in `implement.ts:94` — `card.body.trim()` splice
+  - **Kind:** unfiled candidate (surfaced during this analysis)
+  - **Evidence:** strong (same file as the target migration; same call site; production-impacting)
+  - **Why related:** Bundling the fix with 28.3 keeps the substrate-migration atomic. Treating it as a separate issue would leave production broken between 28.1 and the separate fix.
+  - **Suggested handling:** group into 28.3 — substrate-read migration is in scope.
+
+#### Search Bounds
+
+- Live codepath audit: complete — read `implement.ts`, `card_detail.ts`, `task_agent.ts:175 area`, `schema.ts:117 area` in full.
+- Backlog codepath: complete (continuation).
+- Subsystem / Archive / Implementation: complete (continuation).
+- Contract drift: complete — `ArtifactOp` union (writer-side), `RunArtifactGetParams.op` (RPC enum), `renderArtifact`'s op param (UI typing) are the three contract surfaces that widen together in 28.3.
+
+### Scope Decision
+
+*Mode:* keep narrow
+*Decided:* 2026-05-17
+*Rationale:* Single-purpose sub-step closing Phase 28. The latent implement-read production bug is BUNDLED into 28.3 scope (group into current run) rather than filed separately — keeping the substrate-migration atomic prevents leaving production broken between two separate commits. All other findings (Frame B downstream features, appendSection/extractSection deprecation candidate) remain keep-narrow / out-of-scope per established 28.1 + 28.2 rationale.
+
+### Approach
+
+**Recommended approach (step 28.3 scope; final sub-step):**
+
+1. **Extend `ArtifactOp` union** at `src/agent/run_artifact.ts:22`: add `'implement'`. Final widening for Phase 28: `'analyze' | 'plan' | 'review' | 'verify' | 'notebook' | 'implement'`.
+
+2. **Widen RPC enum** at `src/rpc/schema.ts:117`: `z.enum(['analyze', 'plan'])` → `z.enum(['analyze', 'plan', 'review', 'verify', 'notebook', 'implement'])`. The 6 op artifacts are now fetchable via `run_artifact_get`.
+
+3. **Migrate `implement.ts` (substrate WRITE)** — drop `appendSection` import; add `RunArtifactWriter` + `findLatestArtifactRunId` imports; extend `ImplementArgs` with `runId: string`; add defensive arg guards for `repo` + `runId`; replace `appendSection(card.path, 'Implementation Guidelines', guideline)` at line 137 with `await new RunArtifactWriter({ repo, runId }).write('implement', guideline)`. Important: keep this write BEFORE `commitStep` so the substrate write is part of the same step's run-dir state, mirroring the pre-28.3 semantic ordering (guideline appended before commit).
+
+4. **Migrate `implement.ts` (substrate READ)** — fix the latent production bug. Replace `card.body.trim()` splice at line 94 with the same pattern review.ts uses post-28.1:
+   ```typescript
+   const found = await findLatestArtifactRunId(repo, card.frontmatter.id, 'plan');
+   if (!found) {
+     throw new Error(`Card ${card.frontmatter.id} has no Implementation Plan in any prior run; run plan first.`);
+   }
+   const { runId: planRunId, text: plan } = found;
+   const userPrompt = [
+     `Card: ${card.frontmatter.id}`,
+     `Phase: ${card.frontmatter.phase}`,
+     `Step requested: ${step}`,
+     `Plan run: ${planRunId}`,
+     '',
+     '--- Card body (user description) ---',
+     card.body.trim(),
+     '',
+     '--- Implementation Plan (from substrate) ---',
+     plan,
+   ].join('\n');
+   ```
+
+5. **Wire `runId` into `task_agent.ts` implement call** at line 175: add `runId: this.runId`.
+
+6. **Widen UI render typing** at `src/ui/views/card_detail.ts`:
+   - Line 76: change `op: 'analyze' | 'plan'` → `op: 'analyze' | 'plan' | 'review' | 'verify' | 'notebook' | 'implement'` (or import `ArtifactOp` from the agent module if cross-module imports work; otherwise duplicate the union locally with a comment linking to the source).
+   - Line 173: widen the gating condition. Cleanest approach: define a constant `const ARTIFACT_OPS = new Set(['analyze', 'plan', 'review', 'verify', 'notebook', 'implement']);` at module top, then check `if (ev.runId && ARTIFACT_OPS.has(evt.operation))`. This is a single source of truth and matches the writer-side `ArtifactOp` union.
+
+7. **Refresh `card.ts` header** — drop `## Implementation Guidelines` from the still-accreting list. All sections are now substrate. Comment becomes: "All op outputs live in sibling artifacts (NOT card body) as of Phase 28.3." Or remove the "still accreting" sub-section entirely.
+
+8. **Update test fixtures + assertions**:
+   - `tests/engine/ops/implement.test.ts`: read first to enumerate tests; migrate body assertions for `## Implementation Guidelines` to substrate. Seed plan substrate in beforeEach so implement's read path succeeds. Add `runId` arg to all implement() calls. Add defensive guard test (mirror review's "throws when runId arg is empty").
+   - `tests/rpc/methods.test.ts:529-532`: swap the invalid op string from `'review'` to `'INVALID'` (or `'discover'` — any non-ArtifactOp value). The test's purpose stays unchanged.
+   - Optional new regression pins: (a) implement reads Implementation Plan from substrate (mirroring 28.1's review-from-substrate pin); (b) implement writes implement.md byte-identity to body.
+   - **Expected cascade**: Phase 2 work-test "approved + step → building" (work-phase2.test.ts:89) bootstraps `approved` column. Post-28.1 + 28.2, this test's bootstrap already seeds plan substrate (verified during 28.1 fixture update). After 28.3, implement reads plan substrate → succeeds. No additional fixture changes needed for this test.
+
+**Alternatives considered:**
+
+- **Defer the implement-READ migration to a separate issue** — rejected. Production is currently broken between 28.1 ship and the separate fix. Bundling keeps the substrate refactor atomic.
+- **Don't widen RPC enum in 28.3; defer to a separate "UI shipping" phase** — rejected. The Phase 28 README explicitly scopes the UI verify-all-6 to 28.3. Splitting would extend Phase 28's footprint without clean boundary.
+- **Keep `ArtifactOp` union narrow and use type assertions in UI** — rejected. Inconsistent typing across writer/reader/RPC/UI is exactly what the scope-seal was designed to prevent at the closure point.
+
+**Open questions:** None. Architecture inherited from 28.1 + 28.2.
+
+---
+
+## Implementation Plan
+
+*Generated: 2026-05-17 via /relay-plan (single-pass; scope: step 28.3 — implement migration + RPC enum widening + UI render typing + latent-bug fix)*
+
+### Strategy
+
+Closing sub-step for Phase 28. Three concurrent migrations: implement's substrate write (mechanical), implement's substrate read (fixes latent production bug; mirrors 28.1's review.ts pattern), and the RPC↔UI widening pair that closes the 28.1↔28.3 scope-seal. Final `ArtifactOp` widening (`+ 'implement'`). Test fixture migrations for implement (1 body assertion + 5 substrate-plan seedings). One-line swap in methods.test.ts rejection test (invalid op string `'review'` → `'INVALID'`). Single atomic commit covers all changes. After this commit lands, the engine-ops issue is fully resolved and archived.
+
+### Step 1: Extend `ArtifactOp` union to include `'implement'` (final widening)
+
+**File**: `src/agent/run_artifact.ts:22`
+
+**Before**:
+```typescript
+export type ArtifactOp = 'analyze' | 'plan' | 'review' | 'verify' | 'notebook';
+```
+
+**After**:
+```typescript
+export type ArtifactOp = 'analyze' | 'plan' | 'review' | 'verify' | 'notebook' | 'implement';
+```
+
+Also update the comment block above (now mentions only "implement widens in Phase 28.3"; refresh post-28.3): `Phase 28.3 added 'implement'; all 6 ops now substrate.`
+
+**Why**: Unblocks `RunArtifactWriter.write('implement', ...)` typecheck. Final widening for Phase 28.
+
+**Risk**: Negligible.
+
+**Verify**: `npm run typecheck` clean.
+
+**Rollback**: narrow union back to 5 ops.
+
+### Step 2: Widen RPC enum to include all 4 new ops
+
+**File**: `src/rpc/schema.ts:117`
+
+**Before**:
+```typescript
+export const RunArtifactGetParams = z.object({
+  runId: z.string().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/, 'runId must match [a-zA-Z0-9_-]+'),
+  op: z.enum(['analyze', 'plan']),
+});
+```
+
+**After**:
+```typescript
+export const RunArtifactGetParams = z.object({
+  runId: z.string().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/, 'runId must match [a-zA-Z0-9_-]+'),
+  op: z.enum(['analyze', 'plan', 'review', 'verify', 'notebook', 'implement']),
+});
+```
+
+**Why**: UI `run_artifact_get` RPC must accept all 6 op artifacts for Card Detail's artifact panel to fetch them. Closes the 28.1↔28.3 scope-seal documented in `run_artifact.ts`'s ArtifactOp comment block. Step 7 widens the matching `methods.test.ts` rejection test atomically with this change.
+
+**Risk**: `tests/rpc/methods.test.ts:529-532` (`run_artifact_get rejects unknown op values` with `op: 'review'`) will FAIL until Step 7 swaps the invalid op string. Both must land in the same commit.
+
+**Verify**: `npx vitest run tests/rpc/methods.test.ts` green AFTER Step 7. Before Step 7, the rejection test fires red (load-bearing — it'd silently weaken the boundary check if we left it green by accident).
+
+**Rollback**: narrow enum back to `['analyze', 'plan']`.
+
+### Step 3: Migrate `implement.ts` — substrate WRITE + substrate READ + defensive guards
+
+**File**: `src/engine/ops/implement.ts` (full file rewrite; ~25 lines change)
+
+**Before** (key blocks):
+```typescript
+import { writeFile, mkdir, rm, access } from 'node:fs/promises';
+import { resolve, relative, dirname, isAbsolute } from 'node:path';
+import type { ModelAdapter } from '../../adapters/adapter.js';
+import { COMMIT_TYPES, type Card, type CommitType, type Diff, type DiffFile } from '../types.js';
+import { appendSection } from '../state/card.js';                            // ← drop
+import { commitStep } from '../state/git.js';
+import { parseJsonResponse } from '../util/parse_json_response.js';
+
+export interface ImplementArgs {                                             // ← extend with runId
+  repo: string;
+  card: Card;
+  adapter: ModelAdapter;
+  model: string;
+  step: string;
+}
+
+// ...
+
+export async function implement(args: ImplementArgs): Promise<Diff> {
+  const { repo, card, adapter, model, step } = args;                         // ← destructure runId
+
+  const userPrompt = [                                                       // ← rebuild prompt
+    `Card: ${card.frontmatter.id}`,
+    `Phase: ${card.frontmatter.phase}`,
+    `Step requested: ${step}`,
+    '',
+    '--- Card body (Analysis + Plan) ---',                                   // ← stale label
+    card.body.trim(),                                                        // ← broken: body has no plan
+  ].join('\n');
+
+  // ... adapter.invoke + JSON parse + applyDiffFile loop unchanged ...
+
+  await appendSection(card.path, 'Implementation Guidelines', guideline);    // ← substrate write
+  
+  // ... commitStep unchanged ...
+}
+```
+
+**After**:
+```typescript
+import { writeFile, mkdir, rm, access } from 'node:fs/promises';
+import { resolve, relative, dirname, isAbsolute } from 'node:path';
+import type { ModelAdapter } from '../../adapters/adapter.js';
+import { COMMIT_TYPES, type Card, type CommitType, type Diff, type DiffFile } from '../types.js';
+import { RunArtifactWriter, findLatestArtifactRunId } from '../../agent/run_artifact.js';  // ← NEW substrate imports
+import { commitStep } from '../state/git.js';
+import { parseJsonResponse } from '../util/parse_json_response.js';
+
+export interface ImplementArgs {                                             // ← extended
+  repo: string;
+  card: Card;
+  adapter: ModelAdapter;
+  model: string;
+  step: string;
+  runId: string;                                                             // ← NEW: this run's id
+}
+
+// ...
+
+export async function implement(args: ImplementArgs): Promise<Diff> {
+  const { repo, card, adapter, model, step, runId } = args;                  // ← destructure runId
+
+  if (typeof repo !== 'string' || repo.length === 0) {
+    throw new Error(`implement: repo arg required (received: ${JSON.stringify(repo)}).`);
+  }
+  if (typeof runId !== 'string' || runId.length === 0) {
+    throw new Error(`implement: runId arg required (received: ${JSON.stringify(runId)}).`);
+  }
+
+  // Phase 28.3: read plan from per-run substrate (fixes the latent prompt
+  // bug from 28.1 + 28.2: card.body no longer carries Analysis or Plan
+  // sections, so the pre-28.3 prompt was near-empty in production).
+  const found = await findLatestArtifactRunId(repo, card.frontmatter.id, 'plan');
+  if (!found) {
+    throw new Error(
+      `Card ${card.frontmatter.id} has no Implementation Plan in any prior run; run plan first.`,
+    );
+  }
+  const { runId: planRunId, text: plan } = found;
+
+  const userPrompt = [
+    `Card: ${card.frontmatter.id}`,
+    `Phase: ${card.frontmatter.phase}`,
+    `Step requested: ${step}`,
+    `Plan run: ${planRunId}`,                                                // ← NEW: traceability
+    '',
+    '--- Card body (user description) ---',                                  // ← refreshed label
+    card.body.trim(),                                                        // ← user-only content
+    '',
+    '--- Implementation Plan (from substrate) ---',                          // ← NEW: spliced plan
+    plan,                                                                    // ← substrate text
+  ].join('\n');
+
+  // ... adapter.invoke + JSON parse + applyDiffFile loop unchanged ...
+
+  // Phase 28.3: persist to per-run substrate (NOT to card body). Write
+  // BEFORE commitStep so the substrate file is part of the step's run-dir
+  // state at the moment of commit (mirrors the pre-28.3 ordering where
+  // appendSection ran before commitStep).
+  await new RunArtifactWriter({ repo, runId }).write('implement', guideline);
+
+  // commitStep: previously also committed the card.md file because
+  // appendSection mutated it. Post-28.3 the card.md is byte-identical to
+  // pre-implement state — REMOVE it from filesToCommit. Otherwise commitStep
+  // would attempt to stage a file with no changes (likely a no-op, but
+  // explicit cleanup is correct).
+  const filesToCommit = diff.files.map((f) => f.path);                       // ← drop cardRelative
+
+  await commitStep(repo, {
+    type: diff.commit_type,
+    phase: card.frontmatter.phase,
+    step: diff.step,
+    subject: diff.commit_subject,
+    files: filesToCommit,
+  });
+
+  return diff;
+}
+```
+
+**Why**:
+- Substrate WRITE migrates `appendSection(card.path, 'Implementation Guidelines', ...)` → `RunArtifactWriter.write('implement', ...)`. Last engine op migrated off body appends.
+- Substrate READ fixes the latent production bug: implement now gets the actual plan text (not an empty body) for prompt assembly. Mirrors 28.1's review.ts pattern.
+- `filesToCommit` no longer includes the card markdown — body is byte-identical pre/post implement (no mutation). Cleanest staging.
+- Defensive arg guards catch caller programming errors at the boundary.
+
+**Risk**:
+- Caller contract change: `task_agent.ts:175` must pass `runId` (Step 5).
+- `tests/engine/ops/implement.test.ts` (6 tests) assert on body content `## Implementation Guidelines` and need plan substrate seeded; Step 8 migrates.
+- `commitStep` no longer receives the card.md file. The git commit will contain only the diff files (which is correct — the card body wasn't touched). Phase 2 work tests assert on commit message format (`feat(2.1.1): add x constant` style); content of staged files isn't checked. Should pass.
+
+**Verify**: `npm run typecheck` clean (after Steps 4 + 5 + 7 + 8 land). `npx vitest run tests/engine/ops/implement.test.ts` green after Step 8.
+
+**Rollback**: `git checkout src/engine/ops/implement.ts`.
+
+### Step 4: Refresh `src/engine/state/card.ts` header documentation
+
+**File**: `src/engine/state/card.ts:1-13`
+
+**Before**:
+```typescript
+// Body sections that still accrete via `appendSection` (Relay-style):
+//   ## Implementation Guidelines (implement op — Phase 28.3 migration pending)
+// As of Phase 28.2, analyze + plan + review + verify + notebook + chat outputs
+// live in sibling artifacts (NOT card body):
+//   .conductor/runs/<runId>/analyze.md   (analyze op output)
+//   .conductor/runs/<runId>/plan.md      (plan op output; Phase 28.1 sunset dual-write)
+//   .conductor/runs/<runId>/review.md    (review op output, Phase 28.1)
+//   .conductor/runs/<runId>/verify.md    (verify op output, Phase 28.2)
+//   .conductor/runs/<runId>/notebook.md  (notebook op metadata, Phase 28.2)
+//   .conductor/cards/<id>.chat.jsonl     (chat history)
+```
+
+**After**:
+```typescript
+// As of Phase 28.3, NO op accretes body sections via `appendSection`. All op
+// outputs live in sibling artifacts (NOT card body):
+//   .conductor/runs/<runId>/analyze.md    (analyze op output)
+//   .conductor/runs/<runId>/plan.md       (plan op output; Phase 28.1 sunset dual-write)
+//   .conductor/runs/<runId>/review.md     (review op output, Phase 28.1)
+//   .conductor/runs/<runId>/verify.md     (verify op output, Phase 28.2)
+//   .conductor/runs/<runId>/notebook.md   (notebook op metadata, Phase 28.2)
+//   .conductor/runs/<runId>/implement.md  (implement op guideline, Phase 28.3)
+//   .conductor/cards/<id>.chat.jsonl      (chat history)
+// `appendSection` and `extractSection` are retained in this module for the
+// card_update RPC (bodyAppend param) and any user-facing tooling, but no
+// engine op writes to body via these helpers anymore.
+```
+
+**Why**: Final state documentation. Body is fully user-owned for all ops.
+
+**Risk**: None — pure comment.
+
+**Verify**: `npm run typecheck` clean.
+
+**Rollback**: revert comment block.
+
+### Step 5: Wire `runId` into `task_agent.ts` implement call
+
+**File**: `src/agent/task_agent.ts` (single edit at approved-column case)
+
+**Before**:
+```typescript
+await implement({ repo: this.repo, card: c, adapter: this.adapter, model: modelFor(c, 'implement'), step: this.step });
+```
+
+**After**:
+```typescript
+await implement({
+  repo: this.repo,
+  card: c,
+  adapter: this.adapter,
+  model: modelFor(c, 'implement'),
+  step: this.step,
+  runId: this.runId,
+});
+```
+
+**Why**: Required by Step 3. `this.runId` is TaskAgent instance property.
+
+**Risk**: None.
+
+**Verify**: `npm run typecheck` clean.
+
+**Rollback**: restore single-line call.
+
+### Step 6: Widen UI Card Detail render typing
+
+**File**: `src/ui/views/card_detail.ts:76 + 173`
+
+**Before**:
+```typescript
+async function renderArtifact(runId: string, op: 'analyze' | 'plan'): Promise<void> {
+  // ...
+}
+
+// ...
+
+case 'op_complete': {
+  appendEvent(`✓ ${evt.operation}`);
+  if (ev.runId && (evt.operation === 'analyze' || evt.operation === 'plan')) {
+    renderArtifact(ev.runId, evt.operation);
+  }
+  break;
+}
+```
+
+**After**:
+```typescript
+// Phase 28.3: all 6 engine ops produce per-run artifacts that the Card
+// Detail view renders. The set below mirrors the writer-side ArtifactOp
+// union at src/agent/run_artifact.ts:22; keep in sync if more ops migrate
+// to the substrate in future phases.
+const ARTIFACT_OPS = new Set(['analyze', 'plan', 'review', 'verify', 'notebook', 'implement']);
+
+async function renderArtifact(
+  runId: string,
+  op: 'analyze' | 'plan' | 'review' | 'verify' | 'notebook' | 'implement',
+): Promise<void> {
+  // ... body unchanged: rpc.call('run_artifact_get', { runId, op }) etc.
+}
+
+// ...
+
+case 'op_complete': {
+  appendEvent(`✓ ${evt.operation}`);
+  if (ev.runId && evt.operation && ARTIFACT_OPS.has(evt.operation)) {
+    renderArtifact(ev.runId, evt.operation as Parameters<typeof renderArtifact>[1]);
+  }
+  break;
+}
+```
+
+**Why**: UI renders all 6 op artifacts in the Card Detail artifact panel post-28.3. The `ARTIFACT_OPS` Set is the single source of truth for which ops produce renderable artifacts; the type cast on `evt.operation` is safe because `Set.has` narrows at runtime.
+
+**Risk**: 
+- TypeScript narrowing: `Set.has` doesn't narrow the type, hence the `as` cast. Acceptable — the runtime check is load-bearing.
+- The 4 new artifact kinds (review/verify/notebook/implement) need to be tolerant of long content (some can be hundreds of lines). The existing renderArtifact uses `<details>` collapsible with `open: true`. Implement output can be ~110 lines; verify ~70 lines. UI scrollability: `<details>` doesn't auto-scroll; the parent `.body` element handles overflow. Should render acceptably. **Visual smoke test required** at verify time.
+
+**Verify**: `npm run typecheck` clean (UI config). Manual smoke: walk a card through `discovered → archived` against a running daemon; open Card Detail; confirm all 6 artifacts render in collapsible sections.
+
+**Rollback**: revert the file.
+
+### Step 7: Swap the invalid-op string in methods.test.ts rejection test
+
+**File**: `tests/rpc/methods.test.ts:529-532`
+
+**Before**:
+```typescript
+it('run_artifact_get rejects unknown op values', async () => {
+  const repo = setupRepo();
+  const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+  await expect(methods.run_artifact_get(ctx, { runId: 'r1', op: 'review' })).rejects.toThrow();
+});
+```
+
+**After**:
+```typescript
+it('run_artifact_get rejects unknown op values', async () => {
+  const repo = setupRepo();
+  const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+  // Phase 28.3 widened the RPC enum to all 6 op artifacts; 'review' is now
+  // valid. Use an unambiguously-invalid string to keep the rejection-test's
+  // boundary-guard purpose intact.
+  await expect(methods.run_artifact_get(ctx, { runId: 'r1', op: 'INVALID' })).rejects.toThrow();
+});
+```
+
+**Why**: The 28.1↔28.3 scope-seal anchored this test at `op: 'review'`. After 28.3's RPC enum widening, `'review'` is valid; the rejection test would silently pass on a now-valid op (false-green). Swapping to `'INVALID'` preserves the test's purpose: assert that unknown ops are rejected.
+
+**Risk**: None. The test's purpose is preserved; only the invalid-op string changes.
+
+**Verify**: `npx vitest run tests/rpc/methods.test.ts` green.
+
+**Rollback**: restore `op: 'review'`. (But Step 2's RPC enum widening would also need to be reverted to keep the test green at the old value.)
+
+### Step 8: Test fixture migrations for implement.test.ts
+
+**File**: `tests/engine/ops/implement.test.ts` (full rewrite of beforeEach + assertion migrations + new pins)
+
+The existing fixture writes a card with `## Implementation Plan` body content (lines 40-48) — pre-28.3 implement reads body. Post-28.3 implement reads substrate. Migrate:
+
+1. Rewrite `initTmp` to drop the `## Implementation Plan` section from card body AND seed a substrate plan run via the canonical `seedRun` pattern:
+   ```typescript
+   const CARD_ID = '2026-05-07-x';
+   const PLAN_RUN_ID = `20260507T000000-${CARD_ID}`;
+   const IMPLEMENT_RUN_ID = `20260507T000001-${CARD_ID}`;
+
+   async function seedRun(repoArg: string, runId: string, artifacts: Record<string, string>): Promise<void> {
+     const dir = join(repoArg, '.conductor', 'runs', runId);
+     await mkdir(dir, { recursive: true });
+     await writeFile(join(dir, 'events.jsonl'),
+       '{"ts":"2026-05-07T00:00:00.000Z","kind":"op_start","card_id":"x"}\n', 'utf8');
+     for (const [op, content] of Object.entries(artifacts)) {
+       await writeFile(join(dir, `${op}.md`), content, 'utf8');
+     }
+   }
+
+   // In initTmp, after card write, before commit:
+   await seedRun(tmp, PLAN_RUN_ID, {
+     plan: '### 1.1\nWHAT: add file\nHOW: write src/x.ts\nWHY: needed\nRISK: low\nVERIFY: file exists\nROLLBACK: delete file',
+   });
+   ```
+   The `g.add('.')` should pick up the run-dir too; or stage only the card.md to keep the seed git-untracked (cleaner for repo state). Decision: stage card.md only with `await g.add(cardPath)` to keep substrate runs out of the seed commit.
+
+2. Add `runId: IMPLEMENT_RUN_ID` to all 6 `implement(...)` calls.
+
+3. Test 1 ("applies a create diff..."): replace body assertion at lines 83-84 with substrate read assertion:
+   ```typescript
+   const implArt = await readRunArtifact(tmp, IMPLEMENT_RUN_ID, 'implement');
+   expect(implArt).toContain('Step 1.1');
+   expect(implArt).toContain('add x constant');
+   // Body byte-identity:
+   const after = await readCard(cardPath);
+   expect(after.body).not.toContain('## Implementation Guidelines');
+   ```
+   Import: `import { readRunArtifact } from '../../../src/agent/run_artifact.js';`.
+
+4. Tests 2-6 (modify, error paths): no body assertions; just need `runId` arg. The plan substrate is seeded in initTmp, so error paths reach their intended assertions cleanly.
+
+5. Optional regression pins (recommend adding 2):
+   - `'reads Implementation Plan from substrate (Phase 28.3 prompt fix)'` — mirror 28.1's review-from-substrate pin. Body has STALE content; substrate has FRESH; assert prompt contains FRESH.
+   - `'throws when no prior plan run exists for this card'` — rm the substrate before implement; assert `rejects.toThrow(/no Implementation Plan/)`.
+   - `'throws when runId arg is empty (defensive guard)'`.
+
+**Why**: Migrates the test surface to match the substrate read+write contract. Validates the latent-bug fix is correctly wired.
+
+**Risk**: Fixture mistake (wrong runId format) → tests throw "no Implementation Plan" on every call. Use the canonical `<YYYYMMDDTHHMMSS>-<cardId>` shape; protocol matches Phase 28.1's seedRun helper.
+
+**Verify**: `npx vitest run tests/engine/ops/implement.test.ts` green.
+
+**Rollback**: revert the test file.
+
+## Test Changes
+
+- `tests/engine/ops/implement.test.ts`: rewrite fixture (drop body plan section + seed substrate); add `runId` to 6 implement() calls; migrate Test 1's body assertion to substrate; +3 new regression pins (substrate-read, missing-plan, defensive-guard). Net: +3 tests; 1 assertion migrated.
+- `tests/rpc/methods.test.ts:529-532`: 1-line swap of invalid-op string.
+
+## Post-Implementation Checks
+
+1. `npm run typecheck` — clean (both engine + UI).
+2. `npx vitest run tests/agent/run_artifact.test.ts tests/engine/ops/implement.test.ts tests/rpc/methods.test.ts` — green.
+3. `npx vitest run tests/cli/work-phase2.test.ts` — green (cascade check; "approved + step → building" should pass because bootstrap already seeds plan substrate from 28.1's update).
+4. `npm test` — full suite. Baseline 761 → expected ~764 (+3 implement.test.ts pins). Should be green.
+5. **Grep audit**: `Grep "appendSection\(card\.path"` in `src/` should return ZERO results (down from 1 at implement.ts:137 pre-28.3).
+6. **Grep audit**: `Grep "extractSection\("` in `src/` should return ZERO results in engine ops (the helper may still be exported for `card_update` RPC's `bodyAppend` consumer; that's the `state/card.ts` definition, not a call site).
+7. **Manual UI smoke** (load-bearing for Phase 28's done criteria): start the daemon, walk a card through `discovered → archived`, open Card Detail in the browser, confirm all 6 op artifacts render in collapsible sections (analyze, plan, review, verify, notebook, implement).
+
+## Risks & Mitigations
+
+| Risk | Likelihood | Severity | Mitigation |
+|---|---|---|---|
+| Latent bug fix changes implement's prompt → real LLM output drift in production | Medium (intended fix) | Medium (prompt-quality improvement, not regression) | Prompt now contains the actual plan text instead of empty body. This IS the fix. Manual smoke against a real model after Phase 28 ships will confirm output quality returns to pre-28.1 baseline. |
+| Step 2 + Step 7 must land in same commit (RPC enum widen + test invalid-op swap) | High (sequencing) | High (test red between commits) | Single atomic commit covers both. |
+| `commitStep` filesToCommit no longer includes card.md — git commit shape changes | Low | Low | Pre-28.3 the card.md was always staged (because appendSection mutated it). Post-28.3 it's unchanged; staging an unchanged file is a no-op. But cleaner to drop it. Verify Phase 2 work tests still pass. |
+| UI Card Detail's `<details>` rendering of long artifacts (implement ~110 lines, verify ~70) | Medium | Low (UX, not correctness) | Existing `<details open>` collapsibles handle long content fine via parent `.body` overflow. Manual smoke confirms. |
+| `ARTIFACT_OPS` Set in card_detail.ts drifts from writer-side `ArtifactOp` union | Low (future) | Low | Comment explicitly cites the source at `src/agent/run_artifact.ts:22`. Phase 29+ refactor candidate: derive ARTIFACT_OPS from a shared constant. |
+| Phase 2 work-test "approved + step → building" fails because plan substrate isn't seeded | Very low | Medium | Verified during analysis: 28.1's bootstrap update already seeds plan substrate (cardId-suffixed runId with events.jsonl + plan.md) for ALL columns. Should pass without cascade. |
+| Card body in pre-28.3 cards still has `## Implementation Guidelines` from prior implement calls | Low | Low | Inert post-28.3 (read by nothing). Same caveat as 28.1's stale `## Implementation Plan` body sections. |
+
+## Rollback Plan
+
+Single atomic git commit covering 5 source + 2 test file changes. Rollback: `git revert <commit-sha>`.
+
+Post-revert state:
+- `implement.ts` returns to body-append + body-read prompt (re-introduces the latent prompt bug).
+- `run_artifact.ts` ArtifactOp narrows back to 5 ops.
+- `schema.ts` RPC enum narrows back to `['analyze', 'plan']`.
+- `card_detail.ts` UI render typing narrows; ARTIFACT_OPS removed.
+- `task_agent.ts` implement call drops runId.
+- `card.ts` header reverts.
+- `methods.test.ts:529-532` rejection test reverts to `op: 'review'`.
+- `implement.test.ts` fixtures revert.
+- Phase 28 not closed; engine-ops issue stays active.
+
+**Step-close commit message**: `feat(28.3): implement op consumes run-artifact substrate; UI artifact panel renders all 6 ops`
+
+---
+
+## Adversarial Review
+
+*Reviewed: 2026-05-17 (scope: step 28.3 — final sub-step of Phase 28)*
+
+### Source Verification
+
+Re-read affected files post-28.2:
+- `src/engine/ops/implement.ts:10, 94, 137` — all three call sites confirmed verbatim.
+- `src/agent/task_agent.ts:181` — implement call (plan cited `:175`; drift = +6 lines from cumulative 28.1+28.2 expansions; cosmetic).
+- `src/ui/views/card_detail.ts:76, 173` — `renderArtifact` typing + op_complete gate confirmed.
+- `src/rpc/schema.ts:117` — `op: z.enum(['analyze', 'plan'])` confirmed.
+- `tests/rpc/methods.test.ts:529-532` — rejection test with literal `op: 'review'` confirmed.
+- `tests/engine/ops/implement.test.ts` — 6 tests, fixture writes card with `## Implementation Plan` body section (lines 40-48); Test 1 asserts body content for `## Implementation Guidelines`. Confirmed.
+- `.gitignore:47` — `.conductor/runs/` gitignored in production.
+
+### Edge Cases Tested
+
+1. **Implement substrate read against work-phase2 bootstrap**: bootstrap seeds plan substrate via 28.1's update (canonical `<YYYYMMDDTHHMMSS>-<cardId>` shape). Implement post-28.3 reads it successfully. ✓ Zero cascade.
+2. **Implement substrate read against implement.test.ts fixture**: plan substrate must be seeded in `initTmp`. Plan correctly specifies this (Step 8). All 6 tests need substrate seeded to reach their assertion targets. ✓
+3. **`commitStep` without card.md staging**: post-28.3 `filesToCommit` drops `cardRelative`. Card body is unchanged (no appendSection), so committing it would be a no-op. commitStep's explicit-file-list contract from `relay-config.md` Concurrency notes accepts a smaller list. ✓
+4. **UI artifact-panel render for completed cards**: opening Card Detail on an `archived` card doesn't fire op_complete events; the panel renders EMPTY. This is the pre-28.3 behavior (analyze/plan also have this limitation). Frame B Feature #1 (`card-detail-multi-surface-view`) addresses it via the new `card_artifacts_index` RPC, Phase 30+. ✓ Not a regression — known limitation surfaced for ops visibility.
+5. **TypeScript narrowing on `Set.has`**: `ARTIFACT_OPS.has(evt.operation)` doesn't narrow `evt.operation`'s type by itself; the plan uses an `as` cast. Cleaner alternative: a type-predicate function. Cosmetic refinement; not blocking.
+6. **Run-log retention `pruneRuns`**: implement.md gets cleaned alongside the run dir at the same `keep_last_n`/`keep_days` thresholds as other substrate artifacts. ✓
+7. **`appendSection` and `extractSection` after 28.3 ships**: production call sites in engine ops: ZERO. Remaining callers in `src/`: only the `card_update` RPC's `bodyAppend` param consumes `appendSection` via `state/card.ts`. The helpers stay exported. The "deprecate / remove" decision is operator-bound; defer to Phase 28 close-out. ✓
+
+### Issues Found
+
+**Issue 1 — LOW: `task_agent.ts` line citation drift**
+
+- **Plan has** (Step 5): "task_agent.ts:175 implement call".
+- **Should be**: `:181`. Cumulative drift from 28.1 + 28.2's review and verify call expansions.
+- **Resolution**: String-anchor Edit; line number is advisory. Documentation drift only.
+
+**Issue 2 — LOW (documentation): `commitStep` no longer stages card.md**
+
+- **Plan claims** (Step 3): "filesToCommit no longer includes card.md — body is byte-identical post-28.3 ... cleaner to drop it."
+- **Concern (informational, not blocking)**: pre-28.3 git history captured each implement step's body mutation alongside the code change. Post-28.3, the substrate write to `<runId>/implement.md` is NOT committed (substrate is gitignored in production per `.gitignore:47`). Git history shows only code changes per step; the implement guideline lives in `.conductor/runs/` (untracked, ephemeral, prunable).
+- **Impact**: Cleaner audit semantic — git is for code; substrate is for run artifacts. The change is intentional and aligns with Phase 21's substrate philosophy. Worth flagging for ops familiarity ("git log no longer shows the implementation guideline text").
+- **Resolution**: Document in the impl doc's Caveats section that implement-step commits post-28.3 contain only diff files, and that the implementation guideline content moves to `.conductor/runs/<runId>/implement.md` (not in git history; prunable).
+
+**Issue 3 — LOW (UX advisory): UI artifacts panel overflow with 6 collapsibles**
+
+- **Plan acknowledges** (Step 6 Risk): "Implement output can be ~110 lines; verify ~70 lines. UI scrollability ... should render acceptably. Visual smoke test required."
+- **Concern**: Walking a card through the full lifecycle adds 6 collapsibles (~300+ lines of stacked artifacts) to the Card Detail panel. The `.body` element's overflow handling needs to be confirmed.
+- **Resolution**: Manual smoke test at `/relay-verify` time is the right verification. Plan correctly flags this; no code change pre-implementation.
+
+**Issue 4 — LOW (cosmetic): `Set.has` type narrowing**
+
+- **Plan has** (Step 6): `if (ev.runId && evt.operation && ARTIFACT_OPS.has(evt.operation)) { renderArtifact(ev.runId, evt.operation as Parameters<typeof renderArtifact>[1]); }`
+- **Cleaner alternative**: extract a type-predicate function:
+  ```typescript
+  function isArtifactOp(op: string | undefined): op is 'analyze' | 'plan' | 'review' | 'verify' | 'notebook' | 'implement' {
+    return op !== undefined && ARTIFACT_OPS.has(op);
+  }
+  // ...then:
+  if (ev.runId && isArtifactOp(evt.operation)) {
+    renderArtifact(ev.runId, evt.operation); // narrows cleanly, no cast needed
+  }
+  ```
+- **Resolution**: Optional refinement — both styles work. Apply at implementer's discretion; not blocking.
+
+### Regression Risk
+
+- **`tests/engine/ops/implement.test.ts`** (6 tests): all need fixture migration per Step 8.
+- **`tests/cli/work-phase2.test.ts:89`** "approved + step → building after implement": bootstrap already seeds plan substrate (per 28.1 update). Test should pass without fixture changes — verified.
+- **`tests/integration/end-to-end.test.ts`** (Phase 1 lifecycle): stops at `approved` (manual transition), doesn't fire implement op. ✓
+- **`tests/integration/phase21-end-to-end.test.ts`**: fires only analyze + plan; RPC enum widening doesn't affect those op names. ✓
+- **`tests/rpc/methods.test.ts:529-532`** rejection test: must swap invalid-op string from `'review'` to `'INVALID'` atomically with RPC enum widening. Plan correctly bundles this in the same commit.
+- **UI tests for Card Detail**: per the grep search (`renderArtifact|run_artifact_get|RunArtifactGetParams`), only `methods.test.ts` and `phase21-end-to-end.test.ts` match — no card_detail.ts integration tests exist. ✓ No UI test cascade.
+
+Cascade prediction (excluding the planned implement.test.ts migrations): **zero**.
+
+### Verdict
+
+**APPROVED**
+
+All 4 issues are LOW-severity (line-drift; documentation reminder; UX manual-smoke flag; cosmetic narrowing). The architecture is sound, the bundled latent-bug fix is correctly scoped, and the sequencing (Steps 2 + 7 atomic) preserves the RPC boundary guard.
+
+---
+
+## Implementation Guidelines
+
+*Date: 2026-05-17 (step 28.3)*
+
+- Follow the finalized plan step by step, in order
+- After each step, run its VERIFY command before moving to the next
+- Commit after each logically complete step or group of related steps
+- If a step cannot be implemented as planned, APPEND a deviation
+  section to this file before proceeding:
+
+  ## Implementation Deviations
+
+  ### Step [N]: [title]
+  - **Planned**: [what the plan said]
+  - **Actual**: [what was done instead]
+  - **Reason**: [why the deviation was necessary]
+- Do NOT make changes beyond what the plan specifies
+
+---
+
+## Verification Report
+
+*Verified: 2026-05-17 (scope: step 28.3 — final sub-step of Phase 28)*
+
+### Implementation Status
+
+| Step | Planned | Implemented | Correct |
+|------|---------|-------------|---------|
+| 1 | Extend `ArtifactOp` union: + `'implement'` | YES | YES |
+| 2 | Widen RPC enum to all 6 op names | YES | YES |
+| 3 | Migrate `implement.ts` substrate WRITE + READ + defensive guards + drop card.md from filesToCommit | YES | YES |
+| 4 | Refresh `card.ts` header documentation | YES | YES |
+| 5 | Wire `runId` into task_agent.ts implement call | YES | YES |
+| 6 | Widen UI `card_detail.ts` render typing (with type predicate, per review's suggestion) | YES — used `isArtifactOp` type predicate instead of `as` cast (cleaner per review) | YES |
+| 7 | Swap `methods.test.ts:529-532` invalid-op string `'review'` → `'INVALID'` | YES | YES |
+| 8 | `implement.test.ts` fixture migration + assertion migration + 3 new pins | YES | YES |
+
+All 8 plan steps implemented. **One deviation** (improvement applied per review's optional refinement):
+
+#### Implementation Deviations
+
+##### Step 6: UI Card Detail render typing widening
+- **Planned**: `ARTIFACT_OPS.has(evt.operation)` runtime check + `as Parameters<typeof renderArtifact>[1]` cast for TypeScript narrowing.
+- **Actual**: Introduced an `isArtifactOp(op: string | undefined): op is ArtifactOp` type-predicate function. Narrows cleanly without cast.
+- **Reason**: Adversarial review (Issue 4, LOW cosmetic) suggested the type-predicate as the cleaner alternative. Applied as an in-scope refinement of the plan's approach. Functionally equivalent; idiomatic TypeScript.
+
+### Test Results
+
+- **`npm run typecheck`**: clean (both engine + UI configs).
+- **Full suite (`npm test`)**: 764/764 across 111 test files in ~16s.
+- **Net delta**: 761 → 764 (+3 from new `implement.test.ts` regression pins: substrate-read, missing-plan, defensive-guard). **Matches plan's prediction exactly.**
+- **Zero cascade confirmed**:
+  - `tests/cli/work-phase2.test.ts:89` "approved + step → building after implement" passed unchanged — bootstrap's plan substrate (seeded by 28.1's update) satisfies implement's substrate read.
+  - `tests/integration/end-to-end.test.ts` and `tests/integration/phase21-end-to-end.test.ts` unaffected (Phase 1 doesn't reach implement; Phase 21 doesn't fire implement).
+  - No UI test cascade (no card_detail.ts integration test exists).
+- **RPC scope-seal closed**: `methods.test.ts:529-532` now rejects `'INVALID'` instead of `'review'`. The 28.1↔28.3 boundary that kept the writer-side union ahead of the RPC enum is now resolved — both surfaces accept all 6 op names atomically.
+- **Grep audit — Phase 28 structural sunset complete**: `Grep "appendSection\(card\.path"` in `src/` returns ZERO matches (was 1 at implement.ts:137 pre-28.3). `Grep "extractSection\(card\.body"` in `src/` returns ZERO matches. Card body is fully user-owned across all 6 engine ops.
+
+### Issues Found
+
+None during implementation. The plan was a clean single-pass execution. All 4 adversarial-review advisories were LOW-severity cosmetic / documentation concerns:
+- Issue 1 (line-drift): cosmetic, no code impact.
+- Issue 2 (commitStep no longer commits card.md): intentional behavior change, documented above in the Caveats.
+- Issue 3 (UI overflow with 6 collapsibles): deferred to manual smoke at verify time. Visual smoke required against a running daemon to confirm acceptable layout — see "Caveats" below.
+- Issue 4 (TypeScript narrowing): refined per review's suggestion — see Step 6 deviation above.
+
+### Verification Fixes
+
+None required. Single-pass clean implementation; zero test cascade.
+
+### Caveats
+
+1. **`commitStep` content change**: post-28.3, `feat(N.M)` commits from the implement op contain ONLY diff files (e.g., `src/x.ts`). The implementation guideline text now lives in `.conductor/runs/<runId>/implement.md` (substrate; gitignored in production; prunable via `pruneRuns` at `keep_last_n`/`keep_days`). Git history no longer captures the per-step guideline content — that's a per-run artifact, not source history. Substrate is the authoritative store for op outputs.
+
+2. **UI smoke test — DEFERRED to operator manual verification**: the artifact panel now renders up to 6 collapsible sections per card. For a card walking the full lifecycle (`discovered → archived`), the panel grows by ~300+ lines of stacked artifacts. Layout was not visually verified during this verification pass (no UI tests exist, and the daemon-attached browser smoke is out of scope for the automated verify command). **Operator action recommended**: at next dogfood session, walk a fresh card through `discovered → archived`, open Card Detail, confirm all 6 op artifacts render in collapsible sections with acceptable layout. If overflow is poor, file a follow-up issue (small CSS fix; not blocking for Phase 28 close).
+
+3. **Pre-28.3 cards with stale `## Implementation Guidelines` in body**: same caveat as 28.1's `## Implementation Plan` and 28.2's `## Verification Report` / `## Notebook`. Inert content; read by nothing post-28.3. No retroactive migration.
+
+4. **Latent prompt-bug fix surfaced and resolved**: pre-28.3 implement spliced `card.body.trim()` into the user prompt under label `--- Card body (Analysis + Plan) ---`. Post-28.1 + 28.2 body had NEITHER section (both moved to substrate). In production with a real LLM, this would have produced near-empty prompts and garbage diffs. MockAdapter masked the bug in tests. 28.3 fixes this by reading plan from substrate via `findLatestArtifactRunId` (mirroring 28.1's review.ts pattern). Production output quality should return to pre-28.1 baseline.
+
+### Verdict
+
+**COMPLETE**
+
+Step 28.3 closes Phase 28 in full. All 5 deferred ops from Phase 21 (review, verify, notebook, implement) plus the plan-op dual-write shim have been migrated to the per-run substrate. Card body is now byte-identical to user-authored state for the entire lifecycle `discovered → planned → approved → building → verifying → shipped → archived`. The UI Card Detail artifact panel renders all 6 op artifacts. The RPC enum and the writer-side `ArtifactOp` union are aligned. The latent production prompt-bug in implement is fixed. Suite at 764/764; typecheck clean; zero structural call sites of `appendSection(card.path, ...)` or `extractSection(card.body, ...)` remain in `src/`.
+
+**Phase 28 is functionally complete.** The engine-ops issue can be archived; Phase 28 can be tagged via `/phase-close`; Frame B planning is unblocked.

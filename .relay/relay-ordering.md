@@ -246,7 +246,10 @@ The previous Phase 18 carry-forward (`daemon-start --browser` flag, P3) remains 
 
 ---
 
-## Phase 18 — Engine ops body-bloat sunset (FRAME B PREREQUISITE #0) — ACTIVE
+## Phase 18 — Engine ops body-bloat sunset (FRAME B PREREQUISITE #0) — COMPLETE
+
+**Resolved:** 2026-05-17 (Control Phase 28; 3 sub-steps: 28.1 review + plan-op shim sunset; 28.2 verify + notebook; 28.3 implement + RPC + UI render widening). See [implementation doc](implemented/engine-ops-still-append-to-card-body.md).
+
 
 **Why placed here / repositioned.** *Was originally placed last as low-impact structural cleanup. Now repositioned ahead of Phase 20 because it is the declared prerequisite for the entire Frame B card-pipeline UI cluster.* Until card body has single-owner semantics, Frame B's chat-driven description authoring (Phase 20 #49) has ambiguous targets — the body's "description vs. agent-generated section" boundary is the foundation Frame B builds on.
 
@@ -262,7 +265,7 @@ Structural follow-up filed as a closure obligation during Phase 12's grouped-run
 
 | #  | Item                                                                                                                | File                                                                                              | Complexity | Depends on                                              |
 |----|--------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------|------------|---------------------------------------------------------|
-| 44 | `review`/`verify`/`notebook`/`implement` ops still append to card body; plan-op dual-write compat shim ready to sunset — **Steps 28.1 + 28.2 of 3 shipped 2026-05-17** (review + verify + notebook ops migrated; plan-op shim sunset; implement migration + UI artifact-panel verify-all-6 pending in 28.3) | [engine-ops-still-append-to-card-body.md](issues/engine-ops-still-append-to-card-body.md)         | M          | Phase 12 ✓ (RunArtifactWriter substrate landed); **gates Phase 20 (Frame B)** |
+| 44 | ~~`review`/`verify`/`notebook`/`implement` ops still append to card body; plan-op dual-write compat shim ready to sunset~~ ✓ [implemented](implemented/engine-ops-still-append-to-card-body.md) (2026-05-17; Phase 28; all 3 sub-steps shipped — Frame B unblocked) | ~~[engine-ops-still-append-to-card-body.md](issues/engine-ops-still-append-to-card-body.md)~~ → [archive](archive/issues/engine-ops-still-append-to-card-body.md) | L (was M; revised after 3 sub-steps + bundled latent-bug fix) | Phase 12 ✓ (RunArtifactWriter substrate landed); **unblocks Phase 20 (Frame B)** |
 
 ---
 
