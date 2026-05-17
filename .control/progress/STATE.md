@@ -3,7 +3,7 @@
 > Single source of truth. Read this first every session. Updated at every
 > `/session-end` and by the `PreCompact` hook. Every field has a purpose -- fill each.
 
-**Last updated:** 2026-05-17 by Phase 26 close-out (sid-2026-05-17-phase-26-close)
+**Last updated:** 2026-05-17 by session-end after Phase 26 close (sid-2026-05-17-phase-26-session-end)
 **Current phase:** 27 — Brain telemetry (3 items)
 **Current step:** 27.1 — Relay Phase 15 #31 (`ui-monitor-stop-button-no-stopping-state-and-tight-race-window`)
 **Status:** kicked-off (Phase 26 closed cleanly at tag `phase-26-polish-bundle-closed`; 5 steps shipped + 1 corrective 26.5b after Playwright smoke surfaced that the original 26.5 fix solved a non-bug; suite at 743/743; pattern precedents advanced to pure-helper-extraction n=15 and shared-module-for-cross-feature-consumption n=4; new heuristic documented in 26.5b impl doc — future XS visual-fix analyses must explicitly check parent-overflow as a candidate cause when an absolutely-positioned descendant is cropped; Phase 27 scaffold authored with 3 steps targeting Relay Phase 15 brain-telemetry cluster; 14 Control phase tags placed; ready to resume with `/relay-analyze ui-monitor-stop-button-no-stopping-state-and-tight-race-window.md`)
@@ -45,8 +45,8 @@ Phase 27 README + steps authored at `.control/phases/phase-27-brain-telemetry/`.
 
 ## Git state
 - **Branch:** main
-- **Last commit:** `<docs-state-sha-pending>` — docs(state): Phase 26 closed, Phase 27 kicked off. Predecessors: `<chore-close-sha-pending>` (chore(phase-26): close phase 26, kick off phase 27), `5fc4395` (fix(26.5b) split scroll container to unclip LIVE FEED label), `3012643` (docs(26.5) /relay-resolve close out stream-label-clipping dogfood), `ec2a7ba` (fix(26.5) clear LIVE FEED label from work button — first pass, since corrected by 26.5b), `d050fd2` (docs(26.4) /relay-resolve close out Phase 16 #38), `d49ef67` (feat(26.4) ship favicon SVG and wire it into the build), `24b7b8a` (docs(26.3) /relay-resolve close out Phase 16 #37), `e38ca94` (feat(26.3) remove hardcoded edition stamp from masthead), `dd72b56` (docs(26.2) /relay-resolve close out Phase 16 #36), `f5afa98` (feat(26.2) policy badge for archived column), `6d31c5d` (docs(26.1) /relay-resolve close out Phase 16 #34), `4b87c9a` (feat(26.1) card-detail not-found empty shell).
-- **Uncommitted changes:** none expected after the `chore(phase-26):` close commit and the `docs(state):` regen commit both land.
+- **Last commit:** `27c687f` — chore(phase-26): close phase 26, kick off phase 27. Predecessors: `5fc4395` (fix(26.5b) split scroll container to unclip LIVE FEED label), `3012643` (docs(26.5) /relay-resolve close out stream-label-clipping dogfood), `ec2a7ba` (fix(26.5) clear LIVE FEED label from work button — first pass, since corrected by 26.5b), `d050fd2` (docs(26.4) /relay-resolve close out Phase 16 #38), `d49ef67` (feat(26.4) ship favicon SVG and wire it into the build), `24b7b8a` (docs(26.3) /relay-resolve close out Phase 16 #37), `e38ca94` (feat(26.3) remove hardcoded edition stamp from masthead), `dd72b56` (docs(26.2) /relay-resolve close out Phase 16 #36), `f5afa98` (feat(26.2) policy badge for archived column), `6d31c5d` (docs(26.1) /relay-resolve close out Phase 16 #34), `4b87c9a` (feat(26.1) card-detail not-found empty shell).
+- **Uncommitted changes:** STATE.md + journal.md + next.md regeneration about to land in this `docs(state):` commit (self-reference pattern; the hook's commit-mismatch detector auto-suppresses this offset for docs(state) commits whose parent matches the recorded SHA).
 - **Last phase tag:** `phase-26-polish-bundle-closed` (created at end of Phase 26; predecessor `phase-25-keyboard-layer-closed`).
 
 ---
