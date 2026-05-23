@@ -1,0 +1,54 @@
+{
+  "item": "53",
+  "file_path": ".relay/issues/brain-cannot-advance-cards-past-approved-column.md",
+  "complexity": "M",
+  "planner_used": "plan",
+  "stale_analysis": false,
+  "pipeline": {
+    "analyze": {
+      "status": "complete",
+      "scope_decision_mode": "keep narrow",
+      "related_work_findings": 5,
+      "sub_option_picked": "2"
+    },
+    "plan": {
+      "skill": "plan",
+      "status": "complete (revised per review Issue 2 after operator decision)",
+      "step_count": 5,
+      "files_touched_in_plan": 6
+    },
+    "review": {
+      "verdict": "APPROVED-WITH-CHANGES (operator-accepted)",
+      "iterations": 1,
+      "trivial_changes_applied": 2,
+      "non_trivial_changes_applied": 1,
+      "operator_decision": "accept-issue-2-discriminated-union-design"
+    },
+    "implement": {
+      "status": "deviated",
+      "deviations_count": 1,
+      "commits_during_impl": 0
+    },
+    "verify": {
+      "verdict": "COMPLETE",
+      "iterations": 1,
+      "fixes_applied": 0,
+      "subagent_escalation_used": false
+    },
+    "resolve": {
+      "status": "complete",
+      "commit_sha": "1cbdf8f",
+      "commit_subject": "fix(29.3): brain resolves implement step from plan substrate + git log",
+      "implementation_doc": ".relay/implemented/brain-cannot-advance-cards-past-approved-column.md",
+      "archived_to": ".relay/archive/issues/brain-cannot-advance-cards-past-approved-column.md"
+    }
+  },
+  "exit_status": "resolved",
+  "pause_reason": null,
+  "pause_detail": null,
+  "errors": [],
+  "session_history": [
+    {"phase": "analyze+plan+review", "agent": "a8b8d6e2b8b52c809", "outcome": "paused-for-user (review APPROVED-WITH-CHANGES, Issue 2 non-trivial)"},
+    {"phase": "apply-issue-2+implement+verify+resolve", "agent": "abd4d7d0e2603c6c4", "outcome": "resolved (commit 1cbdf8f)"}
+  ]
+}

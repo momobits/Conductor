@@ -1,0 +1,32 @@
+{
+  "session": "2026-05-23-183222",
+  "mode": "single",
+  "sweep_target": null,
+  "created": "2026-05-23T18:32:22Z",
+  "last_activity": "2026-05-23T18:55:00Z",
+  "queue": [
+    {
+      "id": "46",
+      "title": "Card-detail markdown rendering breaks partway through content — first portion renders as markup, later portion appears as raw text",
+      "file_path": ".relay/issues/ui-markdown-render-breaks-partway-through-content.md",
+      "complexity": "M",
+      "complexity_raw": "TBD (S-M)",
+      "recommended_planner": "plan",
+      "dependencies": [],
+      "phase": "19"
+    }
+  ],
+  "completed": [
+    {
+      "id": "46",
+      "exit_status": "resolved",
+      "summary_path": ".relay/.auto-session/2026-05-23-183222/46.json",
+      "commit_sha": "c5807ba",
+      "implementation_doc": ".relay/implemented/ui-markdown-render-breaks-partway-through-content.md"
+    }
+  ],
+  "current_index": 1,
+  "status": "complete",
+  "pause_reason": null,
+  "ordering_mtime_at_dispatch": 1779555212
+}
