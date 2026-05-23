@@ -1,8 +1,10 @@
 # Feature: Brain halt on user chat
 
+> **SUPERSEDED 2026-05-23** by [`dual-driver-lead-follow-protocol.md`](dual-driver-lead-follow-protocol.md) (feature #2 of the [`dual-driver-orchestration_brainstorm.md`](dual-driver-orchestration_brainstorm.md)). Under the dual-driver model's global-lead protocol, "user chat halts the brain" becomes a generalized "user-chat triggers lead-transfer; human takes over the whole board" — same behavior, generalized across all cards. The original design content below is preserved for historical context; **do not implement as a separate feature**. Cross-reference: Frame B brainstorm's Feature Breakdown row #5 is marked SUPERSEDED with the same pointer.
+
 *Created: 2026-05-17*
 *Brainstorm: [[card-pipeline-ui_brainstorm.md]](card-pipeline-ui_brainstorm.md)*
-*Status: DESIGNED*
+*Status: SUPERSEDED*
 
 ## Summary
 
