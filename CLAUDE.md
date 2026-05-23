@@ -34,6 +34,22 @@ After running `/clear` mid-session, the `SessionStart` hook does not re-fire —
 
 Start at stage 0 (manual) until the protocol is validated; graduate to stage 2 (`/loop`) once the priority logic feels right.
 
+## /relay-auto Control bridge
+
+`/relay-auto` (the Relay skill at `.claude/skills/relay-auto/`) drives Relay items end-to-end through their code pipeline (analyze → plan → review → implement → verify → resolve) via a spawned per-item agent. It is not Control-aware on its own. When the user runs `/relay-auto` in this project, apply this bridge protocol so the work integrates with the Control step model.
+
+**Before dispatching the per-item agent** (every `/relay-auto` invocation, including `--sweep` and `--resume`):
+1. Read STATE.md's "Current phase" + "Current step" to get the active `<phase>.<step>` (e.g., `30.2`). For `--sweep N`, allocate `<phase>.<step>`, `<phase>.<step+1>`, … one per queued item.
+2. Confirm the matching row(s) exist in the current phase's `steps.md` (path in STATE.md). If a row is missing for an item about to be dispatched, author the `[ ]` row inline FIRST and stage it for the bridge commit. This prevents the 29.3-style backfill pattern.
+3. Inject the scope into the per-item agent's prompt by appending to the brief: "Commit subjects MUST use scope `<phase>.<step>` (e.g., `feat(30.2): …` and `docs(30.2): /relay-resolve close out …`). Do NOT infer scope from recent git log." This overrides relay-auto's default "infer from recent git log" behavior.
+
+**After the per-item agent returns** (one bridge commit per item):
+1. Verify the agent's commits carry the assigned `(<phase>.<step>)` scope via `git log`. If they don't, surface the drift and ask the user whether to amend before continuing.
+2. Flip the matching `[ ]` → `[x]` row in `steps.md` and commit as `docs(<phase>.<step>): /relay-auto close out <slug> (commits: <agent-sha-list>)`. This is the Control-visible step-close commit per the "Flip the checkbox in the same commit that closes the step" invariant — even though the agent's code commits landed separately, THIS commit closes the Control step.
+3. State the next Control command per the standard transition rule (e.g., "Run `/relay-auto` for the next item." or "Run `/phase-close` when all step checkboxes are flipped.").
+
+**Operator-pause triggers from the spawned agent** (review REJECTED, scope-undecided, blocker, verify-stuck — per relay-auto Phase 4e) take precedence over this bridge: surface the pause to the user before doing any Control-side bookkeeping.
+
 ## Key references
 - Full protocol: `.control/PROJECT_PROTOCOL.md`
 - Current state: `.control/progress/STATE.md`
