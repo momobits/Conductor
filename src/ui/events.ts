@@ -16,7 +16,12 @@ export type DaemonEventKind =
   | 'conductor-iteration'
   | 'conductor-decision'
   | 'conductor-halt'
-  | 'conductor-status';
+  | 'conductor-status'
+  // Phase 22 / Control 30.3 (feature #55): contract-drift guard. UI rendering
+  // of the lead indicator is deferred to feature #62 (frame-b-chat-wire); this
+  // union extension just keeps the UI type-aware of the new SSE event kind so
+  // the SSE forwarder doesn't drop unknown variants at the browser.
+  | 'lead-handed-off';
 
 export interface DaemonEventEnvelope {
   kind: DaemonEventKind;

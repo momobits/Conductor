@@ -22,6 +22,7 @@ import {
   RunArtifactGetParams, CardChatHistoryParams,
   CostShowParams,
   OrchestratorDecideParams,
+  LeadGetParams, LeadSetParams,
 } from './schema.js';
 import { readRunArtifact } from '../agent/run_artifact.js';
 import { readChatLog } from '../engine/state/chat_log.js';
@@ -46,6 +47,7 @@ import { appendExerciseFinding } from '../engine/ops/exercise.js';
 import { RoutingAdapter } from '../adapters/routing.js';
 import { chat as chatOp } from '../engine/ops/chat.js';
 import { decide as orchestratorDecide } from '../orchestrator/index.js';
+import { transferLead, getLead } from '../conductor/lead.js';
 
 export interface MethodContext {
   repo: string;
@@ -328,11 +330,10 @@ async function chat(ctx: MethodContext, raw: unknown) {
 async function orchestrator_decide(ctx: MethodContext, raw: unknown) {
   const p = OrchestratorDecideParams.parse(raw);
   const adapter = ctx.adapter ?? new RoutingAdapter();
-  // Lead state will read from feature #2's getLead(runtime) once it ships.
-  // For v1 (before feature #2 lands), default lead='human' — RPC callers
-  // typically come from operator UI / chat, so 'human' is the safe default.
-  // Once getLead exists, replace this with: getLead(ctx.runtime).current.
-  const lead: 'human' | 'llm' = 'human';
+  // Phase 22 (Control 30.3): closes the v1 hardcoded lead='human' caveat
+  // documented in #54 (dual-driver-orchestrator-core). Reads the canonical
+  // lead state from runtime via feature #55's getLead helper.
+  const lead = getLead(ctx.runtime).current;
   const decision = await orchestratorDecide({
     repo: ctx.repo,
     cardId: p.cardId,
@@ -345,6 +346,27 @@ async function orchestrator_decide(ctx: MethodContext, raw: unknown) {
     },
   });
   return { decision };
+}
+
+// Phase 22 (Control 30.3): lead-follow protocol RPC handlers.
+async function lead_get(ctx: MethodContext, raw: unknown) {
+  LeadGetParams.parse(raw);
+  return { state: getLead(ctx.runtime) };
+}
+
+async function lead_set(ctx: MethodContext, raw: unknown) {
+  const p = LeadSetParams.parse(raw);
+  if (!ctx.bus) {
+    // Align with conductor_start pattern (methods.ts: returns
+    // {started:false, reason}): return structured failure rather than throw,
+    // so RPC clients get a discriminated response shape.
+    return { changed: false as const, reason: 'no-bus' as const };
+  }
+  const result = await transferLead({
+    runtime: ctx.runtime, bus: ctx.bus,
+    to: p.to, reason: p.reason, context: p.context,
+  });
+  return result;
 }
 
 async function conductor_start(ctx: MethodContext, raw: unknown) {
@@ -475,6 +497,8 @@ export const methods = {
   run_artifact_get,
   card_chat_history,
   orchestrator_decide,
+  lead_get,
+  lead_set,
 } satisfies Record<string, Handler<unknown, unknown>>;
 
 export type MethodName = keyof typeof methods;

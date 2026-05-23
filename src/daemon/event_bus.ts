@@ -10,6 +10,7 @@
 
 import type { TaskEvent } from '../agent/events.js';
 import type { WatcherEvent } from './watcher.js';
+import type { LeadState, LeadTransferReason } from '../conductor/lead.js';
 
 export type DaemonEvent =
   | WatcherEvent
@@ -22,7 +23,19 @@ export type DaemonEvent =
   | { kind: 'conductor-decision'; cardId: string; action: 'approve' | 'escalate' | 'halt'; reason: string; optionId: string }
   | { kind: 'conductor-halt'; reason: string; cardId?: string }
   | { kind: 'conductor-status'; running: boolean }
-  | { kind: 'tracker-poll'; created: string[]; updated: string[]; error?: string };
+  | { kind: 'tracker-poll'; created: string[]; updated: string[]; error?: string }
+  // Phase 22 / Control 30.3 (feature #55): dual-driver lead-follow protocol.
+  // Single variant carries previous + current state so consumers can detect
+  // both acquisition (previous.current !== current.current) and reason-based
+  // transitions without needing a separate `lead-acquired` variant.
+  | {
+      kind: 'lead-handed-off';
+      previous: LeadState;
+      current: LeadState;
+      reason: LeadTransferReason;
+      context?: string;
+      ts: string;
+    };
 
 export type Listener = (e: DaemonEvent) => void;
 

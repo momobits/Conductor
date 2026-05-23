@@ -599,3 +599,74 @@ describe('rpc methods - orchestrator_decide', () => {
     expect(adapter.lastRequest?.user).toContain('what should we do next?');
   });
 });
+
+describe('rpc methods - lead protocol (Phase 22 / Control 30.3 feature #55)', () => {
+  it('lead_get returns the default state', async () => {
+    const repo = setupRepo();
+    const runtime = new InMemoryRuntime();
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime };
+    const res = await methods.lead_get(ctx, {}) as { state: { current: string; reason: string } };
+    expect(res.state.current).toBe('human');
+    expect(res.state.reason).toBe('daemon-start');
+  });
+
+  it('lead_set transfers lead and returns TransferLeadResult', async () => {
+    const repo = setupRepo();
+    const runtime = new InMemoryRuntime();
+    const { EventBus } = await import('../../src/daemon/event_bus.js');
+    const bus = new EventBus();
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime, bus };
+    const res = await methods.lead_set(ctx, { to: 'llm', reason: 'cli-command' }) as {
+      changed: boolean; previousState: { current: string }; newState: { current: string };
+    };
+    expect(res.changed).toBe(true);
+    expect(res.previousState.current).toBe('human');
+    expect(res.newState.current).toBe('llm');
+    const after = await methods.lead_get(ctx, {}) as { state: { current: string } };
+    expect(after.state.current).toBe('llm');
+  });
+
+  it('lead_set returns {changed:false, reason:no-bus} when ctx.bus is missing', async () => {
+    const repo = setupRepo();
+    const runtime = new InMemoryRuntime();
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime };
+    const res = await methods.lead_set(ctx, { to: 'llm', reason: 'cli-command' }) as {
+      changed: boolean; reason?: string;
+    };
+    expect(res.changed).toBe(false);
+    expect(res.reason).toBe('no-bus');
+  });
+
+  it('orchestrator_decide reads lead from runtime (closes #54 v1 caveat)', async () => {
+    const repo = setupRepo();
+    const created = await methods.card_new(
+      { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() },
+      { slug: 'lead-orch-card', title: 'LeadOrch', kind: 'feature' },
+    ) as { id: string };
+    const runtime = new InMemoryRuntime();
+    const { EventBus } = await import('../../src/daemon/event_bus.js');
+    const bus = new EventBus();
+    // Flip lead to llm BEFORE calling orchestrator_decide.
+    const ctxSet = { repo, config: ProjectConfigSchema.parse({}), runtime, bus };
+    await methods.lead_set(ctxSet, { to: 'llm', reason: 'cli-command' });
+    const { MockAdapter } = await import('../../src/adapters/mock.js');
+    const adapter = new MockAdapter([
+      JSON.stringify({
+        version: 1, action: 'no-op', rationale: 'idle', confidence: 0.5, params: { reason: 'idle' },
+      }),
+    ]);
+    const ctxOrch = { repo, config: ProjectConfigSchema.parse({}), runtime, adapter, bus };
+    await methods.orchestrator_decide(ctxOrch, { cardId: created.id });
+    // The prompt assembly serializes the lead state as `Lead: ${args.lead}`;
+    // assert that lead=llm reached the prompt.
+    expect(adapter.lastRequest?.user).toContain('Lead: llm');
+    // Cross-check the inverse: with lead='human' (default), the prompt mentions human.
+    const runtime2 = new InMemoryRuntime();
+    const adapter2 = new MockAdapter([
+      JSON.stringify({ version: 1, action: 'no-op', rationale: 'idle', confidence: 0.5, params: { reason: 'idle' } }),
+    ]);
+    const ctxOrch2 = { repo, config: ProjectConfigSchema.parse({}), runtime: runtime2, adapter: adapter2 };
+    await methods.orchestrator_decide(ctxOrch2, { cardId: created.id });
+    expect(adapter2.lastRequest?.user).toContain('Lead: human');
+  });
+});

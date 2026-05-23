@@ -139,6 +139,24 @@ export const OrchestratorDecideParams = z.object({
   userMessage: z.string().max(8000).optional(),
 });
 
+// Phase 22 (Control phase 30.3): dual-driver lead-follow protocol RPC schemas.
+// Closes the v1 hardcoded `lead: 'human'` caveat from orchestrator-core (#54).
+// The `reason` enum mirrors LeadTransferReason in src/conductor/lead.ts — the
+// two MUST stay in sync (zod cannot import the TS string-literal union type
+// directly without a refactor; accepted duplication, called out here).
+export const LeadGetParams = z.object({}).strict();
+
+export const LeadSetParams = z.object({
+  to: z.enum(['human', 'llm']),
+  reason: z.enum([
+    'cli-command', 'ui-button', 'user-chat',
+    'brain-start', 'brain-stop',
+    'halt-with-handoff', 'cost-ceiling-reached', 'idle-no-eligible-cards',
+    'daemon-start',
+  ]),
+  context: z.string().max(8000).optional(),
+}).strict();
+
 export const ConductorStartParams = z.object({});
 export const ConductorStopParams = z.object({});
 export const ConductorStatusParams = z.object({});

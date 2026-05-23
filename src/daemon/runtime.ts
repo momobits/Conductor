@@ -5,6 +5,13 @@
 // implementation and defers SQLite to Phase 7. Spec § 14 already commits
 // runtime state to be volatile/rebuildable so this is no behavioral
 // regression.
+//
+// Phase 22 (Control 30.3) feature #55: extended with global lead state
+// (current: 'human' | 'llm'). The lead defaults to 'human' on daemon start
+// (matches "brain is OFF by default" semantic); explicit transfers go through
+// transferLead() in src/conductor/lead.ts.
+
+import type { Lead, LeadState } from '../conductor/lead.js';
 
 export interface SessionRecord {
   cardId: string;
@@ -34,6 +41,13 @@ export interface RuntimeStore {
   addCost(cardId: string, delta: CostDelta): void;
   getCardCost(cardId: string): CostTotals;
   getDayCost(yyyymmdd: string): CostTotals;
+  /** Phase 22 / Control 30.3 (feature #55): read the global lead state.
+   *  Returns a defensive copy so callers cannot mutate internal state. */
+  getLead(): LeadState;
+  /** Phase 22 / Control 30.3 (feature #55): replace lead state wholesale.
+   *  Called only by transferLead() in src/conductor/lead.ts — direct callers
+   *  bypass the SSE publish + idempotency check. */
+  setLead(state: LeadState): void;
 }
 
 const ZERO: CostTotals = { inputTokens: 0, outputTokens: 0, dollars: 0 };
@@ -43,9 +57,18 @@ export class InMemoryRuntime implements RuntimeStore {
   private readonly cardCost = new Map<string, CostTotals>();
   private readonly dayCost = new Map<string, CostTotals>();
   private readonly now: () => Date;
+  // Phase 22 / Control 30.3 (feature #55): in-memory lead state. Default
+  // 'human' matches "brain is OFF by default"; the daemon defers explicit
+  // transfer until operator runs `conductor brain start` or `conductor lead llm`.
+  private lead: LeadState;
 
   constructor(opts: { now?: () => Date } = {}) {
     this.now = opts.now ?? (() => new Date());
+    this.lead = {
+      current: 'human' as Lead,
+      since: this.now(),
+      reason: 'daemon-start',
+    };
   }
 
   startSession(args: { cardId: string; runId: string; operation: string }): SessionRecord {
@@ -95,6 +118,17 @@ export class InMemoryRuntime implements RuntimeStore {
   getDayCost(yyyymmdd: string): CostTotals {
     const c = this.dayCost.get(yyyymmdd);
     return c ? { ...c } : { ...ZERO };
+  }
+
+  // Phase 22 / Control 30.3 (feature #55) — lead-state accessors.
+  // Both methods deep-copy the embedded Date so caller-side mutations cannot
+  // leak into internal state.
+  getLead(): LeadState {
+    return { ...this.lead, since: new Date(this.lead.since.getTime()) };
+  }
+
+  setLead(state: LeadState): void {
+    this.lead = { ...state, since: new Date(state.since.getTime()) };
   }
 }
 

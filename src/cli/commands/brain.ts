@@ -27,8 +27,16 @@ async function rpcCall(repo: string, method: string, params: unknown): Promise<u
 export async function brainStart(repo: string): Promise<void> {
   try {
     const r = await rpcCall(repo, 'conductor_start', {}) as { started: boolean; reason?: string };
-    if (r.started) process.stdout.write('Brain started.\n');
-    else process.stdout.write(`Brain not started: ${r.reason ?? 'unknown'}\n`);
+    if (r.started) {
+      // Phase 22 (Control 30.3): brain start = "llm takes lead globally."
+      // Best-effort: a lead-transfer failure does NOT undo the brain start.
+      try {
+        await rpcCall(repo, 'lead_set', { to: 'llm', reason: 'brain-start' });
+      } catch { /* lead transfer failed; brain still started */ }
+      process.stdout.write('Brain started.\n');
+    } else {
+      process.stdout.write(`Brain not started: ${r.reason ?? 'unknown'}\n`);
+    }
   } catch {
     process.stdout.write('Brain: not running (start the daemon first: `conductor daemon start`)\n');
   }
@@ -37,7 +45,15 @@ export async function brainStart(repo: string): Promise<void> {
 export async function brainStop(repo: string): Promise<void> {
   try {
     const r = await rpcCall(repo, 'conductor_stop', {}) as { stopped: boolean; reason?: string };
-    process.stdout.write(r.stopped ? 'Brain stopped.\n' : `Brain not stopped: ${r.reason ?? 'unknown'}\n`);
+    if (r.stopped) {
+      // Phase 22 (Control 30.3): brain stop = "human takes lead globally."
+      try {
+        await rpcCall(repo, 'lead_set', { to: 'human', reason: 'brain-stop' });
+      } catch { /* lead transfer failed; brain still stopped */ }
+      process.stdout.write('Brain stopped.\n');
+    } else {
+      process.stdout.write(`Brain not stopped: ${r.reason ?? 'unknown'}\n`);
+    }
   } catch {
     process.stdout.write('Brain: not running\n');
   }

@@ -51,4 +51,25 @@ describe('InMemoryRuntime', () => {
     expect(r.getDayCost('2026-05-07')).toEqual({ inputTokens: 1, outputTokens: 1, dollars: 0.001 });
     expect(r.getDayCost('2026-05-08')).toEqual({ inputTokens: 2, outputTokens: 2, dollars: 0.002 });
   });
+
+  // Phase 22 / Control 30.3 (feature #55): lead state default + accessors.
+  it('starts with lead=human, reason=daemon-start', () => {
+    const fixedNow = new Date('2026-05-24T10:00:00Z');
+    const r = new InMemoryRuntime({ now: () => fixedNow });
+    const state = r.getLead();
+    expect(state.current).toBe('human');
+    expect(state.reason).toBe('daemon-start');
+    expect(state.since).toEqual(fixedNow);
+  });
+
+  it('setLead replaces lead state wholesale', () => {
+    const r = new InMemoryRuntime({ now: () => new Date('2026-05-24T10:00:00Z') });
+    r.setLead({
+      current: 'llm',
+      since: new Date('2026-05-24T10:05:00Z'),
+      reason: 'brain-start',
+    });
+    expect(r.getLead().current).toBe('llm');
+    expect(r.getLead().reason).toBe('brain-start');
+  });
 });
