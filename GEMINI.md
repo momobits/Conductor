@@ -26,6 +26,7 @@ and what's next. Skills are in `.agents/skills/relay-*/`.
 | /relay-verify | Verify implementation |
 | /relay-notebook | Verification notebook |
 | /relay-resolve | Close out and archive |
+| /relay-auto | Auto-walk the full code pipeline across items |
 | /relay-help | Navigate the workflow |
 
 Start with `/relay-setup`, then `/relay-help`.
@@ -35,6 +36,8 @@ Workflow: `/relay-analyze` → `/relay-plan` or `/relay-superplan` → `/relay-r
 Exercise flow: `/relay-exercise` → `/relay-exercise-run` → `/relay-exercise-file` → (filed items flow into normal code pipeline)
 
 Auto-sweep: `/relay-exercise-auto` runs the run+file pair end-to-end across the active session, with one isolated agent per work item.
+
+Code auto-pipeline: `/relay-auto` drives items from `relay-ordering.md` through the full code pipeline (analyze → plan/superplan → review → implement → verify → resolve) — one isolated agent per item, resumable across context compaction.
 
 Goal mode: `/relay-exercise "<your goal>"` builds a top-down journey of required capabilities and discovers missing ones as gaps.
 <!-- relay-workflow:end -->
