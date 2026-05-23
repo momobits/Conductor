@@ -538,6 +538,94 @@ v2 plan text.
   });
 });
 
+// Phase 22 (Control phase 30.4) feature #47: card-detail multi-surface view RPC.
+describe('rpc methods - card_artifacts_index', () => {
+  it('returns all 7 ops with null/0 when card has no runs', async () => {
+    const repo = setupRepo();
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    const res = await methods.card_artifacts_index(ctx, { cardId: 'no-runs-card' }) as {
+      ops: Record<string, { latestRunId: string | null; latestTs: string | null; runCount: number }>;
+    };
+    expect(Object.keys(res.ops).sort()).toEqual(
+      ['analyze', 'implement', 'notebook', 'orchestrate', 'plan', 'review', 'verify'].sort(),
+    );
+    for (const op of Object.keys(res.ops)) {
+      expect(res.ops[op]!.latestRunId).toBeNull();
+      expect(res.ops[op]!.latestTs).toBeNull();
+      expect(res.ops[op]!.runCount).toBe(0);
+    }
+  });
+
+  it('reports analyze + plan when a single run exists with both artifacts', async () => {
+    const repo = setupRepo();
+    const { RunArtifactWriter } = await import('../../src/agent/run_artifact.js');
+    // Canonical runId shape: YYYYMMDDTHHMMSS-<cardId>
+    const runId = '20260524T120000-card-x';
+    // Create the events.jsonl so listRuns() picks up the run.
+    mkdirSync(join(repo, '.conductor', 'runs', runId), { recursive: true });
+    writeFileSync(join(repo, '.conductor', 'runs', runId, 'events.jsonl'), '{}\n', 'utf8');
+    await new RunArtifactWriter({ repo, runId }).write('analyze', 'ANALYZED');
+    await new RunArtifactWriter({ repo, runId }).write('plan', 'PLANNED');
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    const res = await methods.card_artifacts_index(ctx, { cardId: 'card-x' }) as {
+      ops: Record<string, { latestRunId: string | null; latestTs: string | null; runCount: number }>;
+    };
+    expect(res.ops['analyze']!.runCount).toBe(1);
+    expect(res.ops['analyze']!.latestRunId).toBe(runId);
+    expect(res.ops['plan']!.runCount).toBe(1);
+    expect(res.ops['plan']!.latestRunId).toBe(runId);
+    // Other ops still null/0
+    expect(res.ops['review']!.runCount).toBe(0);
+    expect(res.ops['verify']!.runCount).toBe(0);
+    expect(res.ops['orchestrate']!.runCount).toBe(0);
+  });
+
+  it('runCount sums across multiple runs; latest tracks mtime-DESC first', async () => {
+    const repo = setupRepo();
+    const { RunArtifactWriter } = await import('../../src/agent/run_artifact.js');
+    const runs = ['20260520T100000-card-y', '20260522T100000-card-y', '20260524T100000-card-y'];
+    for (const runId of runs) {
+      mkdirSync(join(repo, '.conductor', 'runs', runId), { recursive: true });
+      writeFileSync(join(repo, '.conductor', 'runs', runId, 'events.jsonl'), '{}\n', 'utf8');
+      await new RunArtifactWriter({ repo, runId }).write('analyze', `ANALYZE for ${runId}`);
+    }
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    const res = await methods.card_artifacts_index(ctx, { cardId: 'card-y' }) as {
+      ops: Record<string, { latestRunId: string | null; latestTs: string | null; runCount: number }>;
+    };
+    expect(res.ops['analyze']!.runCount).toBe(3);
+    // listRuns sorts mtime-DESC; the most-recently-written file is the latest
+    // by file system mtime, which is whichever we wrote last in this loop.
+    // The latestRunId is the latest by mtime — should be the last `runs[2]`.
+    expect(res.ops['analyze']!.latestRunId).toBe(runs[2]);
+  });
+
+  it('filters out other cards by runId suffix', async () => {
+    const repo = setupRepo();
+    const { RunArtifactWriter } = await import('../../src/agent/run_artifact.js');
+    const myRun = '20260524T120000-mine';
+    const otherRun = '20260524T120000-other-card';
+    mkdirSync(join(repo, '.conductor', 'runs', myRun), { recursive: true });
+    writeFileSync(join(repo, '.conductor', 'runs', myRun, 'events.jsonl'), '{}\n', 'utf8');
+    mkdirSync(join(repo, '.conductor', 'runs', otherRun), { recursive: true });
+    writeFileSync(join(repo, '.conductor', 'runs', otherRun, 'events.jsonl'), '{}\n', 'utf8');
+    await new RunArtifactWriter({ repo, runId: myRun }).write('analyze', 'mine');
+    await new RunArtifactWriter({ repo, runId: otherRun }).write('analyze', 'other');
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    const res = await methods.card_artifacts_index(ctx, { cardId: 'mine' }) as {
+      ops: Record<string, { latestRunId: string | null; latestTs: string | null; runCount: number }>;
+    };
+    expect(res.ops['analyze']!.runCount).toBe(1);
+    expect(res.ops['analyze']!.latestRunId).toBe(myRun);
+  });
+
+  it('rejects cardId with path-traversal characters', async () => {
+    const repo = setupRepo();
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    await expect(methods.card_artifacts_index(ctx, { cardId: '../escape' })).rejects.toThrow();
+  });
+});
+
 describe('rpc methods - orchestrator_decide', () => {
   it('returns a narrowed decision via mock adapter', async () => {
     const repo = setupRepo();

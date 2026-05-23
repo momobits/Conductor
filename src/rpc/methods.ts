@@ -19,7 +19,7 @@ import {
   ConductorStartParams, ConductorStopParams, ConductorStatusParams, ConductorSetAutonomyParams,
   TrackerPullParams,
   RunListParams, RunReplayParams, RunPruneParams,
-  RunArtifactGetParams, CardChatHistoryParams,
+  RunArtifactGetParams, CardChatHistoryParams, CardArtifactsIndexParams,
   CostShowParams,
   OrchestratorDecideParams,
   LeadGetParams, LeadSetParams,
@@ -32,7 +32,7 @@ import { listRuns, pruneRuns, replayRun } from '../agent/runlog_store.js';
 import { getCostSummary } from '../daemon/cost_summary.js';
 import { Conductor, defaultAgentFactory } from '../conductor/loop.js';
 import { dump as yamlDump } from 'js-yaml';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, readdir } from 'node:fs/promises';
 import { loadProjectConfig } from '../config/load.js';
 import { preserveYamlComments } from '../config/preserve_comments.js';
 import { readCard, writeCard, listCards, listCardsLenient, createCard } from '../engine/state/card.js';
@@ -467,6 +467,49 @@ async function card_chat_history(ctx: MethodContext, raw: unknown) {
   return { turns };
 }
 
+// Phase 22 (Control phase 30.4) feature #47: aggregate per-card per-op latest
+// run + run count in one round-trip. Single pass over .conductor/runs/ entries
+// filtered to the canonical <YYYYMMDDTHHMMSS>-<cardId> shape (same regex +
+// length-equality guard as findLatestArtifactRunId in agent/run_artifact.ts).
+async function card_artifacts_index(ctx: MethodContext, raw: unknown) {
+  const p = CardArtifactsIndexParams.parse(raw);
+  const cardId = p.cardId;
+  const expectedLen = 16 + cardId.length;
+  const PREFIX_SHAPE = /^\d{8}T\d{6}-/;
+  const suffix = `-${cardId}`;
+  const runs = await listRuns(ctx.repo);
+  type OpKey = 'analyze' | 'plan' | 'review' | 'verify' | 'notebook' | 'implement' | 'orchestrate';
+  const OPS: readonly OpKey[] = ['analyze', 'plan', 'review', 'verify', 'notebook', 'implement', 'orchestrate'] as const;
+  const ops: Record<OpKey, { latestRunId: string | null; latestTs: string | null; runCount: number }> = {
+    analyze: { latestRunId: null, latestTs: null, runCount: 0 },
+    plan: { latestRunId: null, latestTs: null, runCount: 0 },
+    review: { latestRunId: null, latestTs: null, runCount: 0 },
+    verify: { latestRunId: null, latestTs: null, runCount: 0 },
+    notebook: { latestRunId: null, latestTs: null, runCount: 0 },
+    implement: { latestRunId: null, latestTs: null, runCount: 0 },
+    orchestrate: { latestRunId: null, latestTs: null, runCount: 0 },
+  };
+  for (const run of runs) {
+    if (!PREFIX_SHAPE.test(run.runId)) continue;
+    if (run.runId.length !== expectedLen) continue;
+    if (!run.runId.endsWith(suffix)) continue;
+    const runDir = join(ctx.repo, '.conductor', 'runs', run.runId);
+    let files: string[] = [];
+    try { files = await readdir(runDir); } catch { continue; }
+    const ts = run.mtime.toISOString();
+    for (const op of OPS) {
+      if (!files.includes(`${op}.md`)) continue;
+      const slot = ops[op];
+      slot.runCount += 1;
+      if (slot.latestRunId === null) {
+        slot.latestRunId = run.runId;
+        slot.latestTs = ts;
+      }
+    }
+  }
+  return { ops };
+}
+
 export const methods = {
   card_new,
   card_get,
@@ -496,6 +539,7 @@ export const methods = {
   cost_show,
   run_artifact_get,
   card_chat_history,
+  card_artifacts_index,
   orchestrator_decide,
   lead_get,
   lead_set,

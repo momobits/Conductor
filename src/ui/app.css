@@ -744,6 +744,114 @@ main#root.page {
 .chat form input:focus { border-color: var(--signal); }
 
 /* =====================================================================
+   CARD-DETAIL OP SECTIONS (Frame B Feature #47, Control 30.4)
+   Per-op artifact narrative; one <section.op-section> per known op.
+   Echoes .column-head editorial small-caps treatment.
+   ===================================================================== */
+
+.op-section {
+  margin-top: 28px;
+  padding-top: 18px;
+  border-top: 1px solid var(--hairline);
+}
+.op-section[data-internal="true"] {
+  opacity: 0.7;
+  font-size: 0.92em;
+}
+.op-section header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.op-section header h3 {
+  margin: 0;
+  font-family: var(--f-body);
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-cap);
+  color: var(--paper);
+}
+.op-section header .meta {
+  font-family: var(--f-mono);
+  font-size: 10px;
+  color: var(--mute);
+  flex: 1;
+}
+.op-section header button {
+  background: transparent;
+  border: 1px solid var(--hairline);
+  color: var(--paper-2);
+  padding: 2px 8px;
+  font-family: var(--f-mono);
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.op-section header button:hover:not(:disabled) {
+  border-color: var(--signal);
+  color: var(--signal);
+}
+.op-section header button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.op-section[data-state="loading"] {
+  opacity: 0.5;
+}
+.op-section[data-state="missing"] .empty-cta {
+  color: var(--halt);
+}
+.op-section .empty-cta {
+  margin: 0;
+  font-family: var(--f-body);
+  font-style: italic;
+  color: var(--mute);
+}
+.op-section .empty-cta button {
+  margin-left: 8px;
+  background: transparent;
+  border: 1px solid var(--signal);
+  color: var(--signal);
+  padding: 3px 10px;
+  font-family: var(--f-body);
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.op-section .empty-cta button:hover:not(:disabled) {
+  background: var(--signal);
+  color: var(--ink-000);
+}
+.op-section details {
+  margin-top: 6px;
+}
+.op-section details summary {
+  cursor: pointer;
+  color: var(--mute);
+  font-family: var(--f-mono);
+  font-size: 11px;
+  padding: 4px 0;
+  user-select: none;
+}
+.op-section details summary:hover {
+  color: var(--paper);
+}
+.op-section .render {
+  margin-top: 8px;
+  /* Inherits .detail .body's typography rules above; .render wrapper gives
+     a hook for future per-op style overrides without coupling to the
+     editorial body cascade. */
+}
+
+.surface.description {
+  /* Visual continuity with the existing body cascade — no new rules.
+     Wrapper exists so future Feature #49 (chat-driven authoring) can
+     target this region specifically. */
+}
+
+/* =====================================================================
    BUTTONS
    ===================================================================== */
 button {
