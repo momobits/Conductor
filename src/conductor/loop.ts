@@ -25,6 +25,7 @@ import { checkCostCeilings } from './cost_guard.js';
 import { classifyHalt } from './halt.js';
 import { TaskAgent } from '../agent/task_agent.js';
 import type { ModelAdapter } from '../adapters/adapter.js';
+import { resolveNextStep } from './step_resolver.js';
 
 export type AgentFactory = (cardId: string) => AsyncIterable<TaskEvent>;
 
@@ -248,15 +249,60 @@ export interface DefaultAgentFactoryArgs {
 
 export function defaultAgentFactory(args: DefaultAgentFactoryArgs): AgentFactory {
   return (cardId: string) => {
-    const agent = new TaskAgent({
-      repo: args.repo,
-      cardId,
-      config: args.config,
-      adapter: args.adapter,
-      onAdapterUsage: ({ inputTokens, outputTokens, dollars }) => {
-        args.runtime.addCost(cardId, { inputTokens, outputTokens, dollars });
-      },
-    });
-    return agent.run();
+    // Phase 30 (item 53): resolve `step` for cards in the `approved` column by
+    // reading the plan substrate + walking git log. Wrapped in an IIFE-style
+    // async generator so we can await the resolver BEFORE constructing
+    // TaskAgent while still satisfying AgentFactory's sync return contract
+    // (the IIFE returns an AsyncIterable<TaskEvent> synchronously).
+    return (async function* runWithResolvedStep(): AsyncIterable<TaskEvent> {
+      let resolvedStep: string | undefined;
+      try {
+        const card = await readCard(
+          join(args.repo, '.conductor', 'cards', `${cardId}.md`),
+        );
+        if (card.frontmatter.column === 'approved') {
+          const result = await resolveNextStep({
+            repo: args.repo,
+            cardId,
+            phase: card.frontmatter.phase,
+          });
+          if (result.kind === 'resolved') {
+            resolvedStep = result.step;
+          } else {
+            // Emit a synthetic halt with the SPECIFIC reason BEFORE building
+            // TaskAgent. Operator-visible discrimination of the three failure
+            // modes (no-plan / unparseable-plan / all-committed). All three
+            // share the substring "no implement step resolved" so classifyHalt
+            // matches them as `missing-step-arg`.
+            yield {
+              kind: 'halt',
+              cardId,
+              reason:
+                result.kind === 'no-plan'
+                  ? `Brain cannot advance: card '${cardId}' is in 'approved' but has no plan substrate yet — run plan op (no implement step resolved).`
+                  : result.kind === 'unparseable-plan'
+                    ? `Brain cannot advance: card '${cardId}' plan substrate has no parseable step headings — re-run plan op (no implement step resolved).`
+                    : `Brain cannot advance: card '${cardId}' has all plan steps already committed; manually transition the card or extend the plan (no implement step resolved).`,
+              finalColumn: 'approved',
+            };
+            return;
+          }
+        }
+      } catch {
+        /* swallow: TaskAgent's own readCard will surface the genuine error
+         * via its own throw + outer runOneCard try/catch. */
+      }
+      const agent = new TaskAgent({
+        repo: args.repo,
+        cardId,
+        config: args.config,
+        adapter: args.adapter,
+        step: resolvedStep,
+        onAdapterUsage: ({ inputTokens, outputTokens, dollars }) => {
+          args.runtime.addCost(cardId, { inputTokens, outputTokens, dollars });
+        },
+      });
+      yield* agent.run();
+    })();
   };
 }

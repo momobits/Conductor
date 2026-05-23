@@ -1,13 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { simpleGit } from 'simple-git';
 import { Conductor } from '../../src/conductor/loop.js';
 import { ProjectConfigSchema } from '../../src/config/schema.js';
 import { InMemoryRuntime } from '../../src/daemon/runtime.js';
 import { EventBus, type DaemonEvent } from '../../src/daemon/event_bus.js';
 import type { TaskEvent } from '../../src/agent/events.js';
 import type { Recommendation } from '../../src/engine/types.js';
+import { readCard } from '../../src/engine/state/card.js';
 
 function rec(level: 'low' | 'medium' | 'high', confidence: number): Recommendation {
   return {
@@ -281,6 +283,61 @@ describe('defaultAgentFactory', () => {
     const events: TaskEvent[] = [];
     for await (const ev of factory('card-1')) events.push(ev);
     expect(events.find((e) => e.kind === 'transition' && e.from === 'discovered' && e.to === 'planned')).toBeDefined();
+  });
+
+  it('resolves step from plan substrate for approved-column cards (brain advances past approved)', async () => {
+    const repo = setupRepoWithOrdering(['card-x']);
+    // Override card column to 'approved' + seed plan substrate
+    const cardPath = join(repo, '.conductor', 'cards', 'card-x.md');
+    const text = readFileSync(cardPath, 'utf8')
+      .replace('column: discovered', 'column: approved')
+      .replace('phase: phase-1', "phase: '30'");
+    writeFileSync(cardPath, text, 'utf8');
+    const runDir = join(repo, '.conductor', 'runs', '20260523T000000-card-x');
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(
+      join(runDir, 'events.jsonl'),
+      '{"ts":"2026-05-23T00:00:00.000Z","kind":"op_start"}\n',
+      'utf8',
+    );
+    writeFileSync(join(runDir, 'plan.md'), '### 1.1\nWHAT: x\n', 'utf8');
+    // git init so committedStepsForPhase has something to read (no commits yet
+    // → empty set → resolver returns the first plan step)
+    const g = simpleGit(repo);
+    await g.init();
+    await g.addConfig('user.name', 't');
+    await g.addConfig('user.email', 't@e');
+    await g.add('.');
+    await g.commit('seed');
+    const runtime = new InMemoryRuntime();
+    const config = ProjectConfigSchema.parse({
+      autonomy: { default: 'auto', transitions: { approved_to_building: 'auto' } },
+    });
+    const adapter = new MockAdapter([
+      JSON.stringify({
+        step: '1.1',
+        commit_type: 'feat',
+        commit_subject: 'add y',
+        files: [{ path: 'src/y.ts', action: 'create', content: 'export const y = 1;\n' }],
+        notes: '',
+      }),
+    ]);
+    const factory = defaultAgentFactory({ repo, config, runtime, adapter });
+    const events: TaskEvent[] = [];
+    for await (const ev of factory('card-x')) events.push(ev);
+    // Brain advanced past 'approved' — no halt with missing-step-arg semantics:
+    expect(
+      events.find(
+        (e) =>
+          e.kind === 'halt' &&
+          /requires --step|no implement step resolved/.test(e.reason ?? ''),
+      ),
+    ).toBeUndefined();
+    expect(events.find((e) => e.kind === 'op_complete' && e.operation === 'implement')).toBeDefined();
+    // Issue 4: positive post-state assertion — column is 'building' after the
+    // auto-transition fired.
+    const finalCard = await readCard(cardPath);
+    expect(finalCard.frontmatter.column).toBe('building');
   });
 });
 

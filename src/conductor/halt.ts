@@ -12,6 +12,7 @@ export const HALT_REASONS = [
   'confidence-below-threshold',
   'cost-ceiling',
   'auth-needed',
+  'missing-step-arg',
   'unrecognized-error',
 ] as const;
 
@@ -32,6 +33,7 @@ const PATTERNS: Array<[RegExp, HaltReason]> = [
   [/\b(cost ceiling|per-card cost|per-day cost)\b/i, 'cost-ceiling'],
   [/\b(blocker without|no hypothesis|stuck without)\b/i, 'blocker-no-hypothesis'],
   [/\bconfidence below\b/i, 'confidence-below-threshold'],
+  [/(requires --step|one step per call|no implement step resolved)/i, 'missing-step-arg'],
 ];
 
 export function classifyHalt(message: string): HaltReason {

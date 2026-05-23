@@ -42,4 +42,10 @@ describe('HaltReason catalog (spec § 9)', () => {
   it('falls back to unrecognized-error for unknown messages', () => {
     expect(classifyHalt('some random failure mode we did not anticipate')).toBe('unrecognized-error');
   });
+
+  it('classifies missing-step-arg from brain-resolver halt reasons', () => {
+    expect(classifyHalt("'approved' requires --step <id> (one step per call).")).toBe('missing-step-arg');
+    expect(classifyHalt("'approved' requires --step <id> (one step per call). Brain caller: no implement step resolved from plan substrate or git log.")).toBe('missing-step-arg');
+    expect(classifyHalt('no implement step resolved')).toBe('missing-step-arg');
+  });
 });

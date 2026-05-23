@@ -332,7 +332,9 @@ Structural follow-up filed as a closure obligation during Phase 12's grouped-run
 
 ---
 
-## Phase 21 — Brain step-resolution gap (NEW 2026-05-23) — ACTIVE
+## Phase 21 — Brain step-resolution gap (NEW 2026-05-23) — RESOLVED 2026-05-23
+
+**RESOLVED 2026-05-23.** Item #53 shipped per the Recommended Approach (Option 2: substrate parse + git-log inspection). New module `src/conductor/step_resolver.ts` + `defaultAgentFactory` wiring + `classifyHalt` extension. Implementation doc at `.relay/implemented/brain-cannot-advance-cards-past-approved-column.md`. Issue file archived to `.relay/archive/issues/brain-cannot-advance-cards-past-approved-column.md`. Full suite green at 784/784 tests (+12 net new).
 
 **Why placed here.** Narrow P2 issue surfaced during omniforge dogfood 2026-05-23: the brain halts on every card it tries to walk past `planned` with `'approved' requires --step <id> (one step per call)`. `defaultAgentFactory` at `src/conductor/loop.ts:249-262` constructs `TaskAgent` without a step arg; `case 'approved':` in `task_agent.ts:162-176` requires `this.step` and halts otherwise. Brain CAN walk 5 of 7 transitions but cannot pass `approved → building`.
 
@@ -351,7 +353,7 @@ ALSO ships: small extension to `classifyHalt()` in `src/conductor/halt.ts` so th
 
 | #  | Item                                                                                                       | File                                                                                                                  | Complexity | Depends on |
 |----|-----------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|------------|------------|
-| 53 | Brain cannot advance cards past `approved` column — `defaultAgentFactory` has no step-tracking mechanism | [brain-cannot-advance-cards-past-approved-column.md](issues/brain-cannot-advance-cards-past-approved-column.md) | S–M (needs `/relay-analyze` bisect to pick from 3 sub-options) | none directly; resolved-by-supersession if Phase 22 #6 ships first |
+| ~~53~~ | ~~Brain cannot advance cards past `approved` column — `defaultAgentFactory` has no step-tracking mechanism~~ **RESOLVED 2026-05-23** | [archive/issues/brain-cannot-advance-cards-past-approved-column.md](archive/issues/brain-cannot-advance-cards-past-approved-column.md) / [implemented/brain-cannot-advance-cards-past-approved-column.md](implemented/brain-cannot-advance-cards-past-approved-column.md) | — | — |
 
 ---
 

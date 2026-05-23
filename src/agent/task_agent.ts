@@ -170,7 +170,13 @@ export class TaskAgent {
           yield await this.emit({
             kind: 'halt',
             cardId: this.cardId,
-            reason: `'approved' requires --step <id> (one step per call).`,
+            // Reason widened to acknowledge both callers (CLI without --step OR
+            // brain-resolver returning null). Retains the substring "requires
+            // --step" so classifyHalt's missing-step-arg pattern matches both
+            // old and new wording (back-compat).
+            reason:
+              `'approved' requires --step <id> (one step per call). ` +
+              `Brain caller: no implement step resolved from plan substrate or git log.`,
             finalColumn: 'approved',
           });
           return;
