@@ -84,6 +84,7 @@
 | `src/engine/util/parse_json_response.ts` | `npx vitest run tests/engine/util/parse_json_response.test.ts` |
 | `src/engine/blast_radius.ts` / `lifecycle.ts` / `phase.ts` | `npx vitest run tests/engine/blast_radius.test.ts tests/engine/lifecycle.test.ts tests/engine/phase.test.ts` |
 | `src/importer/**` | `npx vitest run tests/importer/` |
+| `src/orchestrator/**` (dual-driver decide engine, Phase 22) | `npx vitest run tests/orchestrator/` |
 | `src/rpc/**` | `npx vitest run tests/rpc/` |
 | `src/trackers/**` | `npx vitest run tests/trackers/` |
 | `src/conductor/loop.ts` (red-team coverage) | `npx vitest run tests/adversarial/loop_redteam.test.ts` (plus `tests/conductor/loop.test.ts`) |
@@ -210,6 +211,7 @@ Module structure overview (all under `src/`):
 - `src/daemon/` — HTTP / MCP / SSE / watcher / runtime / cost-summary / tracker-poller
 - `src/engine/` — ops (`engine/ops/`), state (`engine/state/`), hooks, lifecycle, phase, blast-radius, types, util
 - `src/importer/` — Relay / Control importers
+- `src/orchestrator/` — dual-driver `decide()` engine + snapshot + prompt + types (Phase 22 foundation)
 - `src/rpc/` — RPC client + methods + schema
 - `src/trackers/` — Linear / GitHub adapters + factory
 - `src/ui/` — UI source (TypeScript), built by `scripts/build-ui.mjs`
@@ -222,6 +224,7 @@ Module structure overview (all under `src/`):
 - Engine state (card, git, session): `/relay-discover Focus on src/engine/state/`
 - Conductor autonomy: `/relay-discover Focus on src/conductor/ and tests/adversarial/`
 - Daemon surface (HTTP / MCP / SSE / watcher): `/relay-discover Focus on src/daemon/ and src/rpc/`
+- Orchestrator (dual-driver decide engine): `/relay-discover Focus on src/orchestrator/`
 - Trackers (Linear / GitHub): `/relay-discover Focus on src/trackers/`
 - Importer correctness: `/relay-discover Focus on src/importer/ and tests/importer/`
 - UI only: `/relay-discover Focus on src/ui/`
