@@ -1,0 +1,43 @@
+{
+  "session": "2026-05-23-234630",
+  "mode": "single",
+  "sweep_target": null,
+  "created": "2026-05-23T23:46:30Z",
+  "last_activity": "2026-05-24T00:00:00Z",
+  "queue": [
+    {
+      "id": "54",
+      "title": "dual-driver-orchestrator-core — pure-decide LLM engine in new src/orchestrator/ top-level dir; returns typed OrchestratorDecision per call. Foundation.",
+      "file_path": ".relay/features/dual-driver-orchestrator-core.md",
+      "complexity": "L",
+      "complexity_raw": "M-L",
+      "recommended_planner": "superplan",
+      "dependencies": [],
+      "phase": "22",
+      "control_step": "30.2"
+    }
+  ],
+  "completed": [
+    {
+      "id": "54",
+      "exit_status": "resolved",
+      "summary_path": ".relay/.auto-session/2026-05-23-234630/54.json",
+      "commit_shas": ["f04aa42", "406ca46"],
+      "implementation_doc": ".relay/implemented/dual-driver-orchestrator-core.md",
+      "archived_to": ".relay/archive/features/dual-driver-orchestrator-core.md",
+      "test_delta": "784 → 841 (+57)",
+      "control_scope": "30.2"
+    }
+  ],
+  "current_index": 1,
+  "status": "complete",
+  "pause_reason": null,
+  "ordering_mtime_at_dispatch": 1779571710,
+  "control_bridge": {
+    "phase": "30",
+    "step": "30.2",
+    "steps_md_path": ".control/phases/phase-30-frame-b-and-dual-driver/steps.md",
+    "checkbox_flipped": false,
+    "bridge_commit_pending": "docs(30.2): /relay-auto close out dual-driver-orchestrator-core (commits: f04aa42, 406ca46)"
+  }
+}

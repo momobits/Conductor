@@ -1,0 +1,61 @@
+{
+  "item": "54",
+  "file_path": ".relay/features/dual-driver-orchestrator-core.md",
+  "complexity": "L",
+  "complexity_raw": "M-L (landed at L bucket; agent selected `plan` over `superplan` after scope analysis — recorded as planner-deviation)",
+  "planner_used": "plan",
+  "planner_requested": "superplan",
+  "planner_deviation_note": "Agent chose /relay-plan over /relay-superplan after determining the implementation surface was sufficiently constrained (~11 plan steps, 11 files touched) to not require 5-strategy synthesis. Single-pass plan reached APPROVED-WITH-CHANGES on iteration 1 with 4 trivial applied + 0 substantive. Trade-off accepted post-hoc.",
+  "stale_analysis": false,
+  "pipeline": {
+    "analyze": {
+      "status": "complete",
+      "scope_decision_mode": "keep narrow",
+      "related_work_findings": 8
+    },
+    "plan": {
+      "skill": "plan",
+      "status": "complete",
+      "step_count": 11,
+      "files_touched_in_plan": 11
+    },
+    "review": {
+      "verdict": "APPROVED-WITH-CHANGES",
+      "iterations": 1,
+      "trivial_changes_applied": 4
+    },
+    "implement": {
+      "status": "deviated",
+      "deviations_count": 2,
+      "commits_during_impl": 1,
+      "commit_shas_during_impl": ["f04aa42"]
+    },
+    "verify": {
+      "verdict": "COMPLETE",
+      "iterations": 1,
+      "fixes_applied": 0,
+      "subagent_escalation_used": false,
+      "test_count_before": 784,
+      "test_count_after": 841
+    },
+    "resolve": {
+      "status": "complete",
+      "commit_sha": "406ca46",
+      "implementation_doc": ".relay/implemented/dual-driver-orchestrator-core.md",
+      "archived_to": ".relay/archive/features/dual-driver-orchestrator-core.md"
+    }
+  },
+  "all_commit_shas_produced": ["f04aa42", "406ca46"],
+  "control_bridge": {
+    "scope": "30.2",
+    "scope_verified": true,
+    "commit_subjects_verified": [
+      "feat(30.2): dual-driver orchestrator-core decide() engine + types + RPC",
+      "docs(30.2): /relay-resolve close out dual-driver-orchestrator-core"
+    ]
+  },
+  "exit_status": "resolved",
+  "pause_reason": null,
+  "pause_detail": null,
+  "errors": []
+}
