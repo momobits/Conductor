@@ -10,30 +10,21 @@
 
 | Category                   | Outstanding | Resolved | Total |
 |----------------------------|-------------|----------|-------|
-| Issues (`.relay/issues/`)  | 2           | 0        | 2     |
-| Features (`.relay/features/`) | 14 (designed) + 2 (brainstorm aggregators at DESIGN COMPLETE) + 1 (superseded; excluded from active counts) | 0 | 17 |
-| Implemented (`.relay/implemented/`) | —     | 37       | 37    |
-| Archived issues (`.relay/archive/issues/`) | — | 42  | 42    |
-| Archived features (`.relay/archive/features/`) | — | 5 | 5  |
+| Issues (`.relay/issues/`)  | 0           | 0        | 0     |
+| Features (`.relay/features/`) | 14 (designed) + 2 (brainstorm aggregators at DESIGN COMPLETE) | 0 | 16 |
+| Implemented (`.relay/implemented/`) | —     | 39       | 39    |
+| Archived issues (`.relay/archive/issues/`) | — | 44  | 44    |
+| Archived features (`.relay/archive/features/`) | — | 6 | 6  |
 
-**Since the 2026-05-17 scan**: Phase 28 closed in full (3 sub-steps; tag `phase-28-engine-ops-body-sunset-closed`; the engine-ops body-sunset structural refactor shipped, archiving the `engine-ops-still-append-to-card-body` issue). One NEW P2 issue filed today (`brain-cannot-advance-cards-past-approved-column` — narrow `--step` gap surfaced during omniforge dogfood). A NEW feature cluster brainstormed + designed today: **`dual-driver-orchestration`** — 9 child feature files spanning a rebalance of Conductor's determinism-flexibility design (orchestrator-core, lead-follow-protocol, observer-advisor, lead-handoff-reconciliation, backward-transitions-and-substrate-advisory, brain-loop-replacement, autonomy-spectrum-config, halt-categories, frame-b-chat-wire). The Frame B cluster's `brain-halt-on-user-chat.md` is now SUPERSEDED by the dual-driver cluster's `lead-follow-protocol`; Frame B drops from 6 → 5 active features.
+**Since the 2026-05-23 scan (intra-day)**: Phase 29 closed in full and Phase 30 opened (commit `f3e2957`). Two P2 issues resolved and archived: `ui-markdown-render-breaks-partway-through-content` (Phase 29.2, commit `c5807ba` — layered defensive normalization in `src/ui/lib/markdown.ts`: line-ending normalization, marked renderer override to escape raw HTML tokens, try/catch fallback to `<pre>`-wrapped raw source; first-ever unit-test coverage for `markdown.ts` via 8 tests on the extracted `normalizeLineEndings` helper in `src/ui/lib/markdown_helpers.ts` — pure-helper extraction n=15) and `brain-cannot-advance-cards-past-approved-column` (Phase 29.3, commit `1cbdf8f` — new `src/conductor/step_resolver.ts` module with discriminated `StepResolution` union, `defaultAgentFactory` resolves implement step from plan substrate + git log before constructing TaskAgent, `classifyHalt` learned `missing-step-arg`). Frame B's `brain-halt-on-user-chat.md` feature physically moved from `.relay/features/` to `.relay/archive/features/` with the SUPERSEDED banner pointing at `dual-driver-lead-follow-protocol.md` (commit `6f875d7`). Skill install: `/relay-auto` (commit `a3cd382`) plus its Control bridge protocol added to CLAUDE.md (commit `47db057`).
 
-The dual-driver cluster targets the architectural concern surfaced during omniforge dogfood: "the brain seems very static, why couldn't an LLM call fix this, why did I have to come here to understand the issue. Shouldn't Conductor be dynamic enough to recommend what to do for this card to the user, or move it itself." The cluster's umbrella design: at any moment, exactly one of {human, LLM brain} is the lead orchestrator for the whole board; the non-lead reasons about state via the same `decide()` engine and intervenes when sequence violations or recoverable halts occur. Determinism stays at the op + substrate + commit + lifecycle-column layers; flexibility moves to the orchestration layer.
-
-Severity distribution of the active issue backlog: **P1 ×0**, **P2 ×1** (`ui-markdown-render-breaks-partway-through-content`). `brain-cannot-advance-cards-past-approved-column` shipped 2026-05-23 via Phase 21 (step_resolver module + defaultAgentFactory wiring + classifyHalt extension). All other prior-backlog P2/P3 items shipped during Phases 26–28.
+**Issue backlog is empty.** Severity distribution: P1 ×0, P2 ×0, P3 ×0. The active backlog is now feature-only: two design-complete brainstorm aggregators (`dual-driver-orchestration` cluster of 9 + Frame B `card-pipeline-ui` cluster of 5) whose 14 child feature files are all DESIGNED but unanalyzed.
 
 ---
 
 ## Active Issues — .relay/issues/
 
-### P2 — user-visible UX gaps / brain-autonomy ceilings
-
-- ~~**`brain-cannot-advance-cards-past-approved-column.md`**~~ — **RESOLVED 2026-05-23.** Phase 21 shipped: `src/conductor/step_resolver.ts` (NEW), `defaultAgentFactory` wires the discriminated `StepResolution` result + emits per-variant halt reasons, `classifyHalt` learned the new `missing-step-arg` pattern, halt-reason text widened to acknowledge both CLI and brain callers. Archive: `.relay/archive/issues/brain-cannot-advance-cards-past-approved-column.md`; impl doc: `.relay/implemented/brain-cannot-advance-cards-past-approved-column.md`. Suite 772 → 784.
-
-- **`ui-markdown-render-breaks-partway-through-content.md`** — OUTSTANDING, P2. **Phase 29 target.**
-  - Evidence: `src/ui/lib/markdown.ts:13-18` — single `marked.parse` → `DOMPurify.sanitize` pipeline. Three call sites (`card_detail.ts:46, 87, 106`) all share the same pipeline. Dogfood observation: some portion of rendered content shows as styled markup, then partway through switches to raw text. Specifics need bisecting from a captured-source repro. Filed with five candidate root-cause hypotheses (marked tokenization edge case, DOMPurify strip, op writer malformation — N/A post-Phase-28 since body is user-only, line-ending mismatch, partial markdown construct).
-  - Source: 2026-05-17 product-direction dogfood.
-  - Pipeline stage: no analysis yet → `/relay-analyze`. Phase 29 step 29.1 is exactly this analyze + bisect.
+None. The directory is empty.
 
 ---
 
@@ -44,7 +35,7 @@ Severity distribution of the active issue backlog: **P1 ×0**, **P2 ×1** (`ui-m
 All 9 features have status `DESIGNED` with no `## Analysis` section yet — each is awaiting `/relay-analyze`. Brainstorm aggregator at `dual-driver-orchestration_brainstorm.md` carries the 8 settled decisions + 13 cross-feature open questions.
 
 - **`dual-driver-orchestrator-core.md`** — OUTSTANDING, DESIGNED. Foundation; 7 of the other 8 depend on it. Pure-decide LLM engine in a new `src/orchestrator/` top-level dir; returns typed `OrchestratorDecision` per call.
-- **`dual-driver-lead-follow-protocol.md`** — OUTSTANDING, DESIGNED. Global lead state + transfer mechanisms (CLI + UI + user-chat-triggered) + typed SSE events. **Subsumes Frame B Feature #5** (`brain-halt-on-user-chat`, now SUPERSEDED).
+- **`dual-driver-lead-follow-protocol.md`** — OUTSTANDING, DESIGNED. Global lead state + transfer mechanisms (CLI + UI + user-chat-triggered) + typed SSE events. **Subsumes the now-archived `brain-halt-on-user-chat` feature** (archived 2026-05-23 at `.relay/archive/features/brain-halt-on-user-chat.md`).
 - **`dual-driver-observer-advisor.md`** — OUTSTANDING, DESIGNED. Non-lead reasoner; heuristic pre-filter for cost control; rate-limited advisory event publication.
 - **`dual-driver-lead-handoff-reconciliation.md`** — OUTSTANDING, DESIGNED. First-class feature per the brainstorm's most consequential decision: when brain reclaims lead, it diffs the board state since handoff and re-evaluates prior plans per affected card before resuming.
 - **`dual-driver-backward-transitions-and-substrate-advisory.md`** — OUTSTANDING, DESIGNED. Widens the lifecycle state machine to allow all column→column edges; adds keep/wipe/branch hygiene RPCs for transitions that orphan substrate.
@@ -53,16 +44,15 @@ All 9 features have status `DESIGNED` with no `## Analysis` section yet — each
 - **`dual-driver-halt-categories.md`** — OUTSTANDING, DESIGNED. Typed halt taxonomy (~13 named categories) replacing the current free-string `classifyHalt()` return.
 - **`dual-driver-frame-b-chat-wire.md`** — OUTSTANDING, DESIGNED. Wires Frame B's Card Detail chat panel as a second invocation surface to the orchestrator-core; command-vs-conversation classifier; auto-dispatch per autonomy mode.
 
-### Cluster: Frame B card-pipeline UI (designed 2026-05-17; status DESIGN COMPLETE; 5 active + 1 superseded child features)
+### Cluster: Frame B card-pipeline UI (designed 2026-05-17; status DESIGN COMPLETE; 5 active child features)
 
-All active features have status `DESIGNED` with no `## Analysis` section yet. Brainstorm aggregator at `card-pipeline-ui_brainstorm.md`. Each feature declared the now-archived `engine-ops-still-append-to-card-body` issue as Prerequisite #0; that prerequisite is satisfied by Phase 28 completion (2026-05-23).
+All active features have status `DESIGNED` with no `## Analysis` section yet. Brainstorm aggregator at `card-pipeline-ui_brainstorm.md`. Each feature declared the now-archived `engine-ops-still-append-to-card-body` issue as Prerequisite #0; that prerequisite is satisfied by Phase 28 completion (2026-05-23). Cluster originally listed 6 children; #5 (`brain-halt-on-user-chat`) is now SUPERSEDED + physically archived, leaving 5 active.
 
 - **`card-detail-multi-surface-view.md`** — OUTSTANDING, DESIGNED. Restructures `renderCardDetail` into a top-to-bottom narrative (description → per-op artifacts → chat); new `card_artifacts_index` RPC; per-section `<details>` with re-run + history affordances. Cohort A.
 - **`card-detail-op-controls-and-button-states.md`** — OUTSTANDING, DESIGNED. Per-op sidebar buttons + 4-state button machine; new RPCs `op_invoke` + `card_resume`. Cohort A.
 - **`chat-driven-description-authoring.md`** — OUTSTANDING, DESIGNED. L-complexity. Extends `ModelAdapter` with `invokeWithTools`; new `chat_agent.ts` with 4-tool surface; diff-preview UI. Cohort B; depends on Cohort A. Also depends on dual-driver feature #9 (`frame-b-chat-wire`) for command-routing infrastructure.
 - **`column-transition-op-triggering.md`** — OUTSTANDING, DESIGNED. Column moves trigger corresponding op per autonomy policy. Cohort C.
 - **`card-detail-run-history-surface.md`** — OUTSTANDING, DESIGNED. Per-op `⋯` history toggle; new `card_runs_list` RPC. Cohort C (polish; anytime after multi-surface view).
-- ~~`brain-halt-on-user-chat.md`~~ — **SUPERSEDED 2026-05-23** by `dual-driver-lead-follow-protocol.md`. Excluded from active features count. File archived at `.relay/archive/features/brain-halt-on-user-chat.md` with banner pointing at successor.
 
 ### Cross-cluster interaction notes
 
@@ -72,15 +62,15 @@ All active features have status `DESIGNED` with no `## Analysis` section yet. Br
 
 ---
 
-## Implemented — .relay/implemented/ (37 docs)
+## Implemented — .relay/implemented/ (39 docs)
 
 Last 3 additions (most recent first):
 
+- `brain-cannot-advance-cards-past-approved-column.md` — 2026-05-23, Phase 29.3. Brain's `defaultAgentFactory` now resolves the implement step from the latest plan substrate + git-log inspection; new `src/conductor/step_resolver.ts` module returns a discriminated `StepResolution` union; `classifyHalt` extended with the `missing-step-arg` reason. Suite 772 → 784.
+- `ui-markdown-render-breaks-partway-through-content.md` — 2026-05-23, Phase 29.2. Layered defensive normalization in `src/ui/lib/markdown.ts` (line endings normalized, marked renderer overrides raw-HTML escaping, try/catch fallback to `<pre>`-wrapped raw source). Pure helper extracted to `src/ui/lib/markdown_helpers.ts` (pure-helper-extraction precedent n=15) for vitest reachability; 8 unit tests added — first-ever test coverage for `markdown.ts`.
 - `engine-ops-still-append-to-card-body.md` — 2026-05-23, Phase 28 (3 sub-steps). Engine-ops body-sunset refactor; 6 ops (analyze/plan/review/verify/notebook/implement) now write to per-run substrate; plan-op dual-write compat shim sunset; card body byte-identical to user-authored state across the entire lifecycle.
-- Phase 27 brain-telemetry trio (2026-05-17): Stop button stopping-state, verify-fail-then-wedge halt dedup, brain-log accurate event-time timestamps.
-- Phase 26 polish bundle (2026-05-17): 5 micro-fixes (card deeplink not-found shell, archived column policy badge, edition stamp removal, favicon, stream-label clipping).
 
-Full implementation history at `.relay/implemented/`.
+Full implementation history at `.relay/implemented/` (flat directory, no `issues/` or `features/` subfolders — all 39 docs at the root).
 
 ---
 
@@ -88,14 +78,14 @@ Full implementation history at `.relay/implemented/`.
 
 ### Code Pipeline (issues + features with pipeline-stage sections appended)
 
-None. All 2 active issues and 14 active features are at their initial state (no `## Analysis` section yet). All await `/relay-analyze` to begin the code pipeline.
+None. The issues directory is empty. All 14 active features are at their initial state (no `## Analysis` section yet). All await `/relay-analyze` to begin the code pipeline.
 
 ### Feature Pipeline (brainstorms + designed features)
 
 | Item | File | Stage | Next Step |
 |------|------|-------|-----------|
-| Dual-driver orchestration cluster | `dual-driver-orchestration_brainstorm.md` | DESIGN COMPLETE | Run `/relay-order` to integrate the 9 child features into the backlog. |
-| Frame B card-pipeline UI cluster | `card-pipeline-ui_brainstorm.md` | DESIGN COMPLETE | Run `/relay-order` to (re)prioritize against newly-unblocked features. (Originally awaiting Phase 28 prerequisite; now unblocked.) |
+| Dual-driver orchestration cluster | `dual-driver-orchestration_brainstorm.md` | DESIGN COMPLETE | Run `/relay-order` to refresh prioritization now that the issue backlog is empty and Phase 30 has opened. |
+| Frame B card-pipeline UI cluster | `card-pipeline-ui_brainstorm.md` | DESIGN COMPLETE | Same — unblocked since Phase 28; awaits cross-cluster ordering against dual-driver. |
 | `dual-driver-orchestrator-core.md` | individual feature | DESIGNED (no analysis) | Run `/relay-analyze dual-driver-orchestrator-core.md` after `/relay-order` resolves cluster priority. Foundation; recommended first within cluster. |
 | `dual-driver-lead-follow-protocol.md` | individual feature | DESIGNED (no analysis) | `/relay-analyze` after #1. |
 | `dual-driver-observer-advisor.md` | individual feature | DESIGNED (no analysis) | `/relay-analyze` after #1 + #2. |
@@ -111,4 +101,6 @@ None. All 2 active issues and 14 active features are at their initial state (no 
 | `column-transition-op-triggering.md` | individual feature | DESIGNED (no analysis) | `/relay-analyze` — Frame B Cohort C. |
 | `card-detail-run-history-surface.md` | individual feature | DESIGNED (no analysis) | `/relay-analyze` — Frame B Cohort C (polish). |
 
-**Staleness check**: no in-progress items with pipeline-stage dates. All items are pre-pipeline (DESIGNED but never analyzed) so the >7-day staleness rule does not apply. Earliest creation date is 2026-05-17 (Frame B features); newest is 2026-05-23 (dual-driver features + brain-cannot-advance issue).
+**Staleness check**: no in-progress items with pipeline-stage dates. All items are pre-pipeline (DESIGNED but never analyzed) so the >7-day staleness rule does not apply. Earliest creation date is 2026-05-17 (Frame B features); newest is 2026-05-23 (dual-driver features).
+
+**Regression check**: no previously-archived items show evidence of regression in the current code. The two new archive entries (`ui-markdown-render-breaks-partway-through-content`, `brain-cannot-advance-cards-past-approved-column`) and one new archived feature (`brain-halt-on-user-chat` — superseded, not regressed) all reflect clean closures.

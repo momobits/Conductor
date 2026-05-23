@@ -8,29 +8,23 @@
 
 ## Overall strategy
 
-**Phases 1–18 resolved.** Since the 2026-05-17 ordering, **Phase 15 (brain telemetry)**, **Phase 16 (polish bundle)**, and **Phase 18 (engine-ops body sunset)** all closed (Control Phases 27, 26, and 28 respectively; tags `phase-{26,27,28}-*-closed`). The Phase 18 closure (2026-05-23) is the structural prerequisite that unblocks Frame B, AND surfaced a deeper architectural concern during the dogfood that produced a NEW feature cluster + a NEW issue:
+**Issue backlog is empty.** Phases 1–19 and Phase 21 all resolved. Phase 19 (markdown rendering pipeline) shipped 2026-05-23 via Control Phase 29.2; Phase 21 (brain step-resolution gap) shipped 2026-05-23 via Control Phase 29.3. The dogfood-driven trickle of new issues that defined the last three weeks of work has, for now, stopped — every issue surfaced through 2026-05-23 is closed.
 
-- **1 NEW issue** filed 2026-05-23: `brain-cannot-advance-cards-past-approved-column` (P2; narrow `--step` gap in the brain loop). Surfaced during omniforge dogfood when the brain halted with `'approved' requires --step <id>` on every card it tried to walk past planned.
-- **1 NEW feature cluster** brainstormed + designed 2026-05-23: **`dual-driver-orchestration`** (9 child features + 1 design aggregator) — rebalances Conductor's determinism-flexibility design. Replaces the deterministic Conductor loop with LLM-driven orchestration; introduces a global lead-follow protocol (human OR LLM as lead, with reconciliation on lead-handoff); preserves determinism at the op + substrate + commit + lifecycle layers.
-- **Frame B brainstorm updated**: Feature #5 (`brain-halt-on-user-chat`) marked SUPERSEDED by dual-driver feature #2 (`lead-follow-protocol`) — Frame B drops 6 → 5 active features.
+**14 active items remain, all designed features in two clusters:**
 
-**16 active items** total (2 issues + 14 designed features = 5 Frame B + 9 dual-driver), grouped into **four naturally-bounded phases**:
+- **Phase 20** — **Frame B: card-pipeline UI cluster (5 active features)**. Originally designed 2026-05-17. Prerequisite (Phase 18) satisfied 2026-05-23. Strategic UX direction surfacing the Relay pipeline as first-class user-facing UI.
+- **Phase 22** — **Dual-driver orchestration cluster (9 designed features)**. Designed 2026-05-23. Strategic architectural rebalance. Foundation feature `dual-driver-orchestrator-core` unlocks everything else; `brain-loop-replacement` is the big-bang switch. Largest scope in the backlog (~6+ sessions).
 
-- **Phase 19** — ~~**Markdown rendering pipeline (P2 ×1)**.~~ **COMPLETE 2026-05-23**. Layered defensive normalization in `src/ui/lib/markdown.ts` (line-ending normalization + marked renderer override for raw HTML escape + try/catch fallback). See [implementation doc](implemented/ui-markdown-render-breaks-partway-through-content.md). Suite 764 → 772 (+8 new tests).
-- **Phase 21** (new) — **Brain step-resolution gap (P2 ×1)**. The narrow `--step` halt that surfaced during omniforge dogfood. **May ship as a quick stop-gap fix** OR be resolved-by-supersession when dual-driver feature #6 (`brain-loop-replacement`) ships. Decision deferred to first `/relay-analyze` pass.
-- **Phase 22** (new) — **Dual-driver orchestration cluster (9 designed features)**. Strategic architectural rebalance. Foundation feature `dual-driver-orchestrator-core` unlocks everything else; brain-loop-replacement is the big-bang switch. Likely 6+ sessions; largest scope in the backlog.
-- **Phase 20** — **Frame B: card-pipeline UI cluster (5 active features)**. Originally designed 2026-05-17; prerequisite (Phase 18) now satisfied. brain-halt-on-user-chat (was #51) now SUPERSEDED by Phase 22 feature #2. Frame B Cohort B (`chat-driven-description-authoring`) now also depends on Phase 22 feature #9 (`frame-b-chat-wire`) for command-routing infrastructure.
+No active issues, no promoted features, no grouped runs in flight, no archived-supersedes mappings to re-route. The lifecycle integrity warnings block in `relay-status.md` is empty.
 
-No promoted features, no grouped runs in flight, no archived-supersedes mappings to re-route.
+**Ordering rationale.** Both clusters are pre-pipeline (no `## Analysis` on any feature file). The strategic question now is whether to **fork** (Phase 20 Cohort A in parallel with Phase 22 Cohort A) or **sequence** (one cluster fully landed before the other starts).
 
-**Ordering rationale.** Phase 19 leads as the smallest unit of immediate progress (single P2 issue; one analyze pass; one fix commit). After Phase 19 ships:
+- **Fork** maximizes throughput; the two clusters share no foundational features at the Cohort A level. Phase 20 Cohort A (#47 `card-detail-multi-surface-view`, #48 `card-detail-op-controls-and-button-states`) is independent of Phase 22 Cohort A (#54–#55, #58, #60, #61). Cross-cluster dependencies appear only at Phase 20 Cohort B (#49 `chat-driven-description-authoring` depends on Phase 22 Cohort D #62 `frame-b-chat-wire`).
+- **Sequence** is cleaner: pick one strategic direction (UX-first vs. architecture-first), drive it through, then start the other. Reduces context-switch cost; risks leaving the other cluster stale.
 
-- **Phase 21 vs. Phase 22 vs. Phase 20 — the strategic ordering question**. Three competing tracks:
-  - Phase 21 (narrow brain fix) is small but operator-visible — unsticks the omniforge dogfood and any other project hitting the `--step` halt.
-  - Phase 22 (dual-driver cluster) is the architectural rebalance the operator explicitly asked for ("I'm uncomfortable with our current design and its boundaries"). Subsumes Phase 21 when feature #6 (`brain-loop-replacement`) ships. Cluster spans ~6+ sessions.
-  - Phase 20 (Frame B) is the strategic UX direction. Cohort A features (multi-surface view + op-controls) are independent of Phase 22 and can ship in parallel.
-- **Recommended after Phase 19**: ship **Phase 21 first** as a quick fix (1-2 sessions; unsticks dogfood while bigger work proceeds), then **Phase 22 foundation features (#1, #2, #5, #7, #8) in parallel with Phase 20 Cohort A** (3+ sessions of forked work), then **Phase 22 downstream + Phase 20 Cohort B-C** in dependency order. Frame B Cohort B (`chat-driven-description-authoring`) blocks on Phase 22 feature #9, so it lands after dual-driver foundation.
-- **Alternative (operator-bound)**: skip Phase 21's narrow fix and roll its scope directly into Phase 22 feature #6. Trade-off: leaves the `--step` halt in dogfood longer; reduces small commit count. Decision pending operator preference.
+**Lean: start with Phase 22 Cohort A.** Reasons: (1) the operator's stated discomfort was specifically architectural ("the brain seems very static; shouldn't Conductor be dynamic enough"), so the dual-driver rebalance addresses the deeper concern; (2) Phase 22 Cohort A features are mostly independent and can be analyzed/planned in parallel batches via `/relay-auto --sweep`; (3) Frame B Cohort A (Phase 20 #47 + #48) can ship in parallel without blocking on Phase 22 — they share no engine surface. Recommend kicking off Phase 22 #54 (`dual-driver-orchestrator-core`) first as the load-bearing foundation; #55, #58, #60, #61 can fan out from there.
+
+**Alternative — UX-first**: if the operator prioritizes visible user-facing progress, ship Phase 20 Cohort A first (#47 + #48). Both are M-complexity, ~2 sessions each. The newspaper-aesthetic card-detail rebuild is the most visible single change in the backlog.
 
 ---
 
@@ -204,14 +198,7 @@ No promoted features, no grouped runs in flight, no archived-supersedes mappings
 
 ## Phase 15 — Brain telemetry — COMPLETE
 
-**Resolved:** 2026-05-17 (Control Phase 27; 3 sub-steps: 27.1 Stop button stopping state; 27.2 verify-fail-then-wedge halt dedup; 27.3 brain-log accurate event-time timestamps). All 3 items shipped; bundling-recommendation with Phase 20 #51 no longer relevant (Phase 20 #51 now SUPERSEDED).
-
-
-**Why placed here.** Three independent issues touching `src/ui/views/monitor.ts` and `src/conductor/loop.ts`. The Monitor view is the brain's only observability surface; tightening its telemetry should happen as a coherent pass. The Stop button race is P2 (most user-visible); the duplicate halt events and paint-time timestamps are P3 (cosmetic, but they're misleading the user about what's actually happening). Now placed second behind Phase 16 because Phase 16 is already mapped into Control Phase 26 and ready to begin analysis.
-
-**Recommended approach.** Item #31: optimistic button state on click (immediately set `disabled` + label "stopping…" before awaiting RPC); in-pill `stopping` state via `data-running="stopping"` attribute; treat self-halts as equivalent to user-initiated stop. Item #32: pick Option B from the issue — introduce `conductor-wedge` as a separate event kind from `conductor-halt`; UI handler routes wedge events to a different log row style. Cleaner contract; subscribers can count halts and wedges separately. Item #33: change `brainLog: string[]` → `brainLog: Array<{ ts: number; line: string }>`; preserve event time at push; render with `new Date(entry.ts)`.
-
-**Ship as one PR or three small commits in one branch.** All three touch the same Monitor surface; reviewing them together reduces cognitive load. Natural Control Phase 27 candidate.
+**Resolved:** 2026-05-17 (Control Phase 27; 3 sub-steps: 27.1 Stop button stopping state; 27.2 verify-fail-then-wedge halt dedup; 27.3 brain-log accurate event-time timestamps). All 3 items shipped; bundling-recommendation with Phase 20 #51 no longer relevant (Phase 20 #51 SUPERSEDED).
 
 | #  | Item                                                                                   | File                                                                                                                  | Complexity | Depends on |
 |----|---------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|------------|------------|
@@ -225,13 +212,6 @@ No promoted features, no grouped runs in flight, no archived-supersedes mappings
 
 **Resolved:** 2026-05-17 (Control Phase 26; all 5 micro-fixes shipped: deeplink not-found shell, archived column policy badge, edition stamp removal, favicon, stream-label clipping). Bundled as one PR per the original plan.
 
-
-**Why placed here / first.** Four independent micro-fixes that share no engine surface, ready to ship as one bundled docs/copy PR. Already mapped 1:1 to Control Phase 26 steps 26.1–26.4 per `.control/phases/phase-26-polish-bundle/steps.md`. The deeplink not-found (#34) is the lone P2 user-confusion fix; the rest are P3 cosmetics. Begin analysis with `/relay-analyze ui-card-deeplink-not-found-silently-renders-board.md`.
-
-**Recommended approach.** #34: try/catch around `renderCardDetail` in `src/ui/main.ts:dispatch` (both call sites at lines 127 and 131); on "Card file not found", render `renderEmptyShell` with the bad id surfaced. #36: pick Option B from the issue — render a `terminal` policy badge for `archived` using a dedicated class in `src/ui/views/board.ts`. #37: populate the `data-edition-vol` / `data-edition-no` slots at runtime from STATE.md or an `engine_state` RPC, OR (lighter) rip the stamp. Decision pinned during /relay-analyze. #38: ship `src/ui/favicon.svg` (16x16 viewBox, `§` glyph on `--ink-500`) + `<link rel="icon" type="image/svg+xml">` in `index.html` + update `scripts/build-ui.mjs`.
-
-**Ship as one bundled PR.** Four independent micro-changes; reviewing them together reduces overhead.
-
 | #  | Item                                                                              | File                                                                                                                  | Complexity | Depends on |
 |----|----------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|------------|------------|
 | 34 | ~~Deep-link to non-existent card silently renders Board view~~ ✓ [implemented](implemented/ui-card-deeplink-not-found-silently-renders-board.md) (2026-05-17) | ~~[ui-card-deeplink-not-found-silently-renders-board.md](issues/ui-card-deeplink-not-found-silently-renders-board.md)~~ → [archive](archive/issues/ui-card-deeplink-not-found-silently-renders-board.md)   | XS         | —          |
@@ -242,8 +222,6 @@ No promoted features, no grouped runs in flight, no archived-supersedes mappings
 | 45 | ~~Card-detail `.stream::before` "LIVE FEED ⌁" label clipped under `Work this card` button (CSS layout regression)~~ ✓ [implemented](implemented/ui-stream-live-feed-label-clipped-by-work-button.md) (2026-05-17) | ~~[ui-stream-live-feed-label-clipped-by-work-button.md](issues/ui-stream-live-feed-label-clipped-by-work-button.md)~~ → [archive](archive/issues/ui-stream-live-feed-label-clipped-by-work-button.md)     | XS         | — (single-CSS-line fix: `margin-bottom` on `#work-btn`) |
 
 **Migrated out**: `ui-footer-r-key-affordance-not-wired` (was #39 in this phase) — closed by Phase 17 #43.
-
-**New 2026-05-17**: #45 added to the bundle as the natural 5th step (Control Phase 26 step 26.5). Single-CSS-line fix; no analysis cycle needed — ship with the rest of the polish bundle.
 
 ---
 
@@ -268,28 +246,15 @@ No promoted features, no grouped runs in flight, no archived-supersedes mappings
 
 **Resolved:** 2026-05-17 (Control Phase 28; 3 sub-steps: 28.1 review + plan-op shim sunset; 28.2 verify + notebook; 28.3 implement + RPC + UI render widening). See [implementation doc](implemented/engine-ops-still-append-to-card-body.md).
 
-
-**Why placed here / repositioned.** *Was originally placed last as low-impact structural cleanup. Now repositioned ahead of Phase 20 because it is the declared prerequisite for the entire Frame B card-pipeline UI cluster.* Until card body has single-owner semantics, Frame B's chat-driven description authoring (Phase 20 #49) has ambiguous targets — the body's "description vs. agent-generated section" boundary is the foundation Frame B builds on.
-
-Structural follow-up filed as a closure obligation during Phase 12's grouped-run resolve (`/relay-resolve` step on `ui-work-card-output-persisted-into-card-body`). Four ops (`review`, `verify`, `notebook`, `implement`) still call `appendSection(card.path, ...)` and the plan op carries a dual-write compat shim retained for `review.ts:41`'s `extractSection(card.body, 'Implementation Plan')` reader. Per-click bloat from these ops is gated by human lifecycle transitions (much slower than the Phase 12 anti-pattern that drove L-complexity scope), and the existing dual-write shim cleanly carries cards across the boundary — so this phase can wait behind Phase 16 polish without urgency in isolation. But it MUST land before Phase 20 begins.
-
-**Recommended approach.** Three commits in one branch (per the issue's "Proposed direction"):
-
-1. **Migrate `review` op** — read `Implementation Plan` from `.conductor/runs/<runId>/plan.md` via `readRunArtifact`. Write `## Adversarial Review` to `<runId>/review.md` via `RunArtifactWriter`. Once review reads from substrate, **remove the plan-op dual-write shim** (`src/engine/ops/plan.ts:100` line and its retained `appendSection` import). Card body byte-identity for the `discovered → planned` transition becomes complete. Update test fixtures.
-2. **Migrate `verify` + `notebook`** — verify writes `<runId>/verify.md`; notebook reads via `readRunArtifact`. Drop body appends.
-3. **Migrate `implement`** — write `<runId>/implement.md`. Drop body append.
-
-**Open Questions to resolve during /relay-analyze** (from the issue's `## Open Questions` section): (1) cross-run runId lookup approach — frontmatter `latest_run_id` field, scan-and-mtime-sort, or `listRuns(repo)` filtered by cardId suffix; (2) notebook substrate-read once verify migrates; (3) whether to deprecate or remove `appendSection` / `extractSection` after all four migrate. Natural Control Phase 28 candidate (M complexity, gated by analysis decision on runId lookup).
-
 | #  | Item                                                                                                                | File                                                                                              | Complexity | Depends on                                              |
 |----|--------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------|------------|---------------------------------------------------------|
 | 44 | ~~`review`/`verify`/`notebook`/`implement` ops still append to card body; plan-op dual-write compat shim ready to sunset~~ ✓ [implemented](implemented/engine-ops-still-append-to-card-body.md) (2026-05-17; Phase 28; all 3 sub-steps shipped — Frame B unblocked) | ~~[engine-ops-still-append-to-card-body.md](issues/engine-ops-still-append-to-card-body.md)~~ → [archive](archive/issues/engine-ops-still-append-to-card-body.md) | L (was M; revised after 3 sub-steps + bundled latent-bug fix) | Phase 12 ✓ (RunArtifactWriter substrate landed); **unblocks Phase 20 (Frame B)** |
 
 ---
 
-## Phase 19 — Markdown rendering pipeline (NEW) — COMPLETE
+## Phase 19 — Markdown rendering pipeline — COMPLETE
 
-**Resolved:** 2026-05-23. See [implementation doc](implemented/ui-markdown-render-breaks-partway-through-content.md).
+**Resolved:** 2026-05-23 (Control Phase 29.2). See [implementation doc](implemented/ui-markdown-render-breaks-partway-through-content.md).
 
 **Resolution summary.** Layered defensive normalization in `src/ui/lib/markdown.ts`: (1) `normalizeLineEndings` extracted to new pure-helper module `src/ui/lib/markdown_helpers.ts` (vendor-free, Node-testable); (2) `marked.use({ renderer: { html(token) { return escapeHtml(token.text); } } })` escapes raw HTML tokens (both block-level and inline) — eliminates the dominant root cause where CommonMark's HTML-block rule suspends markdown parsing on unclosed LLM-emitted `<details>` / `<div>` / `<table>` tags; (3) `marked.parse + DOMPurify.sanitize` wrapped in try/catch with `<pre>${escapeHtml(normalized)}</pre>` fallback. First-ever unit-test coverage for `markdown.ts` via 8 tests in new `tests/ui/markdown.test.ts`. Suite 764 → 772 (+8 net new tests). Pattern precedent: pure-helper extraction n=14 → n=15 (ADR filing remains operator-deferred per memory note "ADR scope discipline"). Forward benefit for Phase 20 Frame B features #47 and #49 (additional `renderMarkdown` call sites) — passive improvement, no coordination required.
 
@@ -299,81 +264,68 @@ Structural follow-up filed as a closure obligation during Phase 12's grouped-run
 
 ---
 
-## Phase 20 — Frame B: card-pipeline UI cluster (5 active + 1 superseded designed features) — ACTIVE
+## Phase 20 — Frame B: card-pipeline UI cluster (5 active features) — ACTIVE
 
-**Status.** Brainstormed (`/relay-brainstorm`) and designed (`/relay-design`) on 2026-05-17. The Frame B brainstorm at [`card-pipeline-ui_brainstorm.md`](features/card-pipeline-ui_brainstorm.md) holds the architectural narrative (3 settled premises, 3 approaches considered with B "Chat-as-Editor" selected, 13 decisions) and the Feature Breakdown table linking to the 6 children below. Status: DESIGN COMPLETE.
+**Status.** Brainstormed (`/relay-brainstorm`) and designed (`/relay-design`) on 2026-05-17. The Frame B brainstorm at [`card-pipeline-ui_brainstorm.md`](features/card-pipeline-ui_brainstorm.md) holds the architectural narrative (3 settled premises, 3 approaches considered with B "Chat-as-Editor" selected, 13 decisions) and the Feature Breakdown table linking to the 5 active children below (down from 6; #51 superseded). Status: DESIGN COMPLETE.
 
-**Why placed here.** Strategic product direction surfacing the Relay pipeline as a first-class user-facing UI experience — chat as authoring surface for the description, per-op sidebar controls instead of monolithic "Work this card", multi-surface card-detail view showing description + per-op artifacts + chat as a unified narrative, column-transition op triggering per existing autonomy policy, brain halt-on-user-chat with a "Continue this card" affordance, and a run-history surface for prior runs. Settled architectural premise: Option 2 (per-file artifacts with user-authored card body). The brainstorm explicitly rejected Option 3 (sections-in-body) after deliberation — Frame B builds *forward* on Phase 21's substrate rather than reversing it.
+**Why placed here.** Strategic product direction surfacing the Relay pipeline as a first-class user-facing UI experience — chat as authoring surface for the description, per-op sidebar controls instead of monolithic "Work this card", multi-surface card-detail view showing description + per-op artifacts + chat as a unified narrative, column-transition op triggering per existing autonomy policy, and a run-history surface for prior runs. Settled architectural premise: Option 2 (per-file artifacts with user-authored card body). The brainstorm explicitly rejected Option 3 (sections-in-body) after deliberation — Frame B builds *forward* on Phase 12's substrate rather than reversing it.
 
 **Hard prerequisite**: Phase 18 #44 (engine-ops-still-append-to-card-body) MUST land first. ✓ **SATISFIED 2026-05-23** (Phase 18 closed; tag `phase-28-engine-ops-body-sunset-closed`).
 
-**NEW dependency**: Frame B Cohort B feature `chat-driven-description-authoring` (#49) now ALSO depends on Phase 22 feature #9 (`dual-driver-frame-b-chat-wire`) for command-routing infrastructure. Cohort B blocks on Phase 22 foundation features landing.
+**Cross-cluster dependency**: Frame B Cohort B feature `chat-driven-description-authoring` (#49) ALSO depends on Phase 22 feature #62 (`dual-driver-frame-b-chat-wire`) for command-routing infrastructure. Cohort B blocks on Phase 22 Cohort A + D landing.
 
-**Feature breakdown change 2026-05-23**: #51 (`brain-halt-on-user-chat`) SUPERSEDED by Phase 22 feature #2 (`dual-driver-lead-follow-protocol`). Under the dual-driver model's global-lead protocol, "user chat halts the brain" becomes "user-chat triggers lead-transfer" — same behavior, generalized.
+**Feature breakdown change 2026-05-23**: #51 (`brain-halt-on-user-chat`) SUPERSEDED by Phase 22 feature #55 (`dual-driver-lead-follow-protocol`) and physically archived. Under the dual-driver global-lead protocol, "user chat halts the brain" becomes "user-chat triggers lead-transfer" — same behavior, generalized.
 
-**Recommended approach.** Strict in-order build per the feature files' Development Order sections. The 6 features ship as 3 PR cohorts:
+**Recommended approach.** Strict in-order build per the feature files' Development Order sections. The 5 active features ship as 3 PR cohorts:
 
-- **Cohort A** ([#47, #48] parallel): multi-surface view + op-controls + button state machine. Share no code surface; can ship in parallel if two operators available.
-- **Cohort B** ([#49]): chat-driven description authoring. The largest feature by lines-of-code and highest-risk by API surface (extends `ModelAdapter` interface, new `chat_agent.ts`, new RPCs, diff-preview UI). Lands after Cohort A because both surfaces are needed for chat to plug into.
-- **Cohort C** ([#50, #51, #52]): column-transition triggering + brain-halt + run-history. Independent of each other; can ship sequentially or bundled.
-
-**Bundling recommendation with Phase 15.** #51 (`brain-halt-on-user-chat`) introduces a new `conductor-halt` event with `reason='user-chat'`. Phase 15 #32 (duplicate-halt deduplication) is a natural prerequisite — adding a new halt reason on top of already-duplicated events would compound the Monitor's confusion. Recommend pulling #32 forward into Cohort C alongside #51 (grouped run if `/relay-analyze` confirms the overlap), leaving Phase 15 with just #31 and #33.
+- **Cohort A** ([#47, #48] parallel): multi-surface view + op-controls + button state machine. Share no code surface; can ship in parallel if two operators available. **Independent of Phase 22 — can run concurrently with Phase 22 Cohort A.**
+- **Cohort B** ([#49]): chat-driven description authoring. The largest feature by lines-of-code and highest-risk by API surface (extends `ModelAdapter` interface, new `chat_agent.ts`, new RPCs, diff-preview UI). Lands after Cohort A AND after Phase 22 #62 lands.
+- **Cohort C** ([#50, #52]): column-transition triggering + run-history. Independent of each other; can ship sequentially or bundled. #50 depends on #48 (delegates to `op_invoke`).
 
 | #  | Item                                                                            | File                                                                                                          | Complexity | Depends on                                                                                              |
 |----|--------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|------------|---------------------------------------------------------------------------------------------------------|
-| 47 | **`card-detail-multi-surface-view`** — restructure `renderCardDetail` into top-to-bottom narrative (description → per-op artifacts → chat); new `card_artifacts_index` RPC; per-section `<details>` with re-run + history affordances; empty-state CTAs delegating to #48's `op_invoke`. | [card-detail-multi-surface-view.md](features/card-detail-multi-surface-view.md)                              | M          | Phase 18 #44 (single-owner body) |
-| 48 | **`card-detail-op-controls-and-button-states`** — replace monolithic `Work this card` with per-op sidebar buttons (Analyze · Plan · Review · Implement · Verify · Resolve · Work all); 4-state button machine (Idle / Running / Halted-by-chat / Halted-by-assist); new RPCs `op_invoke` + `card_resume`; per-op column-eligibility matrix; card-detail keyboard shortcuts via global dispatcher. | [card-detail-op-controls-and-button-states.md](features/card-detail-op-controls-and-button-states.md)        | M          | Phase 18 #44 |
-| 49 | **`chat-driven-description-authoring`** — extend `ModelAdapter` with optional `invokeWithTools`; new `src/engine/ops/chat_agent.ts` with 4-tool surface (grep / read / glob / propose-description-edit); new RPCs `chat_apply_edit` + `chat_proposed_edit_get`; diff-preview UI with Apply/Reject buttons; v1 capped at 1 round of tool calls. | [chat-driven-description-authoring.md](features/chat-driven-description-authoring.md)                        | L          | #47, #48 |
+| 47 | **`card-detail-multi-surface-view`** — restructure `renderCardDetail` into top-to-bottom narrative (description → per-op artifacts → chat); new `card_artifacts_index` RPC; per-section `<details>` with re-run + history affordances; empty-state CTAs delegating to #48's `op_invoke`. | [card-detail-multi-surface-view.md](features/card-detail-multi-surface-view.md)                              | M          | Phase 18 #44 ✓ |
+| 48 | **`card-detail-op-controls-and-button-states`** — replace monolithic `Work this card` with per-op sidebar buttons (Analyze · Plan · Review · Implement · Verify · Resolve · Work all); 4-state button machine (Idle / Running / Halted-by-chat / Halted-by-assist); new RPCs `op_invoke` + `card_resume`; per-op column-eligibility matrix; card-detail keyboard shortcuts via global dispatcher. | [card-detail-op-controls-and-button-states.md](features/card-detail-op-controls-and-button-states.md)        | M          | Phase 18 #44 ✓ |
+| 49 | **`chat-driven-description-authoring`** — extend `ModelAdapter` with optional `invokeWithTools`; new `src/engine/ops/chat_agent.ts` with 4-tool surface (grep / read / glob / propose-description-edit); new RPCs `chat_apply_edit` + `chat_proposed_edit_get`; diff-preview UI with Apply/Reject buttons; v1 capped at 1 round of tool calls. | [chat-driven-description-authoring.md](features/chat-driven-description-authoring.md)                        | L          | #47, #48, Phase 22 #62 |
 | 50 | **`column-transition-op-triggering`** — when a card moves columns (drag-drop, keyboard, chat), invoke corresponding op per autonomy policy; new shared `src/ui/lib/column_ops.ts` with COLUMN_OPS_MAP; extends `board_dnd` + `board_keys` drop/move handlers. | [column-transition-op-triggering.md](features/column-transition-op-triggering.md)                            | S          | #48 (delegates to `op_invoke`) |
-| ~~51~~ | ~~**`brain-halt-on-user-chat`**~~ **SUPERSEDED 2026-05-23** by Phase 22 feature #2 ([`dual-driver-lead-follow-protocol`](features/dual-driver-lead-follow-protocol.md)). Under the dual-driver global-lead protocol, "user chat halts the brain" becomes "user-chat triggers lead-transfer; human takes over the whole board." Same behavior, generalized. Do not implement as a separate Frame B feature. | [brain-halt-on-user-chat.md](features/brain-halt-on-user-chat.md) (preserved with SUPERSEDED banner) | — | superseded |
+| ~~51~~ | ~~**`brain-halt-on-user-chat`**~~ **SUPERSEDED 2026-05-23** by Phase 22 feature #55 ([`dual-driver-lead-follow-protocol`](features/dual-driver-lead-follow-protocol.md)). File physically archived at [archive/features/brain-halt-on-user-chat.md](archive/features/brain-halt-on-user-chat.md). Do not implement as a separate Frame B feature. | archived | — | superseded |
 | 52 | **`card-detail-run-history-surface`** — per-op `⋯` history toggle; new `card_runs_list` RPC (globs `.conductor/runs/*-<cardId>/`); section state machine extends with `viewing-history` state. | [card-detail-run-history-surface.md](features/card-detail-run-history-surface.md)                            | S          | #47 (section state-machine surface) |
 
-**Intra-phase build order (per feature files' Development Order):** #47 ‖ #48 → #49 → #50 → #52 (polish, anytime after #47). #51 dropped (SUPERSEDED).
+**Intra-phase build order (per feature files' Development Order):** #47 ‖ #48 → #49 → #50 → #52 (polish, anytime after #47). #51 dropped (SUPERSEDED + archived).
 
 ---
 
-## Phase 21 — Brain step-resolution gap (NEW 2026-05-23) — RESOLVED 2026-05-23
+## Phase 21 — Brain step-resolution gap — COMPLETE
 
-**RESOLVED 2026-05-23.** Item #53 shipped per the Recommended Approach (Option 2: substrate parse + git-log inspection). New module `src/conductor/step_resolver.ts` + `defaultAgentFactory` wiring + `classifyHalt` extension. Implementation doc at `.relay/implemented/brain-cannot-advance-cards-past-approved-column.md`. Issue file archived to `.relay/archive/issues/brain-cannot-advance-cards-past-approved-column.md`. Full suite green at 784/784 tests (+12 net new).
+**Resolved:** 2026-05-23 (Control Phase 29.3). See [implementation doc](implemented/brain-cannot-advance-cards-past-approved-column.md).
 
-**Why placed here.** Narrow P2 issue surfaced during omniforge dogfood 2026-05-23: the brain halts on every card it tries to walk past `planned` with `'approved' requires --step <id> (one step per call)`. `defaultAgentFactory` at `src/conductor/loop.ts:249-262` constructs `TaskAgent` without a step arg; `case 'approved':` in `task_agent.ts:162-176` requires `this.step` and halts otherwise. Brain CAN walk 5 of 7 transitions but cannot pass `approved → building`.
-
-**Why standalone phase (vs. roll into Phase 22)**: this is a quick fix (1-2 sessions; M complexity at most) that unsticks every dogfood project hitting the halt. The alternative — rolling its scope into Phase 22 feature #6 (`brain-loop-replacement`) — leaves the halt in production for 6+ sessions. Operator decision pending; standalone is the recommended path.
-
-**Recommended approach.** Three sub-options from the issue's Proposed direction:
-1. Frontmatter `next_step: '1.1'` field (simplest; requires schema migration).
-2. Parse plan substrate at runtime; git-log inspection for already-implemented steps; pick next un-implemented (cleanest long-term).
-3. Add `step?: string` to `AgentFactory` + default to `1.1` for `approved` cards (lowest-effort stop-gap).
-
-Lean: Option 2 (substrate parse + git log). Aligns with Phase 28's substrate-first philosophy.
-
-ALSO ships: small extension to `classifyHalt()` in `src/conductor/halt.ts` so the halt surfaces as a typed `missing-step-arg` reason instead of `unrecognized-error`. ~5-line addition; lands regardless of which step-resolution sub-option ships.
-
-**Closure-by-supersession path**: if Phase 22 feature #6 (`brain-loop-replacement`) lands before this phase ships, the orchestrator-driven loop computes the next step naturally from substrate; this phase's narrow fix becomes unnecessary. The issue file at `.relay/issues/brain-cannot-advance-cards-past-approved-column.md` documents this supersession path in its open questions.
+**Resolution summary.** Shipped Option 2 from the issue's Proposed direction (substrate parse + git-log inspection). New module `src/conductor/step_resolver.ts` exports `resolveNextStep` which reads the latest plan substrate (`<runId>/plan.md`), parses H3 dotted-ID step headings, walks recent git log for `feat|fix|...(<phase>.<step>):` commit subjects scoped to the card's phase, and returns the first plan step ID NOT in the committed set. Return is a discriminated `StepResolution` union (`{kind:'resolved',step}` | `{kind:'no-plan'}` | `{kind:'unparseable-plan'}` | `{kind:'all-committed'}`) so `defaultAgentFactory` emits a SPECIFIC halt reason per failure mode. `defaultAgentFactory` wraps construction in an async generator IIFE so it can `await readCard` + `await resolveNextStep` before building TaskAgent while preserving the `AgentFactory: (cardId) => AsyncIterable<TaskEvent>` contract. `classifyHalt` gained a `missing-step-arg` reason + pattern matching `requires --step|one step per call|no implement step resolved`. CLI path unchanged. Suite 772 → 784 (+12 net new tests). **Implication for Phase 22 #59**: when `brain-loop-replacement` ships, `step_resolver.ts` can either be reused by the orchestrator-driven loop OR superseded; decision deferred to Phase 22 #59 analysis.
 
 | #  | Item                                                                                                       | File                                                                                                                  | Complexity | Depends on |
 |----|-----------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|------------|------------|
-| ~~53~~ | ~~Brain cannot advance cards past `approved` column — `defaultAgentFactory` has no step-tracking mechanism~~ **RESOLVED 2026-05-23** | [archive/issues/brain-cannot-advance-cards-past-approved-column.md](archive/issues/brain-cannot-advance-cards-past-approved-column.md) / [implemented/brain-cannot-advance-cards-past-approved-column.md](implemented/brain-cannot-advance-cards-past-approved-column.md) | — | — |
+| 53 | ~~Brain cannot advance cards past `approved` column — `defaultAgentFactory` has no step-tracking mechanism~~ ✓ [implemented](implemented/brain-cannot-advance-cards-past-approved-column.md) (2026-05-23) | ~~[brain-cannot-advance-cards-past-approved-column.md](issues/brain-cannot-advance-cards-past-approved-column.md)~~ → [archive](archive/issues/brain-cannot-advance-cards-past-approved-column.md) | M | none |
 
 ---
 
-## Phase 22 — Dual-driver orchestration cluster (NEW 2026-05-23; 9 designed features) — ACTIVE
+## Phase 22 — Dual-driver orchestration cluster (9 designed features) — ACTIVE
 
-**Status.** Brainstormed (`/relay-brainstorm`) and designed (`/relay-design`) on 2026-05-23. The brainstorm aggregator at [`dual-driver-orchestration_brainstorm.md`](features/dual-driver-orchestration_brainstorm.md) holds the architectural narrative (3 approaches considered with C "Dual-Driver Orchestration" selected; 8 settled decisions) and the Feature Breakdown table linking to the 9 children below. Status: DESIGN COMPLETE.
+**Status.** Brainstormed (`/relay-brainstorm`) and designed (`/relay-design`) on 2026-05-23. The brainstorm aggregator at [`dual-driver-orchestration_brainstorm.md`](features/dual-driver-orchestration_brainstorm.md) holds the architectural narrative (3 approaches considered with C "Dual-Driver Orchestration" selected; 8 settled decisions; 13 cross-feature open questions). Status: DESIGN COMPLETE.
 
 **Why placed here.** Strategic architectural rebalance surfaced during 2026-05-23 omniforge dogfood. Operator concern: "the brain seems very static; why couldn't an LLM call fix this; shouldn't Conductor be dynamic enough to recommend what to do for this card to the user, or move it itself." The brainstorm produced a fundamentally different architecture: replace the deterministic Conductor loop with LLM-driven orchestration; introduce a global lead-follow protocol where exactly one of {human, LLM} is the lead at any moment; the non-lead reasons about state and intervenes when needed. Determinism stays at the op + substrate + commit + lifecycle-column layers; flexibility moves to the orchestration layer.
 
 **Strategic relationships:**
-- **Subsumes the narrow Phase 21 fix** via feature #6 (`brain-loop-replacement`) — the orchestrator-driven loop computes the next step naturally.
-- **Provides infrastructure for Frame B Cohort B** via feature #9 (`frame-b-chat-wire`) — chat as a second invocation surface to the orchestrator.
-- **Subsumed Frame B Feature #5** (`brain-halt-on-user-chat`) via feature #2 (`lead-follow-protocol`).
+- **Subsumes Phase 21's narrow fix surface** via feature #59 (`brain-loop-replacement`) — the orchestrator-driven loop computes the next step naturally. Phase 21 already shipped as a quick stop-gap (2026-05-23); when #59 lands, the question of whether to retain or remove `step_resolver.ts` is deferred to #59's analysis.
+- **Provides infrastructure for Frame B Cohort B** via feature #62 (`frame-b-chat-wire`) — chat as a second invocation surface to the orchestrator.
+- **Subsumed Frame B Feature #51** (`brain-halt-on-user-chat`) via feature #55 (`lead-follow-protocol`).
 
 **Recommended approach.** Strict in-order build per the feature files' Development Order sections. The 9 features ship in cohorts:
 
-- **Cohort A — Foundation** (#1 `orchestrator-core` ‖ #2 `lead-follow-protocol` ‖ #5 `backward-transitions-and-substrate-advisory` ‖ #7 `autonomy-spectrum-config` ‖ #8 `halt-categories`): five mostly-independent foundation features. #1 and #2 are load-bearing; others can ship in parallel. #2 closes the SUPERSEDED Frame B #51 obligation.
-- **Cohort B — Reasoning consumers** (#3 `observer-advisor` ‖ #4 `lead-handoff-reconciliation`): the non-lead reasoning surfaces. Both consume #1's `decide()` engine; both consume #2's lead state.
-- **Cohort C — Big-bang switch** (#6 `brain-loop-replacement`): the LOAD-BEARING feature. Requires all of Cohort A + B stable before implementation. Replaces `defaultAgentFactory` + `runOneCard`'s column switch with orchestrator-driven dispatch. **This is what makes the dual-driver model real** + **fixes the Phase 21 narrow gap.**
-- **Cohort D — UI surface** (#9 `frame-b-chat-wire`): the second invocation surface for the orchestrator. Ships alongside Frame B Cohort B.
+- **Cohort A — Foundation** (#54 `orchestrator-core` ‖ #55 `lead-follow-protocol` ‖ #58 `backward-transitions-and-substrate-advisory` ‖ #60 `autonomy-spectrum-config` ‖ #61 `halt-categories`): five mostly-independent foundation features. #54 and #55 are load-bearing; others can ship in parallel. #55 closes the SUPERSEDED Frame B #51 obligation.
+- **Cohort B — Reasoning consumers** (#56 `observer-advisor` ‖ #57 `lead-handoff-reconciliation`): the non-lead reasoning surfaces. Both consume #54's `decide()` engine; both consume #55's lead state.
+- **Cohort C — Big-bang switch** (#59 `brain-loop-replacement`): the LOAD-BEARING feature. Requires all of Cohort A + B stable before implementation. Replaces `defaultAgentFactory` + `runOneCard`'s column switch with orchestrator-driven dispatch. **This is what makes the dual-driver model real.**
+- **Cohort D — UI surface** (#62 `frame-b-chat-wire`): the second invocation surface for the orchestrator. Ships alongside Frame B Cohort B.
+
+**Operator suggestion**: this cluster is a strong candidate for `/relay-auto --sweep 5` once Cohort A entry points are chosen — five independent foundation features can be analyzed/planned in parallel by per-item agents without context contention. Cohort B + C require sequencing; Cohort D loops back into Frame B's build order.
 
 | #  | Item                                                                            | File                                                                                                          | Complexity | Depends on                                                                                              |
 |----|--------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|------------|---------------------------------------------------------------------------------------------------------|
@@ -382,9 +334,9 @@ ALSO ships: small extension to `classifyHalt()` in `src/conductor/halt.ts` so th
 | 56 | **`dual-driver-observer-advisor`** — non-lead reasoner; heuristic pre-filter; rate-limited advisory publication. | [dual-driver-observer-advisor.md](features/dual-driver-observer-advisor.md) | M | #54, #55 |
 | 57 | **`dual-driver-lead-handoff-reconciliation`** — board-snapshot diff + per-card re-evaluation on lead reclaim. First-class feature per brainstorm decision #8. | [dual-driver-lead-handoff-reconciliation.md](features/dual-driver-lead-handoff-reconciliation.md) | M-L | #54, #55 |
 | 58 | **`dual-driver-backward-transitions-and-substrate-advisory`** — widen state machine to allow all column→column edges; keep/wipe/branch hygiene RPCs. | [dual-driver-backward-transitions-and-substrate-advisory.md](features/dual-driver-backward-transitions-and-substrate-advisory.md) | M | none directly (state-machine surface) |
-| 59 | **`dual-driver-brain-loop-replacement`** — the BIG-BANG switch; replaces `defaultAgentFactory` with orchestrator-driven iter. **Subsumes Phase 21.** | [dual-driver-brain-loop-replacement.md](features/dual-driver-brain-loop-replacement.md) | L | #54, #55, #57, #58, #60, #61 |
+| 59 | **`dual-driver-brain-loop-replacement`** — the BIG-BANG switch; replaces `defaultAgentFactory` with orchestrator-driven iter. Decides retain-or-remove of Phase 21's `step_resolver.ts`. | [dual-driver-brain-loop-replacement.md](features/dual-driver-brain-loop-replacement.md) | L | #54, #55, #57, #58, #60, #61 |
 | 60 | **`dual-driver-autonomy-spectrum-config`** — `autonomy: assist \| hybrid \| autonomous` spectrum + per-mode budgets; legacy migration. | [dual-driver-autonomy-spectrum-config.md](features/dual-driver-autonomy-spectrum-config.md) | M | #54 |
-| 61 | **`dual-driver-halt-categories`** — typed halt taxonomy (~13 categories); replaces free-string `classifyHalt`. | [dual-driver-halt-categories.md](features/dual-driver-halt-categories.md) | S | #54 (light dependency) |
+| 61 | **`dual-driver-halt-categories`** — typed halt taxonomy (~13 categories); replaces free-string `classifyHalt`. Touches `step_resolver.ts`'s new `missing-step-arg` reason (must preserve or migrate). | [dual-driver-halt-categories.md](features/dual-driver-halt-categories.md) | S | #54 (light dependency) |
 | 62 | **`dual-driver-frame-b-chat-wire`** — Frame B chat panel as second invocation surface to orchestrator; command-vs-conversation classifier; auto-dispatch per autonomy mode. | [dual-driver-frame-b-chat-wire.md](features/dual-driver-frame-b-chat-wire.md) | M | #54, #55, #59, #60 |
 
 **Intra-phase build order (per feature files' Development Order):**
@@ -411,23 +363,22 @@ Phase 16 (polish & cosmetics)             [COMPLETE]  ── 5 items shipped via
 Phase 15 (brain telemetry)                [COMPLETE]  ── 3 items shipped via Control Phase 27
 Phase 18 (engine ops body-bloat sunset)   [COMPLETE]  ── 1 L-item shipped via Control Phase 28 (3 sub-steps); FRAME B PREREQUISITE SATISFIED
 
-═══ 2026-05-23 dogfood: +1 issue, dual-driver brainstorm + design ══════════════════
-Phase 19 (markdown rendering pipeline)    [ACTIVE]    ── 1 P2 item; smallest unit of immediate progress; Control Phase 29
-   ↓
-Phase 21 (brain step-resolution gap)      [ACTIVE]    ── 1 P2 item (NEW); ~Control Phase 30 if shipped standalone
-                                                          (alternative: subsumed by Phase 22 #59 brain-loop-replacement)
-   ↓ (parallel-fork; both clusters share NO foundational features)
+═══ 2026-05-23 dogfood: +1 issue + dual-driver brainstorm + design (issue closed same day) ══
+Phase 19 (markdown rendering pipeline)    [COMPLETE]  ── 1 P2 shipped via Control Phase 29.2
+Phase 21 (brain step-resolution gap)      [COMPLETE]  ── 1 P2 shipped via Control Phase 29.3 (stop-gap; surface partially superseded by Phase 22 #59 once it lands)
+
+═══ Active backlog: feature-only (issue queue empty) ════════════════════════════════
    ├─ Phase 22 (dual-driver orchestration)  [ACTIVE]   ── 9 features; strategic architectural rebalance
-   │     Cohort A: #54 ‖ #55 ‖ #58 ‖ #60 ‖ #61 (foundation; parallel)
+   │     Cohort A: #54 ‖ #55 ‖ #58 ‖ #60 ‖ #61 (foundation; parallel — strong /relay-auto --sweep candidate)
    │       ↓
    │     Cohort B: #56 ‖ #57 (reasoning consumers; parallel)
    │       ↓
-   │     Cohort C: #59 (BIG-BANG switch; subsumes Phase 21)
+   │     Cohort C: #59 (BIG-BANG switch; decides fate of Phase 21's step_resolver.ts)
    │       ↓ (#62 ships alongside Frame B Cohort B)
    │     Cohort D: #62 (Frame B chat wire)
    │
-   └─ Phase 20 (Frame B card-pipeline UI)   [ACTIVE]   ── 5 features (was 6; #51 SUPERSEDED by Phase 22 #55)
-         Cohort A: #47 ‖ #48 (multi-surface + op-controls; independent of Phase 22)
+   └─ Phase 20 (Frame B card-pipeline UI)   [ACTIVE]   ── 5 features (was 6; #51 SUPERSEDED + archived)
+         Cohort A: #47 ‖ #48 (multi-surface + op-controls; independent of Phase 22 — can fork)
            ↓
          Cohort B: #49 (chat-authoring; DEPENDS on Phase 22 #62)
            ↓
@@ -436,16 +387,15 @@ Phase 21 (brain step-resolution gap)      [ACTIVE]    ── 1 P2 item (NEW); ~C
 
 **Practical run order:**
 
-- **Phase 19 first** — smallest unit of immediate progress. Single P2 markdown-render bug; one `/relay-analyze` bisect; one fix commit. Maps to Control Phase 29.
-- **Phase 21 second (optional stop-gap)** — if operator wants to unstick the omniforge dogfood quickly. 1-2 sessions. Resolved-by-supersession when Phase 22 #59 ships; the call to skip Phase 21 in favor of going straight to Phase 22 is operator-bound. **Lean: ship Phase 21 as a quick fix** because the omniforge halt is hitting dogfood now and Phase 22 is ~6+ sessions away.
-- **Phase 22 + Phase 20 as a parallel fork after Phase 19 (or 21)**:
-  - **Phase 22 Cohort A (foundation)**: #54 + #55 + #58 + #60 + #61 — independent features; can ship in parallel if multiple operators available.
-  - **Phase 20 Cohort A** can ship in parallel with Phase 22 Cohort A — independent surfaces (#47 multi-surface + #48 op-controls in Frame B don't touch the orchestrator yet).
-  - **Phase 22 Cohort B (reasoning consumers)** lands after Cohort A.
-  - **Phase 22 Cohort C (big-bang switch)** lands LAST — needs all of A + B stable. Subsumes Phase 21.
-  - **Phase 20 Cohort B** depends on Phase 22 Cohort D (#62 frame-b-chat-wire); land after Phase 22 stabilizes.
-  - **Phase 20 Cohort C** (column-trigger, run-history) is polish; can ship anytime after Phase 20 Cohort A.
-- **Strategic decision pending operator**: whether to fork Phase 22 + Phase 20 as parallel tracks (faster overall throughput; more concurrent work in flight; harder to context-switch) or sequence them (slower; cleaner; one big landed thing at a time). Recommend FORK if dogfood pace is fast; SEQUENCE if operator prefers careful staged landings.
+- **Phase 22 Cohort A foundation features first** (lean recommendation). Five mostly-independent features (#54, #55, #58, #60, #61) are a strong `/relay-auto --sweep` candidate; per-item agents can analyze and plan in parallel without context contention. #54 (`orchestrator-core`) is the load-bearing entry point — start there if sweeping incrementally.
+- **Phase 20 Cohort A in parallel with Phase 22 Cohort A** if operator wants visible UX progress alongside the architectural work. #47 + #48 share no surface with Phase 22 and can ship via separate sessions.
+- **Phase 22 Cohort B** (reasoning consumers #56 + #57) lands after Cohort A.
+- **Phase 22 Cohort C** (#59 big-bang switch) lands LAST — needs all of Cohort A + B stable. Decides the retain/remove fate of Phase 21's `step_resolver.ts`.
+- **Phase 22 Cohort D** (#62) ships alongside Frame B Cohort B.
+- **Phase 20 Cohort B** (#49) waits for Phase 22 #62 (its cross-cluster dependency); land after Phase 22 stabilizes.
+- **Phase 20 Cohort C** (#50, #52) is polish; can ship anytime after Phase 20 Cohort A.
+
+**Operator decision point.** Fork (Phase 20 Cohort A in parallel with Phase 22 Cohort A) maximizes throughput. Sequence (Phase 22 first, then Phase 20) cleaner. Recommend FORK given the empty issue backlog, the just-installed `/relay-auto` skill for parallel sweep, and the independence of Cohort A surfaces across both phases.
 
 ---
 
