@@ -1,7 +1,7 @@
 # Next session kickoff
 
-> Auto-generated from `.control/progress/STATE.md` at 2026-05-23T20:13:02Z by
-> `.claude/hooks/regenerate-next-md.ps1`. Edit STATE.md's "Next action"
+> Auto-generated from `.control/progress/STATE.md` at 2026-05-23T20:32:50Z by
+> `.claude/hooks/regenerate-next-md.sh`. Edit STATE.md's "Next action"
 > or "Notes for next session" to influence this prompt; **do not edit
 > next.md by hand** -- it's overwritten on every session end.
 
@@ -16,48 +16,56 @@ see a structured `[control:state]` block instead of doing them by hand.
 
 ## Next action
 
-**Run `/phase-close`** to close Phase 29 cleanly. All done-criteria from the README are met:
+**Phase 30 active — sequencing decision for two strategic feature clusters is the kickoff deliverable.** Phase 29 closed cleanly (tag `phase-29-ui-markdown-render-fix-closed`); the planned 2-step markdown render fix shipped + an unplanned 29.3 step pulled forward Relay issue #53 (brain step-resolver) for a 3-step phase total. Suite at 784/784. Playwright smoke verified all 3 defensive markdown layers end-to-end.
 
-- âœ“ All `steps.md` items checked off (29.1 analyze, 29.2 implement, 29.3 brain step-resolver) â€” 29.3 row was backfilled at `f9af561` after shipping off-checklist.
-- âœ“ `.control/issues/OPEN/` empty (the directory doesn't exist in this project; Relay tracks issues at `.relay/issues/` and both Phase 29 target issues are archived).
-- âœ“ `npm test` suite at 784/784 (verified at commit `1cbdf8f`; subsequent commits added no source code).
-- âœ“ Minimal repro for the markdown bug captured (deferred at 29.1 analysis time; the layered defensive normalization fix addresses all three root causes simultaneously without needing a captured repro).
-- âœ“ Root cause pinned: HTML-block pass-through on unclosed LLM-emitted elements + mixed line endings + no renderer error containment (three sibling causes; layered fix at `src/ui/lib/markdown.ts`).
-- âœ“ Working tree clean.
-- âœ“ All commits follow `<type>(<phase>.<step>):` convention (with this session's 4 meta-tooling commits using `chore(install)` / `docs(issues)` / `docs(state)` / `docs(29.3)` scopes â€” all hook-legal).
-- âœ“ Phase will be tagged `phase-29-ui-markdown-render-fix-closed` by `/phase-close`.
+Phase 30 starts with **one kickoff step**:
 
-**After `/phase-close`**, Phase 30 kicks off. With both Phase 29 target issues archived, **0 active items remain in `.relay/issues/`**. The strategic target is the **Frame B card-pipeline UI cluster** (6 designed feature files + 1 brainstorm aggregator at `.relay/features/`, all of which declared Phase 28's body-sunset as Prerequisite #0 â€” now satisfied). Frame B ships in 3 PR cohorts per the brainstorm's Development Order: Cohort A ([#47 multi-surface view, #48 op-controls + button states] in parallel) â†’ Cohort B ([#49 chat-driven description authoring]) â†’ Cohort C ([#50 column-transition triggering, #51 brain-halt-on-user-chat, #52 run-history surface]).
+- **30.1 — Sequencing decision**: read `.relay/features/dual-driver-orchestration_brainstorm.md`, `.relay/features/card-pipeline-ui_brainstorm.md`, and `.relay/features/dual-driver-frame-b-chat-wire.md`. Decide one of: (a) Frame B first then dual-driver layered on top; (b) dual-driver first then Frame B consumes its primitives; (c) interleaved per-feature. Document the decision in the Phase 30 README's "Why this phase exists" section. Add 30.2+ steps for the chosen first cohort.
 
-A **second strategic cluster** has emerged this session: the **dual-driver orchestration** feature design (9 design files + 1 brainstorm aggregator at `.relay/features/dual-driver-*`). Relationship to Frame B is not yet sequenced â€” open question for the Phase 30 kickoff conversation.
+Pipeline: 30.1 is a docs/decision step (not a Relay-issue pipeline step). After 30.1 closes, 30.2+ will be Relay-issue-shaped steps that flow through the standard `/relay-analyze → /relay-plan → /relay-review → implement → /relay-verify → /relay-resolve` pipeline.
 
+Phase 30 README + steps authored at `.control/phases/phase-30-frame-b-and-dual-driver/`. The `## Why this phase exists` section has its `<Fill in during phase kickoff.>` placeholder — author during 30.1 to record the sequencing decision. (No carry-forward bullets seeded; Phase 29's Deferred section had only the literal `<item>` template placeholder per the runbook skip rule.)
+
+**After Phase 30** closes whichever first-cohort scope it carries, the remaining cluster work flows into Phase 31+ along the established 3-cohort cadence (for Frame B) or feature-by-feature cadence (for dual-driver, since the 9 features don't pre-batch into cohorts).
 
 ## Notes for next session
 
-**Run `/phase-close` first.** Phase 29 is done; the close just needs to verify done-criteria + place the tag `phase-29-ui-markdown-render-fix-closed`. Expect zero blockers â€” every criterion is documented as met in the "Next action" section above.
+**Resume at Phase 30 step 30.1: the kickoff sequencing decision.** Read these three feature files first to ground the decision:
 
-**Then Phase 30 kickoff.** Two strategic clusters are now in scope:
+1. `.relay/features/dual-driver-orchestration_brainstorm.md` — the dual-driver aggregator. Should hold the intended sequencing or surface it as a kickoff question for the operator.
+2. `.relay/features/card-pipeline-ui_brainstorm.md` — Frame B's brainstorm aggregator with the 3-cohort Development Order (Cohort A [#47, #48] parallel → Cohort B [#49 chat-driven description authoring; L-complexity] → Cohort C [#50, #51, #52]).
+3. `.relay/features/dual-driver-frame-b-chat-wire.md` — the bridge feature. If it requires Frame B's chat surface (Feature #49) as a hard dependency, Frame B Cohort B must land before any dual-driver work that consumes it. If the wire feature is decoupled, the clusters can be ordered independently.
 
-1. **Frame B card-pipeline UI** (the long-planned target, unblocked by Phase 28). 6 designed feature files at `.relay/features/` (card-detail-multi-surface-view, card-detail-op-controls-and-button-states, chat-driven-description-authoring, column-transition-op-triggering, brain-halt-on-user-chat, card-detail-run-history-surface) + brainstorm aggregator. Development order per the brainstorm: Cohort A ([#47, #48] parallel) â†’ Cohort B ([#49 chat-driven description authoring; L-complexity]) â†’ Cohort C ([#50, #51, #52]). Recommend bundling Phase 15 #32 (duplicate-halt dedup) into Phase 20 #51's grouped run per the original relay-ordering note.
+**Three sequencing options to weigh** (detail in `.control/phases/phase-30-frame-b-and-dual-driver/steps.md` § 30.1):
 
-2. **Dual-driver orchestration** (new this session â€” 9 designed feature files + brainstorm aggregator at `.relay/features/dual-driver-*`). Files: `dual-driver-orchestrator-core`, `dual-driver-lead-follow-protocol`, `dual-driver-observer-advisor`, `dual-driver-halt-categories`, `dual-driver-autonomy-spectrum-config`, `dual-driver-backward-transitions-and-substrate-advisory`, `dual-driver-brain-loop-replacement`, `dual-driver-frame-b-chat-wire`, `dual-driver-lead-handoff-reconciliation`, `dual-driver-orchestration_brainstorm`. **Open question for Phase 30 kickoff:** sequence dual-driver before/after/interleaved with Frame B? The `dual-driver-frame-b-chat-wire` filename suggests an intended dependency on Frame B's chat surface â€” read the brainstorm aggregator at kickoff to decide.
+1. **Frame B first, dual-driver layered on top.** Clean dependency direction; dual-driver waits 2-3 phases.
+2. **Dual-driver first, Frame B consumes its primitives.** Dual-driver doesn't wait; requires brainstorm verification that dual-driver doesn't depend on Frame B.
+3. **Interleaved per-feature.** Maximum parallelism; widest rollback surface; requires careful dependency tracking.
 
-**Open question that needs an explicit decision at Phase 30 kickoff:** what relationship do these two clusters have? Possible answers: (a) Frame B first, dual-driver layered on top once chat-wire surface exists; (b) dual-driver first, Frame B consumes its primitives; (c) interleaved per-feature based on dependencies. The dual-driver brainstorm aggregator (`.relay/features/dual-driver-orchestration_brainstorm.md`) should hold the answer or surface it as a kickoff question.
+Recommend bundling Phase 15 #32 (duplicate-halt dedup) into Phase 20 #51's grouped run per the original relay-ordering note when Frame B Cohort C activates.
 
-**Process observation worth carrying forward:** Phase 29 grew an unplanned 29.3 step that shipped without a corresponding row in `phase-29/steps.md`. Per CLAUDE.md invariant "Flip the checkbox in the same commit that closes the step", future unplanned-scope-adds MUST add the steps.md row in the same commit that ships the work. The backfill at `f9af561` is a workaround, not a precedent â€” surface this if a future phase pulls in unplanned scope.
+**Step-close commit for 30.1:** `chore(30.1): kickoff decision — <chosen sequencing>` (or `docs(30.1):` if no code change).
 
-**Pattern precedent recap** (cite if a future ADR session writes one â€” all currently at deferred status):
+**Pattern precedent recap** (cite if a future ADR session writes one — all currently at deferred status):
 - **Pure-helper extraction for testable contracts** (n=16 after Phase 29.2).
 - **Shared module designed for cross-feature consumption** (n=4 unchanged after Phase 29).
 - **JSONL/markdown-writer with prune-at-boot** (n=7 unchanged after Phase 29). Well past promotion threshold.
-- **Cross-run substrate lookup via canonical runId-suffix filter + length-equality + prefix-regex guards** (Phase 28.1) â€” n=1; promote at n=2.
-- **Multi-step RPC enum widening with intermediate scope-seal anchor** (Phase 28) â€” n=1; promote at n=2.
-- **In-memory hand-off between same-run ops via typed args** (Phase 21) â€” n=1.
-- **Discriminated-union return shape for resolve-or-halt outcomes** (Phase 29.3) â€” n=1; promote at n=2.
-- **Layered defensive normalization for vendor-library output** (Phase 29.2) â€” n=1; promote at n=2.
+- **Cross-run substrate lookup via canonical runId-suffix filter + length-equality + prefix-regex guards** (Phase 28.1) — n=1; promote at n=2.
+- **Multi-step RPC enum widening with intermediate scope-seal anchor** (Phase 28) — n=1; promote at n=2.
+- **In-memory hand-off between same-run ops via typed args** (Phase 21) — n=1.
+- **Discriminated-union return shape for resolve-or-halt outcomes** (Phase 29.3) — n=1; promote at n=2.
+- **Layered defensive normalization for vendor-library output** (Phase 29.2) — n=1; promote at n=2.
 
 ADR filing remains deferred per operator decision. Strongest candidate: **JSONL/markdown-writer family** (n=7) is the most overdue.
 
-**Heads-up for Phase 30:** the known parallel-runner flake on `tests/conductor/loop.test.ts > Daemon shutdown stops the conductor brain` didn't fire during Phase 29's runs. Phase 30 changes will likely touch the UI surface (Frame B) and the conductor (dual-driver), so watch the flake again â€” Frame B work in particular hits independent surfaces, but dual-driver work will overlap the conductor loop where the flake lives.
+Carry-forward into Phase 30: Phase 29's `## Deferred to Phase 30 (or later)` section had only the `- <item>` template placeholder. Per the carry-forward rule, the literal `<item>` placeholder is skipped — no carry-forward seeding into Phase 30's "Why this phase exists" section. That section retains its `<Fill in during phase kickoff.>` placeholder and should be authored at 30.1 to record the sequencing decision.
 
-Notebook step is skipped per `relay-config.md Â§ Notebook Setup` (TypeScript-only project).
+Phase 28.3 deferred (still outstanding from Phase 28; not in Phase 29's Deferred section so not carried forward by protocol, but worth flagging here for the strategic context):
+- The "deprecate or remove `appendSection` / `extractSection`" follow-up: `appendSection` retained as an export for the `card_update` RPC's `bodyAppend` param; `extractSection` has zero remaining call sites in `src/`. Either could be deprecated/removed in a future phase if operator decides.
+- UI artifact-panel layout polish for cards with 6 stacked collapsibles. Worth re-checking when Frame B's multi-surface view (Feature #47) ships, since that feature restructures the artifact panel.
+
+**Heads-up for Phase 30:** the known parallel-runner flake on `tests/conductor/loop.test.ts > Daemon shutdown stops the conductor brain` didn't fire during Phase 29's runs. Phase 30 changes will likely touch the UI surface (Frame B) and the conductor loop (dual-driver), so watch the flake again — dual-driver work in particular will overlap the conductor loop where the flake lives.
+
+**Outstanding issue against the Control framework** (filed at `G:\Projects\Small-Projects\Control\issues\2026-05-23-regenerate-next-md-ps1-utf8-encoding.md` — not in this repo): the PowerShell variant of `.claude/hooks/regenerate-next-md.ps1` mangles multi-byte UTF-8 characters (em dash `—`, check mark `✓`, right arrow `→`, section sign `§`) when writing `next.md`. Cosmetic but pollutes every `docs(state)` commit on Windows hosts. Workaround: run the bash variant via `bash .claude/hooks/regenerate-next-md.sh`.
+
+Notebook step is skipped per `relay-config.md § Notebook Setup` (TypeScript-only project).
