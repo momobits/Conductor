@@ -1,0 +1,45 @@
+{
+  "session": "2026-05-24-010302",
+  "mode": "single",
+  "sweep_target": null,
+  "created": "2026-05-24T01:03:02Z",
+  "last_activity": "2026-05-24T01:30:00Z",
+  "queue": [
+    {
+      "id": "47",
+      "title": "card-detail-multi-surface-view — restructure renderCardDetail into top-to-bottom narrative (description → per-op artifacts → chat); new card_artifacts_index RPC; per-section <details> collapsibles with re-run + history affordances.",
+      "file_path": ".relay/features/card-detail-multi-surface-view.md",
+      "complexity": "M",
+      "complexity_raw": "M",
+      "recommended_planner": "plan",
+      "dependencies": ["Phase 18 #44 (satisfied 2026-05-23 via Phase 28 close)"],
+      "phase": "20",
+      "control_step": "30.4"
+    }
+  ],
+  "completed": [
+    {
+      "id": "47",
+      "exit_status": "resolved",
+      "summary_path": ".relay/.auto-session/2026-05-24-010302/47.json",
+      "commit_shas": ["2f36d72"],
+      "implementation_doc": ".relay/implemented/card-detail-multi-surface-view.md",
+      "archived_to": ".relay/archive/features/card-detail-multi-surface-view.md",
+      "test_delta": "858 → 885 (+27)",
+      "control_scope": "30.4",
+      "v1_caveat": "Empty-state CTAs wired to card_work RPC (placeholder); swap to op_invoke when #48 lands."
+    }
+  ],
+  "current_index": 1,
+  "status": "complete",
+  "pause_reason": null,
+  "ordering_mtime_at_dispatch": 1779576945,
+  "control_bridge": {
+    "phase": "30",
+    "step": "30.4",
+    "steps_md_path": ".control/phases/phase-30-frame-b-and-dual-driver/steps.md",
+    "checkbox_flipped": false,
+    "bridge_commit_pending": "docs(30.4): /relay-auto close out card-detail-multi-surface-view (commits: 2f36d72)"
+  },
+  "supersedes_pending_session": "2026-05-23-201714 (also queued for #47; pending-trust-gate from earlier today; #47 is now shipped via this session — the pending session can be cleaned up at session-end or left as historical record)"
+}

@@ -1,0 +1,60 @@
+{
+  "item": "47",
+  "file_path": ".relay/features/card-detail-multi-surface-view.md",
+  "complexity": "M",
+  "planner_used": "plan",
+  "stale_analysis": false,
+  "pipeline": {
+    "analyze": {
+      "status": "complete",
+      "scope_decision_mode": "keep narrow",
+      "related_work_findings": 9
+    },
+    "plan": {
+      "skill": "plan",
+      "status": "complete",
+      "step_count": 7,
+      "files_touched_in_plan": 7
+    },
+    "review": {
+      "verdict": "APPROVED-WITH-CHANGES",
+      "iterations": 1,
+      "trivial_changes_applied": 3
+    },
+    "implement": {
+      "status": "complete",
+      "deviations_count": 3,
+      "commits_during_impl": 0,
+      "commit_shas_during_impl": [],
+      "commit_pattern_note": "Single-combined-commit (impl + /relay-resolve into 2f36d72). Same pattern as 30.3 — this is becoming the dominant pattern across /relay-auto dispatches in this session."
+    },
+    "verify": {
+      "verdict": "COMPLETE",
+      "iterations": 1,
+      "fixes_applied": 0,
+      "subagent_escalation_used": false,
+      "test_count_before": 858,
+      "test_count_after": 885
+    },
+    "resolve": {
+      "status": "complete",
+      "commit_sha": "2f36d72",
+      "implementation_doc": ".relay/implemented/card-detail-multi-surface-view.md",
+      "archived_to": ".relay/archive/features/card-detail-multi-surface-view.md",
+      "v1_caveat_documented": true,
+      "v1_caveat_note": "Empty-state CTAs wired to existing card_work RPC as placeholder; will swap to #48's future op_invoke RPC when #48 lands."
+    }
+  },
+  "all_commit_shas_produced": ["2f36d72"],
+  "control_bridge": {
+    "scope": "30.4",
+    "scope_verified": true,
+    "commit_subjects_verified": [
+      "feat(30.4): card-detail multi-surface view + card_artifacts_index RPC"
+    ]
+  },
+  "exit_status": "resolved",
+  "pause_reason": null,
+  "pause_detail": null,
+  "errors": []
+}
