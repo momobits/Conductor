@@ -14,12 +14,16 @@ import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { listRuns } from './runlog_store.js';
 
-// Writer-side op kinds. Phase 28 ships in 3 commits:
-//   28.1 added 'review'; 28.2 added 'verify' and 'notebook'; 28.3 added
-//   'implement'. All 6 engine ops produce per-run artifacts as of Phase 28.3.
+// Writer-side op kinds. Phase 28 shipped the original 6 ops via 3 commits
+// (28.1 added 'review'; 28.2 added 'verify' + 'notebook'; 28.3 added
+// 'implement'). Phase 22 dual-driver-orchestrator-core (Control phase 30.2)
+// adds 'orchestrate' for the orchestrator decision audit trail; the caller
+// (feature #6 brain-loop-replacement) persists each decide() result as
+// <runId>/orchestrate.md substrate.
 // The RPC boundary enum at `rpc/schema.ts` (RunArtifactGetParams.op) and the
-// UI render typing at `ui/views/card_detail.ts` widened to match in Phase 28.3.
-export type ArtifactOp = 'analyze' | 'plan' | 'review' | 'verify' | 'notebook' | 'implement';
+// UI render typing at `ui/views/card_detail.ts` widen to match in lockstep
+// (single-PR for the 'orchestrate' addition, not multi-step like Phase 28).
+export type ArtifactOp = 'analyze' | 'plan' | 'review' | 'verify' | 'notebook' | 'implement' | 'orchestrate';
 
 // Path-traversal guard: op name must match a safe charset. Defense-in-depth
 // for RPC-driven reads (run_artifact_get) — the Zod enum at the RPC boundary

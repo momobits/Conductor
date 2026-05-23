@@ -10,6 +10,7 @@
 //   .conductor/runs/<runId>/verify.md     (verify op output, Phase 28.2)
 //   .conductor/runs/<runId>/notebook.md   (notebook op metadata, Phase 28.2)
 //   .conductor/runs/<runId>/implement.md  (implement op guideline, Phase 28.3)
+//   .conductor/runs/<runId>/orchestrate.md (dual-driver orchestrator decision audit; Control phase 30.2)
 //   .conductor/cards/<id>.chat.jsonl      (chat history)
 // `appendSection` and `extractSection` are retained in this module for the
 // `card_update` RPC's `bodyAppend` param and any user-facing tooling, but no

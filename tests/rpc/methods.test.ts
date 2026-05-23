@@ -530,9 +530,72 @@ v2 plan text.
     const repo = setupRepo();
     const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
     // Phase 28.3 widened the RPC enum to all 6 op artifacts (analyze, plan,
-    // review, verify, notebook, implement); 'review' is now valid. Use an
-    // unambiguously-invalid string to keep the rejection-test's boundary-
-    // guard purpose intact.
+    // review, verify, notebook, implement); 'review' is now valid. Phase 22
+    // (Control phase 30.2) widened further to include 'orchestrate'; both
+    // 'review' and 'orchestrate' are now valid. Use an unambiguously-invalid
+    // string to keep the rejection-test's boundary-guard purpose intact.
     await expect(methods.run_artifact_get(ctx, { runId: 'r1', op: 'INVALID' })).rejects.toThrow();
+  });
+});
+
+describe('rpc methods - orchestrator_decide', () => {
+  it('returns a narrowed decision via mock adapter', async () => {
+    const repo = setupRepo();
+    // Seed a card so buildSnapshot succeeds.
+    const created = await methods.card_new(
+      { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() },
+      { slug: 'orch-card', title: 'Orch', kind: 'feature' },
+    ) as { id: string };
+    const { MockAdapter } = await import('../../src/adapters/mock.js');
+    const adapter = new MockAdapter([
+      JSON.stringify({
+        version: 1,
+        action: 'call-op',
+        rationale: 'next step is implement',
+        confidence: 0.9,
+        params: { op: 'implement', step: '1.2' },
+      }),
+    ]);
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime(), adapter };
+    const res = await methods.orchestrator_decide(ctx, { cardId: created.id }) as {
+      decision: { action: string; params: { op: string; step?: string } };
+    };
+    expect(res.decision.action).toBe('call-op');
+    expect(res.decision.params.op).toBe('implement');
+    expect(res.decision.params.step).toBe('1.2');
+  });
+
+  it('rejects missing cardId', async () => {
+    const repo = setupRepo();
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    await expect(methods.orchestrator_decide(ctx, {})).rejects.toThrow();
+  });
+
+  it('rejects cardId with path-traversal characters', async () => {
+    const repo = setupRepo();
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    await expect(methods.orchestrator_decide(ctx, { cardId: '../escape' })).rejects.toThrow();
+  });
+
+  it('accepts optional userMessage', async () => {
+    const repo = setupRepo();
+    const created = await methods.card_new(
+      { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() },
+      { slug: 'orch-card-msg', title: 'OrchMsg', kind: 'feature' },
+    ) as { id: string };
+    const { MockAdapter } = await import('../../src/adapters/mock.js');
+    const adapter = new MockAdapter([
+      JSON.stringify({
+        version: 1, action: 'no-op', rationale: 'idle', confidence: 0.5, params: { reason: 'idle' },
+      }),
+    ]);
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime(), adapter };
+    const res = await methods.orchestrator_decide(ctx, {
+      cardId: created.id,
+      userMessage: 'what should we do next?',
+    }) as { decision: { action: string } };
+    expect(res.decision.action).toBe('no-op');
+    // Confirm userMessage made it into the prompt by inspecting the adapter request.
+    expect(adapter.lastRequest?.user).toContain('what should we do next?');
   });
 });

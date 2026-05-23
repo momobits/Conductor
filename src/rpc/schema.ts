@@ -114,11 +114,29 @@ export const ChatParams = z.object({
 
 export const RunArtifactGetParams = z.object({
   runId: z.string().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/, 'runId must match [a-zA-Z0-9_-]+'),
-  op: z.enum(['analyze', 'plan', 'review', 'verify', 'notebook', 'implement']),
+  // Phase 22 (Control phase 30.2): widened to include 'orchestrate' for the
+  // dual-driver orchestrator-core decision audit substrate. Mirrors
+  // ArtifactOp union at src/agent/run_artifact.ts:22 and ARTIFACT_OPS Set
+  // at src/ui/views/card_detail.ts:74-75.
+  op: z.enum(['analyze', 'plan', 'review', 'verify', 'notebook', 'implement', 'orchestrate']),
 });
 
 export const CardChatHistoryParams = z.object({
   cardId: z.string().min(1).max(128).regex(/^[a-zA-Z0-9._-]+$/, 'cardId must match [a-zA-Z0-9._-]+'),
+});
+
+// Phase 22 (Control phase 30.2): dual-driver orchestrator-core RPC surface.
+// Wires Frame B chat panel + brain loop to the orchestrator engine. The
+// `userMessage` optional field carries Frame B chat input when present.
+export const OrchestratorDecideParams = z.object({
+  // M5: cardId regex is intentionally broader than CardFrontmatterSchema.id
+  // (which restricts to lowercase + dashes). Mirrors CardChatHistoryParams
+  // at schema.ts:121 to keep RPC surface consistent. A cardId that matches
+  // the broader pattern but no real card resolves to CardNotFoundError
+  // from readCard inside buildSnapshot — no path-traversal risk because
+  // the regex blocks '/' and '..' segments.
+  cardId: z.string().min(1).max(128).regex(/^[a-zA-Z0-9._-]+$/, 'cardId must match [a-zA-Z0-9._-]+'),
+  userMessage: z.string().max(8000).optional(),
 });
 
 export const ConductorStartParams = z.object({});

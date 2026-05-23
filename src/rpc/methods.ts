@@ -21,6 +21,7 @@ import {
   RunListParams, RunReplayParams, RunPruneParams,
   RunArtifactGetParams, CardChatHistoryParams,
   CostShowParams,
+  OrchestratorDecideParams,
 } from './schema.js';
 import { readRunArtifact } from '../agent/run_artifact.js';
 import { readChatLog } from '../engine/state/chat_log.js';
@@ -44,6 +45,7 @@ import { discover as discoverOp } from '../engine/ops/discover.js';
 import { appendExerciseFinding } from '../engine/ops/exercise.js';
 import { RoutingAdapter } from '../adapters/routing.js';
 import { chat as chatOp } from '../engine/ops/chat.js';
+import { decide as orchestratorDecide } from '../orchestrator/index.js';
 
 export interface MethodContext {
   repo: string;
@@ -319,6 +321,32 @@ async function chat(ctx: MethodContext, raw: unknown) {
   return { reply: result.reply };
 }
 
+// Phase 22 (Control phase 30.2): wires the dual-driver orchestrator-core
+// engine into the RPC surface. Pure-decide — no substrate writes or op
+// invocations happen here; the caller (Frame B chat panel in feature #9
+// or brain loop in feature #6) dispatches the returned decision.
+async function orchestrator_decide(ctx: MethodContext, raw: unknown) {
+  const p = OrchestratorDecideParams.parse(raw);
+  const adapter = ctx.adapter ?? new RoutingAdapter();
+  // Lead state will read from feature #2's getLead(runtime) once it ships.
+  // For v1 (before feature #2 lands), default lead='human' — RPC callers
+  // typically come from operator UI / chat, so 'human' is the safe default.
+  // Once getLead exists, replace this with: getLead(ctx.runtime).current.
+  const lead: 'human' | 'llm' = 'human';
+  const decision = await orchestratorDecide({
+    repo: ctx.repo,
+    cardId: p.cardId,
+    adapter,
+    config: ctx.config,
+    lead,
+    userMessage: p.userMessage,
+    onAdapterUsage: ({ inputTokens, outputTokens, dollars }) => {
+      ctx.runtime.addCost(p.cardId, { inputTokens, outputTokens, dollars });
+    },
+  });
+  return { decision };
+}
+
 async function conductor_start(ctx: MethodContext, raw: unknown) {
   ConductorStartParams.parse(raw);
   if (!ctx.conductor) ctx.conductor = {};
@@ -446,6 +474,7 @@ export const methods = {
   cost_show,
   run_artifact_get,
   card_chat_history,
+  orchestrator_decide,
 } satisfies Record<string, Handler<unknown, unknown>>;
 
 export type MethodName = keyof typeof methods;

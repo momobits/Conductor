@@ -67,12 +67,13 @@ export async function renderCardDetail(
   const streamEl = root.querySelector<HTMLElement>('#stream')!;
   const workBtn = root.querySelector<HTMLButtonElement>('#work-btn')!;
 
-  // Phase 28.3: artifact panel renders all 6 per-op artifacts as the run
-  // progresses. The set below mirrors the writer-side ArtifactOp union at
-  // src/agent/run_artifact.ts and the RPC enum at src/rpc/schema.ts; keep
-  // in sync if more ops migrate to the substrate in future phases.
-  type ArtifactOp = 'analyze' | 'plan' | 'review' | 'verify' | 'notebook' | 'implement';
-  const ARTIFACT_OPS = new Set<ArtifactOp>(['analyze', 'plan', 'review', 'verify', 'notebook', 'implement']);
+  // Phase 28.3 originally rendered all 6 per-op artifacts. Phase 22 (Control
+  // phase 30.2) adds 'orchestrate' for the dual-driver orchestrator-core
+  // decision audit; renderArtifact reuses the same per-op render path.
+  // The set below mirrors the writer-side ArtifactOp union at
+  // src/agent/run_artifact.ts:22 and the RPC enum at src/rpc/schema.ts:117.
+  type ArtifactOp = 'analyze' | 'plan' | 'review' | 'verify' | 'notebook' | 'implement' | 'orchestrate';
+  const ARTIFACT_OPS = new Set<ArtifactOp>(['analyze', 'plan', 'review', 'verify', 'notebook', 'implement', 'orchestrate']);
   function isArtifactOp(op: string | undefined): op is ArtifactOp {
     return op !== undefined && (ARTIFACT_OPS as Set<string>).has(op);
   }

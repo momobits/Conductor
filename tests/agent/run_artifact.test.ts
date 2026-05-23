@@ -97,6 +97,16 @@ describe('RunArtifactWriter', () => {
     await w.write('review', '**Decision:** APPROVED\n\n**Reasoning:** sound');
     expect(await readRunArtifact(repo, 'r-review', 'review')).toContain('APPROVED');
   });
+
+  it('writes orchestrate artifact (Phase 22 dual-driver-orchestrator-core extension)', async () => {
+    const w = new RunArtifactWriter({ repo, runId: 'r-orch' });
+    const decision = JSON.stringify({
+      version: 1, action: 'call-op', rationale: 'next step', confidence: 0.9, params: { op: 'implement', step: '1.2' },
+    });
+    await w.write('orchestrate', decision);
+    const read = await readRunArtifact(repo, 'r-orch', 'orchestrate');
+    expect(read).toBe(decision);
+  });
 });
 
 describe('findLatestArtifactRunId', () => {
