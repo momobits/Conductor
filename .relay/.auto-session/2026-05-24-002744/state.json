@@ -1,0 +1,44 @@
+{
+  "session": "2026-05-24-002744",
+  "mode": "single",
+  "sweep_target": null,
+  "created": "2026-05-24T00:27:44Z",
+  "last_activity": "2026-05-24T01:00:00Z",
+  "queue": [
+    {
+      "id": "55",
+      "title": "dual-driver-lead-follow-protocol — global single-lead state (human | llm) for the entire board; explicit transfer mechanisms (CLI + UI + user-chat-triggered) + typed SSE events.",
+      "file_path": ".relay/features/dual-driver-lead-follow-protocol.md",
+      "complexity": "M",
+      "complexity_raw": "M",
+      "recommended_planner": "plan",
+      "dependencies": ["#54 dual-driver-orchestrator-core (shipped via 30.2)"],
+      "phase": "22",
+      "control_step": "30.3"
+    }
+  ],
+  "completed": [
+    {
+      "id": "55",
+      "exit_status": "resolved",
+      "summary_path": ".relay/.auto-session/2026-05-24-002744/55.json",
+      "commit_shas": ["fe8486a"],
+      "implementation_doc": ".relay/implemented/dual-driver-lead-follow-protocol.md",
+      "archived_to": ".relay/archive/features/dual-driver-lead-follow-protocol.md",
+      "test_delta": "841 → 858 (+17)",
+      "control_scope": "30.3",
+      "supersession_closure": "Frame B #51 (brain-halt-on-user-chat) closure obligation fulfilled"
+    }
+  ],
+  "current_index": 1,
+  "status": "complete",
+  "pause_reason": null,
+  "ordering_mtime_at_dispatch": 1779574738,
+  "control_bridge": {
+    "phase": "30",
+    "step": "30.3",
+    "steps_md_path": ".control/phases/phase-30-frame-b-and-dual-driver/steps.md",
+    "checkbox_flipped": false,
+    "bridge_commit_pending": "docs(30.3): /relay-auto close out dual-driver-lead-follow-protocol (commits: fe8486a)"
+  }
+}

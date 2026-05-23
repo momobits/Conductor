@@ -1,0 +1,65 @@
+{
+  "item": "55",
+  "file_path": ".relay/features/dual-driver-lead-follow-protocol.md",
+  "complexity": "M",
+  "planner_used": "plan",
+  "stale_analysis": false,
+  "pipeline": {
+    "analyze": {
+      "status": "complete",
+      "scope_decision_mode": "keep narrow",
+      "related_work_findings": 9
+    },
+    "plan": {
+      "skill": "plan",
+      "status": "complete",
+      "step_count": 12,
+      "files_touched_in_plan": 13
+    },
+    "review": {
+      "verdict": "APPROVED-WITH-CHANGES",
+      "iterations": 1,
+      "trivial_changes_applied": 2
+    },
+    "implement": {
+      "status": "complete",
+      "deviations_count": 0,
+      "commits_during_impl": 0,
+      "commit_shas_during_impl": [],
+      "commit_pattern_deviation_note": "Agent bundled impl + /relay-resolve into a single commit (fe8486a) rather than the prior step's two-commit pattern (separate `feat(30.X)` + `docs(30.X): /relay-resolve close out ...`). All scope tags carry (30.3). Single-commit pattern is also valid per /relay-resolve's flexibility (it doesn't mandate a separate close-out commit if impl + resolve are co-authored). Recorded for pattern-precedent visibility."
+    },
+    "verify": {
+      "verdict": "COMPLETE",
+      "iterations": 1,
+      "fixes_applied": 0,
+      "subagent_escalation_used": false,
+      "test_count_before": 841,
+      "test_count_after": 858,
+      "file_count_before": 114,
+      "file_count_after": 119
+    },
+    "resolve": {
+      "status": "complete",
+      "commit_sha": "fe8486a",
+      "implementation_doc": ".relay/implemented/dual-driver-lead-follow-protocol.md",
+      "archived_to": ".relay/archive/features/dual-driver-lead-follow-protocol.md",
+      "supersession_closure_documented": true,
+      "supersession_target": ".relay/archive/features/brain-halt-on-user-chat.md (Frame B #51, SUPERSEDED 2026-05-23)"
+    }
+  },
+  "all_commit_shas_produced": ["fe8486a"],
+  "control_bridge": {
+    "scope": "30.3",
+    "scope_verified": true,
+    "commit_subjects_verified": [
+      "feat(30.3): dual-driver-lead-follow-protocol — global lead state + transferLead + lead-handed-off SSE + CLI + RPC"
+    ]
+  },
+  "v1_caveat_closure": {
+    "from_30_2_orchestrator_core": "Hardcoded `lead: 'human'` literal in orchestrator_decide RPC handler — now reads getLead(ctx.runtime).current. End-to-end test landed at tests/rpc/methods.test.ts asserting `Lead: llm` reaches orchestrator prompt after lead_set; inverse-cross-check confirms `Lead: human` on default runtime."
+  },
+  "exit_status": "resolved",
+  "pause_reason": null,
+  "pause_detail": null,
+  "errors": []
+}
