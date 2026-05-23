@@ -149,12 +149,12 @@ User chats during an autonomous run (Feature #5 emits halt)
 - Brainstorm: [[card-pipeline-ui_brainstorm.md]](card-pipeline-ui_brainstorm.md)
 - Prerequisite: `engine-ops-still-append-to-card-body` (issue, P2) — each engine op must write its own artifact via `RunArtifactWriter` for `op_invoke` to surface results in Feature #1's multi-surface view.
 - Sibling: [[card-detail-multi-surface-view.md]](card-detail-multi-surface-view.md) — the surfaces this feature's buttons populate.
-- Sibling: [[brain-halt-on-user-chat.md]](brain-halt-on-user-chat.md) — defines the `conductor-halt` event with `reason='user-chat'` that triggers the Halted-by-chat state.
+- Sibling: [[dual-driver-lead-follow-protocol.md]](dual-driver-lead-follow-protocol.md) — defines the lead-transfer event (formerly Frame B Feature #5 `brain-halt-on-user-chat`, now SUPERSEDED and archived at [`../archive/features/brain-halt-on-user-chat.md`](../archive/features/brain-halt-on-user-chat.md)) that triggers the Halted-by-chat state. Under the dual-driver model, the user-chat halt is one application of the general lead-transfer protocol.
 - Sibling: [[column-transition-op-triggering.md]](column-transition-op-triggering.md) — uses `op_invoke` to trigger ops on column moves.
 
 ## Development Order
 
-**2 of 6**. Can parallel-track with Feature #1. The full button state machine cannot be tested end-to-end until Feature #5 ships (the `conductor-halt user-chat` event source), but the Idle/Running/Halted-by-assist branches are testable independently; Halted-by-chat branch can be exercised manually by injecting the event.
+**2 of 5** (Frame B post-supersede). Can parallel-track with Feature #1. The full button state machine cannot be tested end-to-end until the dual-driver lead-follow-protocol ships (the lead-transfer event source), but the Idle/Running/Halted-by-assist branches are testable independently; Halted-by-chat branch can be exercised manually by injecting the event.
 
 ## Open Questions
 

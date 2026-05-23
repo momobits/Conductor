@@ -1,6 +1,6 @@
 # Next session kickoff
 
-> Auto-generated from `.control/progress/STATE.md` at 2026-05-23T20:32:50Z by
+> Auto-generated from `.control/progress/STATE.md` at 2026-05-23T21:11:05Z by
 > `.claude/hooks/regenerate-next-md.sh`. Edit STATE.md's "Next action"
 > or "Notes for next session" to influence this prompt; **do not edit
 > next.md by hand** -- it's overwritten on every session end.
@@ -33,7 +33,7 @@ Phase 30 README + steps authored at `.control/phases/phase-30-frame-b-and-dual-d
 **Resume at Phase 30 step 30.1: the kickoff sequencing decision.** Read these three feature files first to ground the decision:
 
 1. `.relay/features/dual-driver-orchestration_brainstorm.md` — the dual-driver aggregator. Should hold the intended sequencing or surface it as a kickoff question for the operator.
-2. `.relay/features/card-pipeline-ui_brainstorm.md` — Frame B's brainstorm aggregator with the 3-cohort Development Order (Cohort A [#47, #48] parallel → Cohort B [#49 chat-driven description authoring; L-complexity] → Cohort C [#50, #51, #52]).
+2. `.relay/features/card-pipeline-ui_brainstorm.md` — Frame B's brainstorm aggregator with the 3-cohort Development Order (Cohort A [#47, #48] parallel → Cohort B [#49 chat-driven description authoring; L-complexity] → Cohort C [#50, #52]; #51 `brain-halt-on-user-chat` is SUPERSEDED).
 3. `.relay/features/dual-driver-frame-b-chat-wire.md` — the bridge feature. If it requires Frame B's chat surface (Feature #49) as a hard dependency, Frame B Cohort B must land before any dual-driver work that consumes it. If the wire feature is decoupled, the clusters can be ordered independently.
 
 **Three sequencing options to weigh** (detail in `.control/phases/phase-30-frame-b-and-dual-driver/steps.md` § 30.1):
@@ -42,7 +42,7 @@ Phase 30 README + steps authored at `.control/phases/phase-30-frame-b-and-dual-d
 2. **Dual-driver first, Frame B consumes its primitives.** Dual-driver doesn't wait; requires brainstorm verification that dual-driver doesn't depend on Frame B.
 3. **Interleaved per-feature.** Maximum parallelism; widest rollback surface; requires careful dependency tracking.
 
-Recommend bundling Phase 15 #32 (duplicate-halt dedup) into Phase 20 #51's grouped run per the original relay-ordering note when Frame B Cohort C activates.
+Recommend bundling Phase 15 #32 (duplicate-halt dedup) into Frame B Cohort C per the original relay-ordering note (the original target #51 is now SUPERSEDED; the bundling intent still applies to the broader Cohort C scope).
 
 **Step-close commit for 30.1:** `chore(30.1): kickoff decision — <chosen sequencing>` (or `docs(30.1):` if no code change).
 

@@ -188,11 +188,11 @@ User clicks Apply on diff preview
 - Brainstorm: [[card-pipeline-ui_brainstorm.md]](card-pipeline-ui_brainstorm.md)
 - Prerequisite: [[card-detail-multi-surface-view.md]](card-detail-multi-surface-view.md) — the description surface this feature edits must be a single owner. Without #0 + #1, the body has multiple writers and the diff preview can't show "old body → new body" reliably.
 - Sibling: [[card-detail-op-controls-and-button-states.md]](card-detail-op-controls-and-button-states.md) — chat-triggered op invocations route through this feature's `op_invoke` RPC (the chat agent can decide to "run analyze" by calling `op_invoke` as a tool; pin whether this is in v1 scope or v2).
-- Sibling: [[brain-halt-on-user-chat.md]](brain-halt-on-user-chat.md) — when the user submits a chat message, that's the halt signal. Feature #5 is the recipient; this feature is the source. Wire via the daemon's event bus.
+- Sibling: [[dual-driver-lead-follow-protocol.md]](dual-driver-lead-follow-protocol.md) — when the user submits a chat message, that's the lead-transfer signal (formerly Frame B Feature #5 `brain-halt-on-user-chat`, now SUPERSEDED and archived at [`../archive/features/brain-halt-on-user-chat.md`](../archive/features/brain-halt-on-user-chat.md)). Under the dual-driver model the chat handler calls `lead_set` first; brain follows. This feature is the chat-message source; the lead-follow protocol is the recipient. Wire via the daemon's event bus.
 
 ## Development Order
 
-**3 of 6**. The largest feature by lines-of-code and the highest-risk by API surface (touches adapter interface, daemon runtime, new RPC, UI rendering). Lands after Features #1 and #2 because both provide the surfaces this feature plugs into. Suggest single dedicated PR (or 2-PR cohort: adapter-tools extension + chat-agent module separately from UI integration + apply-edit RPC).
+**3 of 5** (Frame B post-supersede). The largest feature by lines-of-code and the highest-risk by API surface (touches adapter interface, daemon runtime, new RPC, UI rendering). Lands after Features #1 and #2 because both provide the surfaces this feature plugs into. Suggest single dedicated PR (or 2-PR cohort: adapter-tools extension + chat-agent module separately from UI integration + apply-edit RPC).
 
 ## Open Questions
 

@@ -62,7 +62,7 @@ All active features have status `DESIGNED` with no `## Analysis` section yet. Br
 - **`chat-driven-description-authoring.md`** — OUTSTANDING, DESIGNED. L-complexity. Extends `ModelAdapter` with `invokeWithTools`; new `chat_agent.ts` with 4-tool surface; diff-preview UI. Cohort B; depends on Cohort A. Also depends on dual-driver feature #9 (`frame-b-chat-wire`) for command-routing infrastructure.
 - **`column-transition-op-triggering.md`** — OUTSTANDING, DESIGNED. Column moves trigger corresponding op per autonomy policy. Cohort C.
 - **`card-detail-run-history-surface.md`** — OUTSTANDING, DESIGNED. Per-op `⋯` history toggle; new `card_runs_list` RPC. Cohort C (polish; anytime after multi-surface view).
-- ~~`brain-halt-on-user-chat.md`~~ — **SUPERSEDED 2026-05-23** by `dual-driver-lead-follow-protocol.md`. Excluded from active features count. File preserved at `.relay/features/` with banner pointing at successor.
+- ~~`brain-halt-on-user-chat.md`~~ — **SUPERSEDED 2026-05-23** by `dual-driver-lead-follow-protocol.md`. Excluded from active features count. File archived at `.relay/archive/features/brain-halt-on-user-chat.md` with banner pointing at successor.
 
 ### Cross-cluster interaction notes
 

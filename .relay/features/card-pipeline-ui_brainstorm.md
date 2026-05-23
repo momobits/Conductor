@@ -100,7 +100,7 @@ The chat is the umbrella surface. User can edit description, trigger ops, interv
 | 2 | `card-detail-op-controls-and-button-states.md` | Replace monolithic `Work this card` with per-op sidebar buttons (Analyze · Plan · Review · Implement · Verify · Resolve · Work all). Implement the button state machine (Decision 9): Idle / Running / Halted-by-chat ("Continue this card") / Halted-by-assist / Complete. Per-op buttons enabled/disabled based on current column + brain activity; tooltips explain why. Keyboard shortcuts via the global dispatcher. | Build third (can parallel-track #1) | #0 |
 | 3 | `chat-driven-description-authoring.md` | Extend the chat handler to support: codebase-investigation tool calls (grep/read/glob, observable in chat stream), description edit proposals with inline diff preview, apply-on-confirm flow. New: a chat-agent system prompt that knows about the description and the artifacts as separate surfaces. | Build fourth | #1 (chat needs the multi-surface layout to know where to apply edits), #2 (chat's "run analyze" triggers route through op controls) |
 | 4 | `column-transition-op-triggering.md` | When a card moves columns (drag-drop OR keyboard `M`+`N` OR programmatic from chat), trigger the appropriate op per autonomy policy. Reuses existing `confirmTransition` dialog for `assist`. No-op on `manual`. Maps each column-edge to an op (or noop) per Decision 7. | Build fifth | #2 (delegates to op controls), #3 (chat-triggered transitions route here) |
-| ~~5~~ | ~~`brain-halt-on-user-chat.md`~~ **SUPERSEDED 2026-05-23** by [`dual-driver-lead-follow-protocol.md`](dual-driver-lead-follow-protocol.md) (feature #2 of the `dual-driver-orchestration` brainstorm). Under the dual-driver model's global-lead protocol, "user chat halts the brain" becomes "user-chat triggers lead-transfer human takes over the whole board." Same behavior, generalized across all cards instead of per-card-halt semantics. **Do not implement as a separate Frame B feature.** | — | — |
+| ~~5~~ | ~~`brain-halt-on-user-chat.md`~~ (archived: [`../archive/features/brain-halt-on-user-chat.md`](../archive/features/brain-halt-on-user-chat.md)) **SUPERSEDED 2026-05-23** by [`dual-driver-lead-follow-protocol.md`](dual-driver-lead-follow-protocol.md) (feature #2 of the `dual-driver-orchestration` brainstorm). Under the dual-driver model's global-lead protocol, "user chat halts the brain" becomes "user-chat triggers lead-transfer human takes over the whole board." Same behavior, generalized across all cards instead of per-card-halt semantics. **Do not implement as a separate Frame B feature.** | — | — |
 | 6 | `card-detail-run-history-surface.md` | Per-op history toggle: expand the op section to show all past runs as a chronological list, each clickable to view that run's artifact. No diff-between-runs in v1. | Build seventh (polish) | #1 |
 
 ## Development Order
@@ -113,10 +113,10 @@ Rationale per row:
 - **#1 and #2 can parallel-track** after #0. They share no code surface (#1 is rendering, #2 is sidebar). If two operators are available, ship them in parallel; if one, do #1 first because #2 reads more naturally on top of the new layout.
 - **#3 fourth**: the substantial feature. Needs #1 (knows where to apply edits) and #2 (chat-triggered ops route through buttons). Likely the largest feature by lines-of-code.
 - **#4 fifth**: small, glues column moves to op runs. Depends on #2 (delegation target) and #3 (chat can also trigger).
-- **#5 sixth**: brain halt logic. Depends on #2 (the "Continue" button state machine) and #3 (chat is what triggers the halt). Touches `src/conductor/loop.ts` to add the user-chat halt condition alongside existing halt conditions.
+- ~~**#5 sixth**: brain halt logic.~~ **SUPERSEDED 2026-05-23** — rolled into [`dual-driver-lead-follow-protocol.md`](dual-driver-lead-follow-protocol.md) (feature #2 of the dual-driver brainstorm). Under the dual-driver model's global-lead protocol, "user-chat halts the brain" becomes a generalized lead-transfer (human takes over the whole board), not a per-card halt. Ships via the dual-driver cluster, not Frame B.
 - **#6 last**: polish — useful for dogfood and debugging but not on the critical path to "Frame B is usable."
 
-The bundle could ship in three PR cohorts: [#0], then [#1, #2], then [#3, #4, #5, #6]. Or as seven sequential PRs. Both reasonable.
+The bundle could ship in three PR cohorts: [#0], then [#1, #2], then [#3, #4, #6]. Or as six sequential PRs (post-supersede). Both reasonable.
 
 ## Open Questions
 
@@ -125,8 +125,8 @@ These are deliberately deferred to `/relay-design` and individual feature files 
 1. **Exact letter assignments for per-op keyboard shortcuts** — `A` is already taken (refresh) and `M` is taken (move chord). Need a collision-free set for Analyze, Plan, Review, Implement, Verify, Resolve, Work-all, Continue. Pin in #2's design.
 2. **Sub-agent shape for chat investigation** — does the chat handler spawn a real sub-agent (Anthropic SDK / tools), or does it route through the existing `analyze`/`plan` op infrastructure with a "scoped to chat" flag? Probably the former (matches Claude Code's pattern); pin in #3.
 3. **Diff-preview UI shape** — inline in chat (one bubble shows the diff, one button below = apply)? Or modal dialog? Or sidebar drawer? Lean toward inline (matches Claude Code's affordance pattern); pin in #3.
-4. **Halt safe-boundary semantics** — what counts as a "safe boundary" the brain halts at on user chat? After current op completes? Between ops? Mid-op at the next tool-call boundary? Lean toward "after current op completes" (simplest, predictable). Pin in #5.
-5. **Halt event shape and Monitor visibility** — `halt: user-chat` event in the SSE stream needs a Monitor representation distinct from other halts (cost-ceiling, assist-gate, etc.). Pin in #5.
+4. **Halt safe-boundary semantics** — what counts as a "safe boundary" the brain halts at on user chat? After current op completes? Between ops? Mid-op at the next tool-call boundary? Lean toward "after current op completes" (simplest, predictable). Pin in `dual-driver-lead-follow-protocol.md` (post-supersede; previously #5).
+5. **Halt event shape and Monitor visibility** — the lead-transfer event in the SSE stream needs a Monitor representation distinct from other halts (cost-ceiling, assist-gate, etc.). Pin in `dual-driver-lead-follow-protocol.md` (post-supersede; previously #5).
 6. **Column-to-op mapping edge cases** — what happens if a card is dragged from `verifying` BACK to `building` (legitimate after a failed verify)? Does that re-trigger `plan`? Probably no — only forward moves trigger ops, backward moves are user-initiated rollbacks with no auto-op. Pin in #4.
 7. **Commit author identity for daemon-performed commits** — when the daemon commits chat edits or op completions, what's the `author`/`committer` shape? Probably `Conductor Daemon <conductor@<host>>` with a co-authored line citing the user? Pin in #3 or #0.
 8. **Run history pruning** — `.conductor/runs/` grows indefinitely. Pruning is already handled by existing retention config; verify it covers per-card artifacts and doesn't delete run artifacts the UI needs for history. Pin in #6.
@@ -140,11 +140,11 @@ These are tempting but DEFERRED — they need their own brainstorm round:
 - **Project-wide cursor file** (Control's STATE.md analog at Conductor's product layer) — a top-level "here's where the project is" view distinct from per-card state.
 - **Drift detection between UI and disk** — Control's hook-based drift check, ported to a daemon-level guard.
 - **Severity-gated cost** (Control's minor=journal-line / major=file model) at the card level.
-- **Autonomy halt conditions beyond user-chat and existing assist gates** — Control's 8 halt conditions (need-ADR, ambiguous-failing-test, cost-ceiling-hit, etc.) brought into the brain. Frame B adds *one* halt condition (user-chat); Frame C will systematize the rest.
+- **Autonomy halt conditions beyond lead-transfer and existing assist gates** — Control's 8 halt conditions (need-ADR, ambiguous-failing-test, cost-ceiling-hit, etc.) brought into the brain. The dual-driver cluster supplies the lead-transfer mechanism (via `dual-driver-lead-follow-protocol.md`); Frame C will systematize the rest.
 - **Session-start narration when the UI opens** — Control's `/session-start` plain-English summary, surfaced on first load of the Conductor UI.
 
 These are real product directions; they're just bigger than Frame B and need separate framings.
 
 ## Next
 
-Run **`/relay-design`** to expand each Feature Breakdown row into a detailed feature file under `.relay/features/`. The biggest design question per feature will be #3 (the chat-driven authoring loop) — the agent investigation pattern, diff-preview UI, and tool-call surface need careful design. Feature #5 (brain halt) is small but conceptually load-bearing; its design must align tightly with the button state machine in #2.
+Run **`/relay-design`** to expand each Feature Breakdown row into a detailed feature file under `.relay/features/`. The biggest design question per feature will be #3 (the chat-driven authoring loop) — the agent investigation pattern, diff-preview UI, and tool-call surface need careful design. (Feature #5 was superseded 2026-05-23 — see the SUPERSEDED row above and `dual-driver-lead-follow-protocol.md`.)
