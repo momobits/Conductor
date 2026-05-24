@@ -307,19 +307,107 @@ export async function renderCardDetail(
   const chatForm = root.querySelector<HTMLFormElement>('#chat-form')!;
   const chatInput = root.querySelector<HTMLInputElement>('#chat-input')!;
 
-  function appendMsg(role: 'user' | 'assistant', text: string) {
+  // Phase 30.15 / Relay #49 — extended assistant render with investigation log
+  // + propose-edit hydration. Tool-call log renders ABOVE assistant text.
+  // [propose-edit:<id>] markers in the rendered HTML are replaced with a
+  // placeholder div that hydrates from chat_proposed_edit_get.
+  interface ChatExtras {
+    toolCalls?: Array<{ name: string; input: Record<string, unknown>; output: string }>;
+    proposedEdit?: { editId: string; summary: string };
+    diagnostic?: string;
+  }
+
+  function renderToolCallsHtml(calls: ReadonlyArray<{ name: string; input: Record<string, unknown>; output: string }>): string {
+    return calls.map((c) => {
+      const inputSummary = escape(JSON.stringify(c.input).slice(0, 80));
+      const outputEsc = escape(c.output.slice(0, 4000));
+      return `<details class="tool-call"><summary>▸ ${escape(c.name)}(${inputSummary})</summary><pre>${outputEsc}</pre></details>`;
+    }).join('');
+  }
+
+  function appendMsg(role: 'user' | 'assistant', text: string, extras?: ChatExtras) {
     const div = document.createElement('div');
     div.className = `msg ${role}`;
     if (role === 'assistant') {
       // Phase 21: render assistant markdown via the same DOMPurify-sanitized
       // helper used for card body. User input stays as textContent (XSS-safe
       // defense against accidental markdown injection in user-typed content).
-      div.innerHTML = `<span class="role">assistant:</span> ${renderMarkdown(text)}`;
+      const toolCallsHtml = extras?.toolCalls && extras.toolCalls.length > 0
+        ? renderToolCallsHtml(extras.toolCalls)
+        : '';
+      const diagnosticHtml = extras?.diagnostic
+        ? `<div class="diagnostic">${escape(extras.diagnostic)}</div>`
+        : '';
+      // Render markdown first, THEN swap the [propose-edit:<id>] marker for a
+      // placeholder. The marker is plain text inside markdown (no rich nesting
+      // risk), so HTML-string replace is safe. editId regex matches the agent-
+      // generated `[a-zA-Z0-9._-]+` charset (matches RPC schema guard).
+      let rendered = renderMarkdown(text);
+      const markerRe = /\[propose-edit:([a-zA-Z0-9._-]+)\]/g;
+      rendered = rendered.replace(markerRe, (_m, editId: string) =>
+        `<div class="proposed-edit" data-edit-id="${escape(editId)}">Loading proposed edit…</div>`);
+      div.innerHTML = `${toolCallsHtml}${diagnosticHtml}<span class="role">assistant:</span> ${rendered}`;
+      // Hydrate any proposed-edit placeholders asynchronously.
+      div.querySelectorAll<HTMLElement>('.proposed-edit[data-edit-id]').forEach((el) => {
+        void hydrateProposedEdit(el);
+      });
     } else {
       div.textContent = `you: ${text}`;
     }
     chatLog.appendChild(div);
     chatLog.scrollTop = chatLog.scrollHeight;
+  }
+
+  async function hydrateProposedEdit(el: HTMLElement): Promise<void> {
+    const editId = el.dataset['editId'];
+    if (!editId) return;
+    try {
+      const r = await rpc.call<
+        | { found: false }
+        | { found: true; cardId: string; summary: string; oldBody: string; newBody: string }
+      >('chat_proposed_edit_get', { editId });
+      if (!r.found) {
+        el.innerHTML = `<em>Proposed edit expired or no longer available.</em>`;
+        return;
+      }
+      // Lightweight diff: side-by-side <pre> blocks. v2 may swap for unified-diff
+      // (per design Open Q #2 lean) once the basic flow is validated in dogfood.
+      el.innerHTML = `
+        <div class="diff-summary"><strong>Proposed edit:</strong> ${escape(r.summary)}</div>
+        <div class="diff">
+          <pre class="diff-old">${escape(r.oldBody)}</pre>
+          <pre class="diff-new">${escape(r.newBody)}</pre>
+        </div>
+        <div class="diff-actions">
+          <button class="apply-btn">Apply</button>
+          <button class="reject-btn">Reject</button>
+        </div>
+      `;
+      el.querySelector<HTMLButtonElement>('.apply-btn')!.addEventListener('click', async () => {
+        const applyBtn = el.querySelector<HTMLButtonElement>('.apply-btn')!;
+        const rejectBtn = el.querySelector<HTMLButtonElement>('.reject-btn')!;
+        applyBtn.disabled = true; rejectBtn.disabled = true;
+        try {
+          const res = await rpc.call<{ ok: true; commitSha: string }>('chat_apply_edit', { cardId, editId });
+          el.innerHTML = `<em>✓ applied (commit ${escape(res.commitSha.slice(0, 7))})</em>`;
+          // Refresh the description surface so the just-applied body lands
+          // visibly without waiting for the watcher's debounced cards-changed.
+          const fresh = await rpc.call<CardGetResult>('card_get', { id: cardId });
+          const descRender = root.querySelector<HTMLElement>('.surface.description .render');
+          if (descRender) descRender.innerHTML = renderMarkdown(fresh.body);
+        } catch (err) {
+          el.innerHTML = `<em>✗ apply failed: ${escape((err as Error).message)}</em>`;
+        }
+      });
+      el.querySelector<HTMLButtonElement>('.reject-btn')!.addEventListener('click', () => {
+        el.innerHTML = `<em>· edit rejected</em>`;
+        // Best-effort: server-side cleanup happens implicitly on the next
+        // chat message (clearProposedEditsForCard fires on a new propose-edit
+        // tool call). No dedicated reject RPC in v1.
+      });
+    } catch (err) {
+      el.innerHTML = `<em>✗ proposed-edit fetch failed: ${escape((err as Error).message)}</em>`;
+    }
   }
 
   // Phase 21: replay persisted chat history on render so chat is visible
@@ -350,12 +438,22 @@ export async function renderCardDetail(
       // controls render: conversation → plain assistant message; command →
       // render decision rationale + execution outcome inline. SSE events for
       // pending-decision approval flow are handled by the existing handler below.
+      // Phase 30.15 / Relay #49: conversation variant widened with optional
+      // toolCalls / proposedEdit / diagnostic. Existing command variant
+      // unchanged. appendMsg accepts the extras object as third arg.
       type ChatCommandResp =
-        | { mode: 'conversation'; reply: string }
+        | { mode: 'conversation'; reply: string;
+            toolCalls?: Array<{ name: string; input: Record<string, unknown>; output: string }>;
+            proposedEdit?: { editId: string; summary: string };
+            diagnostic?: string }
         | { mode: 'command'; decision: { rationale: string; action: string; confidence: number; params: unknown }; executed: boolean; outcome?: unknown };
       const r = await rpc.call<ChatCommandResp>('chat_command', { cardId, message: text });
       if (r.mode === 'conversation') {
-        appendMsg('assistant', r.reply);
+        appendMsg('assistant', r.reply, {
+          toolCalls: r.toolCalls,
+          proposedEdit: r.proposedEdit,
+          diagnostic: r.diagnostic,
+        });
       } else {
         // Render decision rationale + outcome as a markdown assistant message.
         // v2 polish (per design Open Q #5) would surface [Approve][Reject]

@@ -1599,3 +1599,73 @@ dialog .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top
   font-size: 10px;
   text-align: center;
 }
+
+/* =====================================================================
+   PHASE 30.15 / RELAY #49 — CHAT INVESTIGATION LOG + PROPOSED-EDIT
+   Tool-call entries render above assistant text as collapsed <details>;
+   propose-edit markers hydrate into side-by-side diff previews with
+   Apply/Reject buttons. CSS-var fallbacks keep the theme cohesive while
+   degrading gracefully if a future theme drops one of the variables.
+   ===================================================================== */
+.msg.assistant .tool-call {
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  color: var(--mute-2, #888);
+  margin: 4px 0;
+}
+.msg.assistant .tool-call summary {
+  cursor: pointer;
+}
+.msg.assistant .tool-call pre {
+  background: var(--ink-100, #f5f5f5);
+  padding: 8px;
+  margin-top: 4px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 11px;
+}
+.msg.assistant .diagnostic {
+  background: var(--ink-100, #f5f5f5);
+  border-left: 3px solid var(--warn, #c80);
+  padding: 4px 8px;
+  margin: 4px 0;
+  font-size: 12px;
+  color: var(--mute-2, #888);
+}
+.msg.assistant .proposed-edit {
+  border: 1px solid var(--hairline, #ddd);
+  border-radius: 4px;
+  padding: 8px;
+  margin: 8px 0;
+  background: var(--ink-050, #fafafa);
+}
+.msg.assistant .proposed-edit .diff-summary {
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+.msg.assistant .proposed-edit .diff {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.msg.assistant .proposed-edit .diff pre {
+  background: var(--ink-100, #f5f5f5);
+  padding: 6px;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.msg.assistant .proposed-edit .diff-old { border-left: 3px solid var(--err, #c33); }
+.msg.assistant .proposed-edit .diff-new { border-left: 3px solid var(--ok, #393); }
+.msg.assistant .proposed-edit .diff-actions button {
+  margin-right: 8px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.msg.assistant .proposed-edit .diff-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
