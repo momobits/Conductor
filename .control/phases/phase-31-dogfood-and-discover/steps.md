@@ -2,7 +2,7 @@
 
 - [ ] 31.1 — Kickoff dogfood + discover pass: run `/relay-scan` then `/relay-discover` against the post-Phase-30 codebase. Validate the empty issue backlog claim (no regressions from the +339-test sweep). Document any P1/P2 findings as Relay issues. Settle Phase 31 scope direction based on findings — either (a) fix-bundle phase, OR (b) new strategic brainstorm. Author scope into this README's "Why this phase exists" section + add 31.2+ steps to this file.
 - [x] 31.2 — `/relay-auto` ephemeral-state-persistence (#63): persist in-memory pending-decisions + proposed-edits across daemon restart via on-disk JSON files under `.conductor/`. Extends `RuntimeStore` with `PendingDecisionRecord` + 4 new methods.
-- [ ] 31.3 — `/relay-auto` brain-loop-ui-rendering (#64): render `conductor-pending-decision`, `conductor-pending-decision-resolved`, `conductor-halt-loop-detected` SSE events in `card_detail.ts` and `monitor.ts`.
+- [x] 31.3 — `/relay-auto` brain-loop-ui-rendering (#64): render `conductor-pending-decision`, `conductor-pending-decision-resolved`, `conductor-halt-loop-detected` SSE events in `card_detail.ts` and `monitor.ts`.
 
 ## Step detail
 
