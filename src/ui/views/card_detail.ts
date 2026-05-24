@@ -595,6 +595,93 @@ export async function renderCardDetail(
         .catch((err: Error) => appendEvent(`✗ index refresh failed: ${err.message}`, 'error'));
       return;
     }
+    // ── Phase 31.3 / Relay #64: conductor-pending-decision ──────────────
+    // Inline approval gate in the stream panel. Mirrors transition_request
+    // pattern but renders inline Approve/Reject buttons instead of a dialog.
+    if (e.kind === 'conductor-pending-decision') {
+      const env = e as DaemonEventEnvelope & {
+        cardId: string;
+        pendingId: string;
+        decision: { action: string; rationale: string; confidence: number };
+      };
+      if (env.cardId !== cardId) return;
+      const conf = Math.round(env.decision.confidence * 100);
+      const rationale = env.decision.rationale.length > 120
+        ? env.decision.rationale.slice(0, 117) + '...'
+        : env.decision.rationale;
+      const el = document.createElement('div');
+      el.className = 'ev pending-decision';
+      el.setAttribute('data-pending-id', env.pendingId);
+      el.innerHTML = [
+        `<div>⏳ pending decision: ${escape(env.decision.action)} on ${escape(env.cardId)} (confidence: ${conf}%)</div>`,
+        `<div class="pending-rationale">${escape(rationale)}</div>`,
+        `<div class="pending-actions">`,
+        `<button class="pending-approve">Approve</button>`,
+        `<button class="pending-reject">Reject</button>`,
+        `</div>`,
+      ].join('');
+      const approveBtn = el.querySelector<HTMLButtonElement>('.pending-approve')!;
+      const rejectBtn = el.querySelector<HTMLButtonElement>('.pending-reject')!;
+      approveBtn.addEventListener('click', async () => {
+        approveBtn.disabled = true; rejectBtn.disabled = true;
+        try {
+          await rpc.call('pending_decision_resolve', { pendingId: env.pendingId, resolution: 'approve' });
+        } catch (err) {
+          appendEvent(`✗ approve failed: ${(err as Error).message}`, 'error');
+        }
+      });
+      rejectBtn.addEventListener('click', async () => {
+        approveBtn.disabled = true; rejectBtn.disabled = true;
+        try {
+          await rpc.call('pending_decision_resolve', { pendingId: env.pendingId, resolution: 'reject' });
+        } catch (err) {
+          appendEvent(`✗ reject failed: ${(err as Error).message}`, 'error');
+        }
+      });
+      streamEl.appendChild(el);
+      streamEl.scrollTop = streamEl.scrollHeight;
+      return;
+    }
+    // ── Phase 31.3 / Relay #64: conductor-pending-decision-resolved ───
+    // Find the matching pending element and replace buttons with status badge.
+    if (e.kind === 'conductor-pending-decision-resolved') {
+      const env = e as DaemonEventEnvelope & {
+        pendingId: string;
+        resolution: 'approve' | 'reject' | 'amend' | 'timeout';
+      };
+      const target = streamEl.querySelector<HTMLElement>(`[data-pending-id="${CSS.escape(env.pendingId)}"]`);
+      if (!target) return; // different card or page loaded after decision
+      const actionsEl = target.querySelector<HTMLElement>('.pending-actions');
+      if (!actionsEl) return;
+      const badges: Record<string, { icon: string; label: string; cls: string }> = {
+        approve: { icon: '✓', label: 'approved', cls: 'complete' },
+        reject:  { icon: '✗', label: 'rejected', cls: 'error' },
+        amend:   { icon: '↻', label: 'amended', cls: 'halt' },
+        timeout: { icon: '⏱', label: 'timed out', cls: '' },
+      };
+      const b = badges[env.resolution] ?? { icon: '?', label: env.resolution, cls: '' };
+      actionsEl.innerHTML = `<span class="ev ${b.cls}">${b.icon} ${b.label}</span>`;
+      return;
+    }
+    // ── Phase 31.3 / Relay #64: conductor-halt-loop-detected ──────────
+    // Prominent warning in the stream. Informational — no buttons.
+    if (e.kind === 'conductor-halt-loop-detected') {
+      const env = e as DaemonEventEnvelope & {
+        cardId: string;
+        count: number;
+        lastCategory: string;
+        lastRationale: string;
+      };
+      if (env.cardId !== cardId) return;
+      const rationale = env.lastRationale.length > 80
+        ? env.lastRationale.slice(0, 77) + '...'
+        : env.lastRationale;
+      appendEvent(
+        `⚠ halt loop detected: ${env.count} consecutive halts on ${env.cardId}\n  category: ${env.lastCategory} — ${rationale}`,
+        'halt-loop',
+      );
+      return;
+    }
     if (e.kind !== 'task-event') return;
     const ev = e as DaemonEventEnvelope & { cardId: string; runId?: string; event: { kind: string; operation?: string; from?: string; to?: string; reason?: string; message?: string } };
     if (ev.cardId !== cardId) return;

@@ -698,6 +698,59 @@ main#root.page {
 .stream .ev.error { color: var(--halt); }
 .stream .ev.complete { color: var(--acid); }
 
+/* Phase 31.3 / Relay #64: pending-decision inline approval gate */
+.stream .ev.pending-decision {
+  border-left: 2px solid var(--amber);
+  padding-left: 8px;
+  margin: 4px 0;
+}
+.stream .ev.pending-decision .pending-rationale {
+  color: var(--mute);
+  font-size: 10px;
+  margin: 2px 0;
+}
+.stream .ev.pending-decision .pending-actions {
+  display: inline-flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+.stream .ev.pending-decision .pending-actions button {
+  padding: 3px 10px;
+  font-size: 10px;
+  font-family: var(--f-mono);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-cap);
+  cursor: pointer;
+}
+.stream .ev.pending-decision .pending-approve {
+  background: transparent;
+  border: 1px solid var(--acid);
+  color: var(--acid);
+}
+.stream .ev.pending-decision .pending-approve:hover:not(:disabled) {
+  background: var(--acid);
+  color: var(--ink-000);
+}
+.stream .ev.pending-decision .pending-reject {
+  background: transparent;
+  border: 1px solid var(--halt);
+  color: var(--halt);
+}
+.stream .ev.pending-decision .pending-reject:hover:not(:disabled) {
+  background: var(--halt);
+  color: var(--ink-000);
+}
+
+/* Phase 31.3 / Relay #64: halt-loop circuit breaker warning */
+.stream .ev.halt-loop {
+  color: var(--paper);
+  background: color-mix(in srgb, var(--signal) 15%, var(--ink-000));
+  border-left: 3px solid var(--signal);
+  padding: 4px 8px;
+  margin: 4px 0;
+  font-weight: 700;
+}
+
 /* Chat */
 .chat { margin-top: 32px; padding-top: 22px; border-top: var(--rule); }
 .chat h3 {

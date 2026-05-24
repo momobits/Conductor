@@ -151,6 +151,19 @@ export async function renderMonitor(
       void refresh();
     } else if (e.kind === 'conductor-status') {
       void refresh();
+    // ── Phase 31.3 / Relay #64: pending-decision + halt-loop telemetry ──
+    } else if (e.kind === 'conductor-pending-decision') {
+      const ev = e as unknown as { cardId: string; decision: { action: string; confidence: number } };
+      brainLog.push({ ts: Date.now(), line: `[pending] ${ev.cardId}: ${ev.decision.action} (confidence: ${ev.decision.confidence})` });
+      void refresh();
+    } else if (e.kind === 'conductor-pending-decision-resolved') {
+      const ev = e as unknown as { pendingId: string; resolution: string };
+      brainLog.push({ ts: Date.now(), line: `[resolved] ${ev.pendingId}: ${ev.resolution}` });
+      paint();
+    } else if (e.kind === 'conductor-halt-loop-detected') {
+      const ev = e as unknown as { cardId: string; count: number; lastCategory: string };
+      brainLog.push({ ts: Date.now(), line: `[halt-loop] ${ev.cardId}: ${ev.count}× ${ev.lastCategory}` });
+      void refresh();
     }
   });
 
