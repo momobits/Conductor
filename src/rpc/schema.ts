@@ -133,6 +133,15 @@ export const CardArtifactsIndexParams = z.object({
   cardId: z.string().min(1).max(128).regex(/^[a-zA-Z0-9._-]+$/, 'cardId must match [a-zA-Z0-9._-]+'),
 });
 
+// Phase 22 (Control phase 30.12) feature #52: card-detail run-history surface RPC.
+// Returns per-run breakdown for a card: each entry = { runId, timestamp, ops[] }.
+// Complements card_artifacts_index (per-op latest summary); together they cover
+// per-op "what's latest" and per-run "what ran in this snapshot". cardId regex
+// mirrors CardArtifactsIndexParams (path-traversal guard at the RPC boundary).
+export const CardRunsListParams = z.object({
+  cardId: z.string().min(1).max(128).regex(/^[a-zA-Z0-9._-]+$/, 'cardId must match [a-zA-Z0-9._-]+'),
+}).strict();
+
 // Phase 22 (Control phase 30.2): dual-driver orchestrator-core RPC surface.
 // Wires Frame B chat panel + brain loop to the orchestrator engine. The
 // `userMessage` optional field carries Frame B chat input when present.

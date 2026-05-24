@@ -851,6 +851,54 @@ main#root.page {
      target this region specifically. */
 }
 
+/* ─── Run-history panel (Phase 30.12 / Relay #52) ────────────────────── */
+.op-section .history-panel {
+  margin: 6px 0 10px;
+  padding: 6px 10px;
+  background: var(--ink-100);
+  border-left: 2px solid var(--signal);
+  font-size: 11px;
+  font-family: var(--f-mono);
+}
+.op-section .history-panel details summary {
+  cursor: pointer;
+  color: var(--mute);
+  margin-bottom: 4px;
+}
+.op-section .run-list {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+.op-section .run-list li { margin: 2px 0; }
+.op-section .run-link {
+  color: var(--cool);
+  text-decoration: none;
+  cursor: pointer;
+}
+.op-section .run-link:hover { color: var(--paper); text-decoration: underline; }
+.op-section .run-link.selected {
+  font-weight: 700;
+  color: var(--signal);
+}
+.op-section .latest-tag,
+.op-section .viewing-tag {
+  font-size: 10px;
+  color: var(--mute);
+  margin-left: 4px;
+}
+.op-section[data-state="viewing-history"] header .meta {
+  color: var(--signal);
+  font-style: italic;
+}
+.op-section[data-state="viewing-history"] header .meta .back-latest {
+  color: var(--cool);
+  text-decoration: underline;
+  cursor: pointer;
+  font-style: normal;
+  margin-left: 4px;
+}
+
 /* =====================================================================
    BUTTONS
    ===================================================================== */

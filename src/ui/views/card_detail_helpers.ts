@@ -116,6 +116,46 @@ export function hostSectionAttrs(op: ArtifactOp): string {
   return `class="op-section op-${escapeHtml(op)}" data-op="${escapeHtml(op)}"${internalAttr}`;
 }
 
+// ─── Phase 22 (Control 30.12) feature #52: run-history panel rendering ──────
+// Pure helper: render the inline history panel that expands under a section
+// header when the user clicks ⋯. Markup is a <details open> containing an
+// ordered list of historical runs for this op. The entry whose runId matches
+// `currentRunId` gets the `.selected` class so the user sees which run is
+// currently displayed. The latest run gets an inline "(latest)" tag. Caller
+// is responsible for filtering the input runs to those producing this op
+// (see fetchRunsForOp in card_detail.ts).
+export interface HistoryPanelRun {
+  runId: string;
+  timestamp: string;  // ISO
+}
+export function renderHistoryPanelHtml(
+  op: ArtifactOp,
+  runs: readonly HistoryPanelRun[],
+  currentRunId: string | null,
+): string {
+  if (runs.length === 0) {
+    return `<div class="history-panel"><em>no history available</em></div>`;
+  }
+  const items = runs.map((run, idx) => {
+    const isLatest = idx === 0;
+    const isSelected = run.runId === currentRunId;
+    const cls = `run-link${isSelected ? ' selected' : ''}`;
+    const tag = isLatest ? ' <span class="latest-tag">(latest)</span>'
+              : isSelected ? ' <span class="viewing-tag">(viewing)</span>'
+              : '';
+    // Review Issue 2: reuse the existing formatRelativeTime helper for
+    // human-readable timestamps (consistent with the broader card-detail
+    // display convention).
+    const tsDisplay = escapeHtml(formatRelativeTime(run.timestamp));
+    const runIdAttr = escapeHtml(run.runId);
+    const opAttr = escapeHtml(op);
+    return `<li><a href="#" class="${cls}" data-run-id="${runIdAttr}" data-op="${opAttr}">${tsDisplay}${tag}</a></li>`;
+  }).join('');
+  return `<div class="history-panel"><details open>` +
+    `<summary>history (${runs.length} run${runs.length === 1 ? '' : 's'})</summary>` +
+    `<ol class="run-list">${items}</ol></details></div>`;
+}
+
 // ─── Phase 22 (Control 30.5) feature #48: per-op control widget exports ─────
 
 // The full op set the sidebar surfaces. Includes 'resolve' (which OP_RENDER_ORDER

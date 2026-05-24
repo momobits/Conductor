@@ -23,6 +23,7 @@ import {
   CONTROL_OPS,
   COLUMN_ENABLED_OPS,
   computeButtonStates,
+  renderHistoryPanelHtml,
   type OpIndexEntry,
   type ControlOp,
 } from '../../src/ui/views/card_detail_helpers.js';
@@ -265,5 +266,54 @@ describe('computeButtonStates', () => {
     expect(findByOp(descriptors, 'plan')!.label).toBe('Plan');
     expect(findByOp(descriptors, 'work-all')!.label).toBe('Work all');
     expect(findByOp(descriptors, 'continue')!.label).toBe('Continue this card');
+  });
+});
+
+describe('renderHistoryPanelHtml', () => {
+  // Note: timestamps render via formatRelativeTime (review Issue 2), so we
+  // assert on stable markup (runId attrs, selected class, count text) rather
+  // than the exact human-readable timestamp string. The non-deterministic
+  // "ago" math is covered by the existing formatRelativeTime tests.
+  const runA = { runId: '20260524T120000-card-x', timestamp: '2026-05-24T12:00:00.000Z' };
+  const runB = { runId: '20260523T120000-card-x', timestamp: '2026-05-23T12:00:00.000Z' };
+  const runC = { runId: '20260522T120000-card-x', timestamp: '2026-05-22T12:00:00.000Z' };
+
+  it('renders empty-state message when runs array is empty', () => {
+    const html = renderHistoryPanelHtml('analyze', [], null);
+    expect(html).toContain('no history available');
+    expect(html).not.toContain('<ol class="run-list">');
+  });
+
+  it('renders all runs in a run-list with runId attrs', () => {
+    const html = renderHistoryPanelHtml('plan', [runA, runB, runC], null);
+    expect(html).toContain('<ol class="run-list">');
+    expect(html).toContain(`data-run-id="${runA.runId}"`);
+    expect(html).toContain(`data-run-id="${runB.runId}"`);
+    expect(html).toContain(`data-run-id="${runC.runId}"`);
+    expect(html).toContain('history (3 runs)');
+  });
+
+  it('tags the first entry with (latest)', () => {
+    const html = renderHistoryPanelHtml('plan', [runA, runB], null);
+    const idxA = html.indexOf(`data-run-id="${runA.runId}"`);
+    const idxLatest = html.indexOf('(latest)');
+    expect(idxA).toBeLessThan(idxLatest);
+    expect(idxLatest).toBeLessThan(html.indexOf(`data-run-id="${runB.runId}"`));
+  });
+
+  it('singular "run" for one entry, plural for multiple', () => {
+    expect(renderHistoryPanelHtml('plan', [runA], null)).toContain('history (1 run)');
+    expect(renderHistoryPanelHtml('plan', [runA, runB], null)).toContain('history (2 runs)');
+  });
+
+  it('marks the matching runId with .selected class', () => {
+    const html = renderHistoryPanelHtml('plan', [runA, runB], runB.runId);
+    expect(html).toMatch(new RegExp(`class="run-link selected"[^>]*data-run-id="${runB.runId}"`));
+    expect(html).toContain('(viewing)');
+  });
+
+  it('renders run links with op data-attribute', () => {
+    const html = renderHistoryPanelHtml('review', [runA], runA.runId);
+    expect(html).toContain('data-op="review"');
   });
 });

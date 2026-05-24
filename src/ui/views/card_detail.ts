@@ -15,6 +15,7 @@ import { renderMarkdown } from '../lib/markdown.js';
 import { confirmTransition } from '../lib/dialog.js';
 import {
   renderOpSection,
+  renderHistoryPanelHtml,
   OP_RENDER_ORDER,
   columnToFocusOp,
   hostSectionAttrs,
@@ -24,6 +25,7 @@ import {
   type OpIndexEntry,
   type ControlOp,
   type ButtonState,
+  type HistoryPanelRun,
 } from './card_detail_helpers.js';
 
 interface CardGetResult {
@@ -147,6 +149,88 @@ export async function renderCardDetail(
   // "artifacts panel double-appends on re-run" — replace-in-place semantics.
   const inflightByOp: Map<ArtifactOp, Promise<void>> = new Map();
 
+  // ─── Phase 30.12 / Relay #52: run-history surface state ───────────────
+  // Per-op run-list cache. Populated lazily on first ⋯ click; invalidated when
+  // op_complete fires for that op (runs list is now stale by one entry).
+  // Per-op viewing-history selection. null = viewing latest; else runId of historical run.
+  const runsCache: Map<ArtifactOp, HistoryPanelRun[]> = new Map();
+  const viewingByOp: Map<ArtifactOp, string | null> = new Map();
+
+  async function fetchRunsForOp(op: ArtifactOp): Promise<HistoryPanelRun[]> {
+    const cached = runsCache.get(op);
+    if (cached) return cached;
+    const r = await rpc.call<{ runs: Array<{ runId: string; timestamp: string; ops: string[] }> }>(
+      'card_runs_list', { cardId },
+    );
+    const filtered: HistoryPanelRun[] = r.runs
+      .filter((run) => run.ops.includes(op))
+      .map((run) => ({ runId: run.runId, timestamp: run.timestamp }));
+    runsCache.set(op, filtered);
+    return filtered;
+  }
+
+  function closeHistoryPanel(_op: ArtifactOp, host: HTMLElement): void {
+    host.querySelector('.history-panel')?.remove();
+    // Note: doesn't change viewingByOp — closing panel doesn't revert to latest;
+    // the user explicitly clicks "back to latest" to revert artifact body.
+  }
+
+  async function openHistoryPanel(op: ArtifactOp, host: HTMLElement): Promise<void> {
+    const runs = await fetchRunsForOp(op).catch((err: Error) => {
+      appendEvent(`✗ card_runs_list failed: ${err.message}`, 'error');
+      return [] as HistoryPanelRun[];
+    });
+    const currentRunId = viewingByOp.get(op) ?? opsIndex[op].latestRunId;
+    const panelHtml = renderHistoryPanelHtml(op, runs, currentRunId);
+    const header = host.querySelector('header');
+    if (!header) return;
+    header.insertAdjacentHTML('afterend', panelHtml);
+    host.querySelectorAll<HTMLAnchorElement>('.history-panel .run-link').forEach((a) => {
+      a.addEventListener('click', async (ev) => {
+        ev.preventDefault();
+        const runId = a.dataset['runId'];
+        if (!runId) return;
+        await switchToHistoricalRun(op, host, runId);
+      });
+    });
+    host.querySelector<HTMLAnchorElement>('.history-panel .back-latest')?.addEventListener('click', async (ev) => {
+      ev.preventDefault();
+      await switchToLatest(op, host);
+    });
+  }
+
+  async function switchToHistoricalRun(op: ArtifactOp, host: HTMLElement, runId: string): Promise<void> {
+    viewingByOp.set(op, runId);
+    host.setAttribute('data-state', 'viewing-history');
+    const meta = host.querySelector<HTMLElement>('header .meta');
+    if (meta) {
+      const shortId = runId.slice(0, 15);
+      meta.innerHTML = `viewing run ${shortId} — <a href="#" class="back-latest">back to latest</a>`;
+      meta.querySelector<HTMLAnchorElement>('.back-latest')?.addEventListener('click', async (ev) => {
+        ev.preventDefault();
+        await switchToLatest(op, host);
+      });
+    }
+    try {
+      const r = await rpc.call<{ text: string | null }>('run_artifact_get', { runId, op });
+      const renderEl = host.querySelector<HTMLElement>('.render');
+      if (renderEl) renderEl.innerHTML = r.text ? renderMarkdown(r.text) : '<em>(empty)</em>';
+    } catch (err) {
+      appendEvent(`✗ run_artifact_get failed: ${(err as Error).message}`, 'error');
+    }
+    host.querySelectorAll<HTMLAnchorElement>('.history-panel .run-link').forEach((a) => {
+      a.classList.toggle('selected', a.dataset['runId'] === runId);
+    });
+  }
+
+  async function switchToLatest(op: ArtifactOp, host: HTMLElement): Promise<void> {
+    viewingByOp.set(op, null);
+    host.setAttribute('data-state', 'latest');
+    // Re-render the section fully (cheapest path: reuses single-flight + index).
+    // Closes the history panel as a side effect because innerHTML is reset.
+    await renderOpSectionInto(op);
+  }
+
   async function renderOpSectionInto(op: ArtifactOp): Promise<void> {
     // Coalesce: if another render is in flight for this op, await it then
     // re-issue (the second caller wants the FRESHEST state, not the result).
@@ -196,8 +280,20 @@ export async function renderCardDetail(
           finally { btn.disabled = false; }
         });
       });
-      // History button is a no-op until Feature #52 (run-history surface)
-      // ships. Attribute-only target; click handler intentionally absent.
+      // History button click → toggle viewing-history surface (#52). The button's
+      // disabled state already reflects runCount<=1 via renderOpSection; we only
+      // attach a handler. Lazy fetch on first click; per-op cache lives in the
+      // closure (runsCache map above) for the lifetime of this renderCardDetail
+      // mount and invalidates on op_complete.
+      host.querySelectorAll<HTMLButtonElement>('button[data-act="history"]').forEach((btn) => {
+        if (btn.disabled) return;
+        btn.addEventListener('click', async () => {
+          // Toggle: if history panel already open, close it (artifact view unchanged).
+          const existing = host.querySelector<HTMLElement>('.history-panel');
+          if (existing) { closeHistoryPanel(op, host); return; }
+          await openHistoryPanel(op, host);
+        });
+      });
     })();
     inflightByOp.set(op, promise);
     try { await promise; } finally { inflightByOp.delete(op); }
@@ -397,6 +493,11 @@ export async function renderCardDetail(
           // is what feeds the latestTs/runCount; the section render reads
           // the updated index from the closed-over `opsIndex` var.
           const op = evt.operation;
+          // Phase 30.12 / #52: invalidate per-op runs cache + drop viewing-history
+          // mode. The just-completed run IS the new latest, which the user wants
+          // to see post-rerun (review Issue 3 mitigation).
+          runsCache.delete(op);
+          viewingByOp.set(op, null);
           rpc.call<CardArtifactsIndexResult>('card_artifacts_index', { cardId })
             .then((idx) => { opsIndex = idx.ops; return renderOpSectionInto(op); })
             .catch((err: Error) => appendEvent(`✗ refresh failed: ${err.message}`, 'error'));

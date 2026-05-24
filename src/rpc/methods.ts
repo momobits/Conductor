@@ -20,6 +20,7 @@ import {
   TrackerPullParams,
   RunListParams, RunReplayParams, RunPruneParams,
   RunArtifactGetParams, CardChatHistoryParams, CardArtifactsIndexParams,
+  CardRunsListParams,
   CostShowParams,
   OrchestratorDecideParams,
   LeadGetParams, LeadSetParams,
@@ -677,6 +678,40 @@ async function card_artifacts_index(ctx: MethodContext, raw: unknown) {
   return { ops };
 }
 
+// Phase 22 (Control phase 30.12) feature #52: per-card per-run breakdown
+// for the run-history `⋯` surface. Single readdir over .conductor/runs/
+// filtered to the canonical <YYYYMMDDTHHMMSS>-<cardId> shape (same regex +
+// length-equality guard as findLatestArtifactRunId AND card_artifacts_index
+// at methods.ts:644-647 — pattern reuse, not re-derivation). For each
+// matched run, lists the <op>.md files present. Returns runs sorted newest-
+// first by mtime (delegated to listRuns which already sorts mtime-DESC).
+async function card_runs_list(ctx: MethodContext, raw: unknown) {
+  const p = CardRunsListParams.parse(raw);
+  const cardId = p.cardId;
+  const expectedLen = 16 + cardId.length;
+  const PREFIX_SHAPE = /^\d{8}T\d{6}-/;
+  const suffix = `-${cardId}`;
+  const runs = await listRuns(ctx.repo);
+  const out: Array<{ runId: string; timestamp: string; ops: string[] }> = [];
+  for (const run of runs) {
+    if (!PREFIX_SHAPE.test(run.runId)) continue;
+    if (run.runId.length !== expectedLen) continue;
+    if (!run.runId.endsWith(suffix)) continue;
+    const runDir = join(ctx.repo, '.conductor', 'runs', run.runId);
+    let files: string[] = [];
+    try { files = await readdir(runDir); } catch { continue; }
+    const ops = files
+      .filter((f) => f.endsWith('.md'))
+      .map((f) => f.slice(0, -3));
+    out.push({
+      runId: run.runId,
+      timestamp: run.mtime.toISOString(),
+      ops,
+    });
+  }
+  return { runs: out };
+}
+
 // Phase 30.6 / Relay #58: substrate-hygiene RPC handlers. Compose the
 // substrate_hygiene primitives + publish the substrate-orphaned SSE
 // event. Wipe/branch handlers publish in post-action shape
@@ -755,6 +790,7 @@ export const methods = {
   run_artifact_get,
   card_chat_history,
   card_artifacts_index,
+  card_runs_list,
   orchestrator_decide,
   lead_get,
   lead_set,

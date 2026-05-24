@@ -626,6 +626,78 @@ describe('rpc methods - card_artifacts_index', () => {
   });
 });
 
+describe('rpc methods - card_runs_list', () => {
+  it('returns empty runs array when card has no runs', async () => {
+    const repo = setupRepo();
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    const res = await methods.card_runs_list(ctx, { cardId: 'no-runs-card' }) as {
+      runs: Array<{ runId: string; timestamp: string; ops: string[] }>;
+    };
+    expect(res.runs).toEqual([]);
+  });
+
+  it('reports a single run with its op files', async () => {
+    const repo = setupRepo();
+    const { RunArtifactWriter } = await import('../../src/agent/run_artifact.js');
+    const runId = '20260524T120000-card-x';
+    mkdirSync(join(repo, '.conductor', 'runs', runId), { recursive: true });
+    writeFileSync(join(repo, '.conductor', 'runs', runId, 'events.jsonl'), '{}\n', 'utf8');
+    await new RunArtifactWriter({ repo, runId }).write('analyze', 'ANALYZED');
+    await new RunArtifactWriter({ repo, runId }).write('plan', 'PLANNED');
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    const res = await methods.card_runs_list(ctx, { cardId: 'card-x' }) as {
+      runs: Array<{ runId: string; timestamp: string; ops: string[] }>;
+    };
+    expect(res.runs).toHaveLength(1);
+    expect(res.runs[0]!.runId).toBe(runId);
+    expect(res.runs[0]!.ops.sort()).toEqual(['analyze', 'plan']);
+    expect(typeof res.runs[0]!.timestamp).toBe('string');
+  });
+
+  it('lists multiple runs sorted newest-first by mtime', async () => {
+    const repo = setupRepo();
+    const { RunArtifactWriter } = await import('../../src/agent/run_artifact.js');
+    const runs = ['20260520T100000-card-y', '20260522T100000-card-y', '20260524T100000-card-y'];
+    for (const runId of runs) {
+      mkdirSync(join(repo, '.conductor', 'runs', runId), { recursive: true });
+      writeFileSync(join(repo, '.conductor', 'runs', runId, 'events.jsonl'), '{}\n', 'utf8');
+      await new RunArtifactWriter({ repo, runId }).write('analyze', `A:${runId}`);
+    }
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    const res = await methods.card_runs_list(ctx, { cardId: 'card-y' }) as {
+      runs: Array<{ runId: string; timestamp: string; ops: string[] }>;
+    };
+    expect(res.runs).toHaveLength(3);
+    // Newest-first: the last-written run lands first (listRuns sorts mtime-DESC).
+    expect(res.runs[0]!.runId).toBe(runs[2]);
+  });
+
+  it('filters out other cards by runId suffix', async () => {
+    const repo = setupRepo();
+    const { RunArtifactWriter } = await import('../../src/agent/run_artifact.js');
+    const myRun = '20260524T120000-mine';
+    const otherRun = '20260524T120000-other-card';
+    mkdirSync(join(repo, '.conductor', 'runs', myRun), { recursive: true });
+    writeFileSync(join(repo, '.conductor', 'runs', myRun, 'events.jsonl'), '{}\n', 'utf8');
+    mkdirSync(join(repo, '.conductor', 'runs', otherRun), { recursive: true });
+    writeFileSync(join(repo, '.conductor', 'runs', otherRun, 'events.jsonl'), '{}\n', 'utf8');
+    await new RunArtifactWriter({ repo, runId: myRun }).write('analyze', 'mine');
+    await new RunArtifactWriter({ repo, runId: otherRun }).write('analyze', 'other');
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    const res = await methods.card_runs_list(ctx, { cardId: 'mine' }) as {
+      runs: Array<{ runId: string; timestamp: string; ops: string[] }>;
+    };
+    expect(res.runs).toHaveLength(1);
+    expect(res.runs[0]!.runId).toBe(myRun);
+  });
+
+  it('rejects cardId with path-traversal characters', async () => {
+    const repo = setupRepo();
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    await expect(methods.card_runs_list(ctx, { cardId: '../escape' })).rejects.toThrow();
+  });
+});
+
 describe('rpc methods - orchestrator_decide', () => {
   it('returns a narrowed decision via mock adapter', async () => {
     const repo = setupRepo();
