@@ -3,7 +3,7 @@
 > Single source of truth. Read this first every session. Updated at every
 > `/session-end` and by the `PreCompact` hook. Every field has a purpose -- fill each.
 
-**Last updated:** 2026-05-24 by /phase-close after Phase 30 close (sid-2026-05-24-phase-30-close)
+**Last updated:** 2026-05-24 by /session-end after Phase 30 close (sid-2026-05-24-session-end-post-phase-30)
 **Current phase:** 31 — Dogfood + discover (kickoff pending)
 **Current step:** 31.1 — Kickoff dogfood + discover pass
 **Status:** kicked-off (Phase 30 closed cleanly at tag `phase-30-frame-b-and-dual-driver-closed`; 15 sub-steps shipped including the BIG-BANG SWITCH at 30.13 and the cross-cluster chat bridge at 30.14; suite 1123/1123 across 137 test files; engine-side smoke at `scripts/smoke-phase30.mjs` verified the orchestrator-driven loop end-to-end; Phase 31 scaffold authored with 31.1 as the kickoff dogfood + discover pass and 31.2+ to be authored after; ready to resume with reading `.relay/relay-status.md` for the post-sweep state and running `/relay-discover` against the architecturally-shifted codebase)
@@ -35,10 +35,10 @@ Phase 31 README + steps authored at `.control/phases/phase-31-dogfood-and-discov
 
 ## Git state
 - **Branch:** main
-- **Last commit:** (to be filled in by phase-close commit). Predecessors this session: `73faf88` (chore(phase-30): add smoke harness + fill done-criteria), `894f292` (docs(30.15): /relay-auto close out chat-driven-description-authoring FINAL), `17ba8d8` (docs(30.14): /relay-auto close out dual-driver-frame-b-chat-wire), `06e1ad3` (docs(30.13): /relay-auto close out dual-driver-brain-loop-replacement BIG-BANG SWITCH).
-- **Uncommitted changes:** STATE.md + next.md regeneration + Phase 31 scaffold (README + steps) about to land in this `chore(phase-30):` phase-close commit (self-reference pattern; the hook's commit-mismatch detector auto-suppresses this offset for phase-close commits whose parent matches the recorded SHA).
+- **Last commit:** `d9f4f29` chore(phase-30): close phase 30, kick off phase 31. Predecessors this session: `73faf88` (chore(phase-30): add smoke harness + fill done-criteria), `894f292` (docs(30.15): /relay-auto close out chat-driven-description-authoring FINAL), `17ba8d8` (docs(30.14): /relay-auto close out dual-driver-frame-b-chat-wire), `06e1ad3` (docs(30.13): /relay-auto close out dual-driver-brain-loop-replacement BIG-BANG SWITCH). Plus the upcoming `docs(state): session end for step 31.1` commit.
+- **Uncommitted changes:** STATE.md + journal.md + next.md regeneration about to land in this `docs(state):` session-end commit.
 - **Last phase tag:** `phase-30-frame-b-and-dual-driver-closed` (created at end of Phase 30; predecessor `phase-29-ui-markdown-render-fix-closed`).
-- **Branch state:** main is ahead of origin/main by ~70 commits (Phase 30 sweep + close); push is not gated by Control protocol.
+- **Branch state:** main is ahead of origin/main by 70 commits (Phase 30 sweep + close); push is not gated by Control protocol.
 
 ---
 
@@ -82,12 +82,12 @@ Phase 31 README + steps authored at `.control/phases/phase-31-dogfood-and-discov
 
 ---
 
-## Recently completed (last 5 commits before phase-close)
+## Recently completed (last 5 commits)
+- `d9f4f29` — chore(phase-30): close phase 30, kick off phase 31 — 2026-05-24
 - `73faf88` — chore(phase-30): add smoke harness for BIG-BANG SWITCH + fill done-criteria — 2026-05-24
 - `894f292` — docs(30.15): /relay-auto close out chat-driven-description-authoring FINAL — 2026-05-24
 - `c6ff57d` — docs(30.15): /relay-resolve close out chat-driven-description-authoring (#49) — 2026-05-24
 - `25a6cdd` — docs(30.15): /relay-verify report for #49 (COMPLETE, 1123/1123 +27) — 2026-05-24
-- `4384d09` — test(30.15): cover chat-agent + chat_apply_edit + runtime extensions (#49 steps 9-11) — 2026-05-24
 
 Earlier this phase: Phase 30 ran 15 sub-steps across 2026-05-23 (30.1 kickoff + 30.2-30.6 manual single-item /relay-auto dispatches) and 2026-05-24 (30.7-30.15 via `/relay-auto --sweep all`). Per-item bridge close-out commits across the entire phase. /relay-auto session artifacts persisted at `.relay/.auto-session/2026-05-{23,24}-*/`.
 

@@ -2,6 +2,10 @@
 
 Append-only, newest on top. One entry per session, short. Minor fixes land here as one-line entries (see Issue flow in `.control/PROJECT_PROTOCOL.md`).
 
+## 2026-05-24 — session-end after Phase 30 close (sid-2026-05-24-session-end-post-phase-30)
+
+Session-end after the Phase 30 close-out documented in the entry below. Phase 30 close commit is `d9f4f29`; tag `phase-30-frame-b-and-dual-driver-closed`. Working tree clean. STATE.md + journal.md + next.md regeneration land in this session-end commit. Phase 31 step 31.1 (kickoff dogfood + discover pass) is the next-session resume point.
+
 ## 2026-05-24 — Phase 30 closed (Frame B + dual-driver; entire 14-feature backlog shipped across 15 steps); Phase 31 kicked off (dogfood + discover, kickoff pending)
 
 Phase 30 closed (tag: `phase-30-frame-b-and-dual-driver-closed`, commit: pending phase-close); Phase 31 (dogfood + discover, post-sweep) kicked off. Suite 784 → 1123 (+339 net tests). The Phase 30 sweep substantially overran its original "30.1 + 30.2 first foundation" scope and drained the entire active feature backlog (14 features) across 15 closed steps via `/relay-auto` (manual single-item dispatches 30.2-30.6 on 2026-05-23, then `/relay-auto --sweep all` covering 30.7-30.15 on 2026-05-24).
