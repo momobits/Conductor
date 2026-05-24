@@ -1,8 +1,10 @@
+> **ARCHIVED** — Resolved. See [implementation doc](../../implemented/chat-driven-description-authoring.md)
+
 # Feature: Chat-driven description authoring
 
 *Created: 2026-05-17*
 *Brainstorm: [[card-pipeline-ui_brainstorm.md]](card-pipeline-ui_brainstorm.md)*
-*Status: DESIGNED*
+*Status: IMPLEMENTED*
 
 ## Summary
 
