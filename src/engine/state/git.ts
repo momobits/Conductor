@@ -48,6 +48,35 @@ export async function commitStep(
   return result.commit;
 }
 
+/** Phase 30.15 / Relay #49 — commit a chat-applied card body edit. Subject
+ *  shape `chat(<cardId>): <summary>` per design Architecture (#49). Sibling
+ *  of commitStep; intentionally bypasses commitStep because chat commits are
+ *  card-scoped, not Control-step-scoped. Caller MUST list the exact files
+ *  (typically just the one card markdown path). Empty files array rejected
+ *  for the same reason commitStep rejects it (T6-1 dogfood finding). */
+export interface CommitCardEditArgs {
+  cardId: string;
+  summary: string;
+  files: string[];
+}
+
+export async function commitCardEdit(
+  repo: string,
+  args: CommitCardEditArgs,
+): Promise<string> {
+  const g = git(repo);
+  if (args.files.length === 0) {
+    throw new Error(
+      'commitCardEdit: no files supplied. The caller must list the exact files ' +
+        'to commit; "git add ." is forbidden to avoid sweeping unrelated changes.',
+    );
+  }
+  await g.add(args.files);
+  const subject = `chat(${args.cardId}): ${args.summary}`;
+  const result = await g.commit(subject);
+  return result.commit;
+}
+
 export async function createPhaseTag(repo: string, phaseName: string): Promise<string> {
   const tag = `${phaseName}-closed`;
   await git(repo).addTag(tag);
