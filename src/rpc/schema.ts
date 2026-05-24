@@ -107,9 +107,13 @@ export const SessionStatusParams = z.object({
   cardId: z.string().optional(),
 });
 
+// Phase 30.15 / Relay #49 — tightened cardId regex (was bare min(1)) to
+// match the boundary shape used by every other cardId-carrying RPC
+// (CardChatHistoryParams, ChatCommandParams, OrchestratorDecideParams).
+// Message capped at 8000 chars to match ChatCommandParams.
 export const ChatParams = z.object({
-  cardId: z.string().min(1),
-  message: z.string().min(1),
+  cardId: z.string().min(1).max(128).regex(/^[a-zA-Z0-9._-]+$/, 'cardId must match [a-zA-Z0-9._-]+'),
+  message: z.string().min(1).max(8000),
 });
 
 export const RunArtifactGetParams = z.object({
@@ -214,10 +218,35 @@ export const ChatCommandParams = z.object({
 // re-narrow via narrowDecision if they need per-action params). The outcome
 // mirrors executor.ts ExecuteOutcome but is also passed through as z.unknown()
 // to avoid duplicating the union shape across module boundaries.
+// Phase 30.15 / Relay #49 — chat-driven description authoring RPC schemas.
+// chat_apply_edit commits the user-confirmed proposal to the card body and
+// returns the resulting git commit SHA. chat_proposed_edit_get returns the
+// proposal's old/new bodies so the UI can render a diff preview. editId regex
+// matches the agent-generated `e-<base36>-<6char>` shape (and is permissive
+// enough to allow future formats so long as the cardId-style charset holds).
+export const ChatApplyEditParams = z.object({
+  cardId: z.string().min(1).max(128).regex(/^[a-zA-Z0-9._-]+$/, 'cardId must match [a-zA-Z0-9._-]+'),
+  editId: z.string().min(1).max(128).regex(/^[a-zA-Z0-9._-]+$/, 'editId must match [a-zA-Z0-9._-]+'),
+}).strict();
+
+export const ChatProposedEditGetParams = z.object({
+  editId: z.string().min(1).max(128).regex(/^[a-zA-Z0-9._-]+$/, 'editId must match [a-zA-Z0-9._-]+'),
+}).strict();
+
 export const ChatCommandResult = z.discriminatedUnion('mode', [
   z.object({
     mode: z.literal('conversation'),
     reply: z.string(),
+    // Phase 30.15 / Relay #49 — optional extras propagated from the chat op.
+    // Conversational replies may now carry an investigation log + propose-edit
+    // handle + diagnostic; existing consumers ignoring these fields stay valid.
+    toolCalls: z.array(z.object({
+      name: z.string(),
+      input: z.record(z.unknown()),
+      output: z.string(),
+    })).optional(),
+    proposedEdit: z.object({ editId: z.string(), summary: z.string() }).optional(),
+    diagnostic: z.string().optional(),
   }).strict(),
   z.object({
     mode: z.literal('command'),

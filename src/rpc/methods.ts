@@ -4,7 +4,7 @@
 // dispatch through this map. Each handler parses its params via Zod at the
 // boundary and calls into the engine.
 
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { z } from 'zod';
 import { ProjectConfigSchema, type ProjectConfig } from '../config/schema.js';
 import type { RuntimeStore } from '../daemon/runtime.js';
@@ -16,6 +16,7 @@ import {
   WorkCardParams, WorkNextParams, RecommendParams,
   ConfigGetParams, SessionStatusParams,
   ChatParams, ChatCommandParams,
+  ChatApplyEditParams, ChatProposedEditGetParams,
   ConductorStartParams, ConductorStopParams, ConductorStatusParams, ConductorSetAutonomyParams,
   PendingDecisionResolveParams,
   TrackerPullParams,
@@ -68,6 +69,7 @@ import { resolveNextStep } from '../conductor/step_resolver.js';
 import { checkCostCeilings } from '../conductor/cost_guard.js';
 import { executeDecision } from './../conductor/executor.js';
 import { classifyChatMessage } from './chat_classifier.js';
+import { commitCardEdit } from '../engine/state/git.js';
 
 export interface MethodContext {
   repo: string;
@@ -339,8 +341,20 @@ async function chat(ctx: MethodContext, raw: unknown) {
   const card = await readCard(cardPath);
   const adapter = ctx.adapter ?? new RoutingAdapter();
   const model = ctx.config.routing.functions['chat'] ?? ctx.config.routing.default;
-  const result = await chatOp({ repo: ctx.repo, card, message: p.message, adapter, model });
-  return { reply: result.reply };
+  // Phase 30.15 / Relay #49: pass runtime so chat_agent can persist proposed
+  // edits in the runtime store; propagate optional extras (toolCalls,
+  // proposedEdit, diagnostic) through to the RPC wire. Existing { reply }-only
+  // consumers ignore extras (forward-compatible).
+  const result = await chatOp({
+    repo: ctx.repo, card, message: p.message, adapter, model,
+    runtime: ctx.runtime,
+  });
+  return {
+    reply: result.reply,
+    ...(result.toolCalls ? { toolCalls: result.toolCalls } : {}),
+    ...(result.proposedEdit ? { proposedEdit: result.proposedEdit } : {}),
+    ...(result.diagnostic ? { diagnostic: result.diagnostic } : {}),
+  };
 }
 
 // Phase 22 (Control 30.14) feature #62: composite chat-command RPC. Routes the
@@ -357,8 +371,11 @@ async function chat_command(ctx: MethodContext, raw: unknown) {
   if (!isCommand) {
     // Delegate to the existing chat() handler. Reuses adapter resolution +
     // readCard + chat op persistence (chat op writes both user+assistant turns).
+    // Phase 30.15 / Relay #49: spread r so optional extras (toolCalls,
+    // proposedEdit, diagnostic) propagate through to the conversation-mode
+    // discriminated-union variant.
     const r = await chat(ctx, p);
-    return { mode: 'conversation' as const, reply: r.reply };
+    return { mode: 'conversation' as const, ...r };
   }
 
   // COMMAND path. First: if the brain is leading (lead==='llm'), transfer lead
@@ -477,6 +494,63 @@ function describeOutcome(outcome: unknown): string {
     default:
       return JSON.stringify(o);
   }
+}
+
+// Phase 30.15 / Relay #49 — chat-driven description authoring RPC handlers.
+// chat_apply_edit commits a user-confirmed proposed edit to the card body
+// (writeCard + commitCardEdit). Guards: editId existence (lazy-evicted on
+// read past TTL), cross-card application (proposal made for card A cannot
+// be applied to card B). chat_proposed_edit_get returns the proposal's
+// old/new bodies for the UI's diff preview; returns { found: false } when
+// missing or expired (the UI surfaces this gracefully).
+
+async function chat_apply_edit(ctx: MethodContext, raw: unknown) {
+  const p = ChatApplyEditParams.parse(raw);
+  const proposal = ctx.runtime.getProposedEdit(p.editId);
+  if (!proposal) {
+    throw new Error(`chat_apply_edit: editId not found or expired: ${p.editId}`);
+  }
+  if (proposal.cardId !== p.cardId) {
+    throw new Error(
+      `chat_apply_edit: editId ${p.editId} belongs to card ${proposal.cardId}, not ${p.cardId}`,
+    );
+  }
+  const path = join(cardsDir(ctx.repo), `${p.cardId}.md`);
+  const card = await readCard(path);
+  // Replace body only — preserve frontmatter wholesale.
+  await writeCard({ ...card, body: proposal.newBody });
+  // Commit via the dedicated card-scoped helper. Stage only the card file
+  // (T6-1 dogfood finding: never use `git add .`).
+  const repoRelative = relative(ctx.repo, path).split(sep).join('/');
+  const commitSha = await commitCardEdit(ctx.repo, {
+    cardId: p.cardId,
+    summary: proposal.summary,
+    files: [repoRelative],
+  });
+  // Clear the proposal (one-shot). Also drops any siblings for this card so
+  // the UI's "expired" placeholder fires on any stale references.
+  ctx.runtime.clearProposedEditsForCard(p.cardId);
+  // NB: no explicit cards-changed publish — the file watcher's awaitWriteFinish
+  // (chokidar in src/daemon/watcher.ts:37-40, ~150ms stability) will fire one
+  // cards-changed event after the writeCard settles. The UI's apply-button
+  // handler also does a direct card_get refetch, so the SSE event is purely
+  // informational for other subscribers (which currently have none).
+  return { ok: true as const, commitSha };
+}
+
+async function chat_proposed_edit_get(ctx: MethodContext, raw: unknown) {
+  const p = ChatProposedEditGetParams.parse(raw);
+  const proposal = ctx.runtime.getProposedEdit(p.editId);
+  if (!proposal) {
+    return { found: false as const };
+  }
+  return {
+    found: true as const,
+    cardId: proposal.cardId,
+    summary: proposal.summary,
+    oldBody: proposal.oldBody,
+    newBody: proposal.newBody,
+  };
 }
 
 // Phase 22 (Control phase 30.2): wires the dual-driver orchestrator-core
@@ -936,6 +1010,8 @@ export const methods = {
   session_status,
   chat,
   chat_command,
+  chat_apply_edit,
+  chat_proposed_edit_get,
   conductor_start,
   conductor_stop,
   conductor_status,

@@ -11,6 +11,7 @@ import type { Card } from '../../../src/engine/types.js';
 import type { ModelAdapter, AdapterCapabilities } from '../../../src/adapters/adapter.js';
 import type { OperationRequest, OperationResponse } from '../../../src/engine/operation.js';
 import { readCard } from '../../../src/engine/state/card.js';
+import { InMemoryRuntime } from '../../../src/daemon/runtime.js';
 
 class FakeAdapter implements ModelAdapter {
   readonly id = 'fake';
@@ -67,8 +68,12 @@ describe('chat op (Phase 21: sibling JSONL substrate)', () => {
   it('persists user + assistant turns to .conductor/cards/<id>.chat.jsonl', async () => {
     const card = await makeCard();
     const before = await readFile(card.path, 'utf8');
-    const result = await chat({ repo, card, message: 'How does X work?', adapter: new FakeAdapter('Sure.'), model: 'model-1' });
+    const result = await chat({ repo, card, message: 'How does X work?', adapter: new FakeAdapter('Sure.'), model: 'model-1', runtime: new InMemoryRuntime() });
     expect(result.reply).toBe('Sure.');
+    // Phase 30.15 / Relay #49: FakeAdapter has capabilities.tools === false, so
+    // chat_agent takes the fallback path and surfaces a diagnostic. Existing
+    // assertions on reply + JSONL persistence remain unchanged.
+    expect(result.diagnostic).toBe('Investigation unavailable — current model does not support tool use');
 
     // Card body byte-identical (no `## Chat` heading; no `**you:**` lines)
     expect(await readFile(card.path, 'utf8')).toBe(before);
@@ -82,8 +87,8 @@ describe('chat op (Phase 21: sibling JSONL substrate)', () => {
 
   it('does not produce a `## Chat` heading in card body even on repeated calls', async () => {
     const card = await makeCard();
-    await chat({ repo, card, message: 'first', adapter: new FakeAdapter('reply1'), model: 'model-1' });
-    await chat({ repo, card, message: 'second', adapter: new FakeAdapter('reply2'), model: 'model-1' });
+    await chat({ repo, card, message: 'first', adapter: new FakeAdapter('reply1'), model: 'model-1', runtime: new InMemoryRuntime() });
+    await chat({ repo, card, message: 'second', adapter: new FakeAdapter('reply2'), model: 'model-1', runtime: new InMemoryRuntime() });
     const after = await readFile(card.path, 'utf8');
     expect(after).not.toContain('## Chat');
   });
@@ -91,8 +96,8 @@ describe('chat op (Phase 21: sibling JSONL substrate)', () => {
   it('two parallel chat() calls produce 4 well-formed turns (lines well-formed; pairing may interleave)', async () => {
     const card = await makeCard();
     await Promise.all([
-      chat({ repo, card, message: 'A', adapter: new FakeAdapter('rA'), model: 'model-1' }),
-      chat({ repo, card, message: 'B', adapter: new FakeAdapter('rB'), model: 'model-1' }),
+      chat({ repo, card, message: 'A', adapter: new FakeAdapter('rA'), model: 'model-1', runtime: new InMemoryRuntime() }),
+      chat({ repo, card, message: 'B', adapter: new FakeAdapter('rB'), model: 'model-1', runtime: new InMemoryRuntime() }),
     ]);
     const turns = await readChatLog(repo, CARD_ID);
     expect(turns).toHaveLength(4);
