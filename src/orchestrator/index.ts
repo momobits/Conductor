@@ -32,3 +32,23 @@ export {
   type SubstrateOpParams,
   type NoOpParams,
 } from './types.js';
+// Phase 22 / Control 30.8 (feature #57): dual-driver lead-handoff reconciliation.
+export {
+  reconcile,
+  captureAndPersistHandoff,
+  pruneHandoffsAtBoot,
+  isReconciliationInFlight,
+  type ReconcileArgs,
+  type CardReconciliation,
+  type ReconciliationResult,
+} from './reconciliation.js';
+export {
+  captureSnapshot,
+  diffSnapshots,
+  persistHandoffSnapshot,
+  loadLatestHandoffSnapshot,
+  pruneHandoffSnapshots,
+  type BoardSnapshot,
+  type CardChangeKind,
+  type CardDiff,
+} from './reconciliation-diff.js';

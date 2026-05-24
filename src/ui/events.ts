@@ -26,7 +26,12 @@ export type DaemonEventKind =
   // Consumed by card_detail.ts SSE handler — surfaces the advisory in the
   // event stream + triggers card_artifacts_index re-query so per-op run
   // counts reflect the wipe/branch impact.
-  | 'substrate-orphaned';
+  | 'substrate-orphaned'
+  // Phase 22 / Control 30.8 (feature #57): contract-drift guard. UI rendering
+  // of a reconciliation banner is deferred to a future UI polish ticket; this
+  // union extension just keeps the UI type-aware of the new SSE event kind so
+  // the SSE forwarder doesn't drop unknown variants at the browser.
+  | 'conductor-reconciliation-summary';
 
 export interface DaemonEventEnvelope {
   kind: DaemonEventKind;

@@ -68,6 +68,13 @@ export const AutonomyBudgetSchema = z
   .object({
     orchestrator_calls_per_card: z.number().int().positive().default(30),
     observer_calls_per_minute: z.number().int().positive().default(20),
+    // Phase 22 / Control 30.8 (feature #57): per-mode cap on decide() calls
+    // dispatched during a single lead-handoff reconciliation pass. Cards
+    // beyond the cap are flagged in runtime.deferredReconciliations and
+    // re-evaluated lazily by the brain loop on first touch (consumer ships
+    // in feature #59). Placed under autonomy.budgets (not flat
+    // orchestrator.*) to align with #60's per-mode cost-ceiling framing.
+    max_reconciliation_calls_per_handoff: z.number().int().positive().default(10),
   })
   .default({});
 
@@ -220,6 +227,15 @@ export const ProjectConfigSchema = z
       .object({
         keep_days: z.number().int().nonnegative().default(30),
         keep_last_n: z.number().int().positive().default(200),
+      })
+      .default({}),
+    // Phase 22 / Control 30.8 (feature #57): handoff-snapshot retention.
+    // Snapshots persist at .conductor/handoffs/<ts>.json each time the brain
+    // hands lead to the human; reconcile() loads the most recent on llm
+    // takeover. Default 50 matches run_log/brain_log precedent.
+    handoffs: z
+      .object({
+        keep_last_n: z.number().int().positive().default(50),
       })
       .default({}),
     tracker: z

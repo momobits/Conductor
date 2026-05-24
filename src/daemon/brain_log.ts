@@ -92,6 +92,19 @@ function toRecord(e: DaemonEvent, ts: string): JsonlRecord {
       return { ts, kind: e.kind, cardId: e.cardId, payload: { action: e.action, reason: e.reason, optionId: e.optionId } };
     case 'conductor-halt':
       return { ts, kind: e.kind, cardId: e.cardId, payload: { reason: e.reason } };
+    case 'conductor-reconciliation-summary':
+      return {
+        ts,
+        kind: e.kind,
+        payload: {
+          totalCardsOnBoard: e.totalCardsOnBoard,
+          cardsAffected: e.cardsAffected,
+          cardsEvaluated: e.cardsEvaluated,
+          cardsDeferred: e.cardsDeferred,
+          perCard: e.perCard,
+          durationMs: e.durationMs,
+        },
+      };
     default:
       return { ts, kind: e.kind };
   }

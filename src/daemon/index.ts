@@ -23,6 +23,12 @@ import { TrackerPoller } from './tracker_poller.js';
 import { makeTrackerAdapter } from '../trackers/factory.js';
 import { pruneRuns } from '../agent/runlog_store.js';
 import { BrainLogWriter, pruneBrainLog } from './brain_log.js';
+import {
+  captureAndPersistHandoff,
+  pruneHandoffsAtBoot,
+  reconcile,
+} from '../orchestrator/reconciliation.js';
+import { RoutingAdapter } from '../adapters/routing.js';
 
 export interface DaemonHandle {
   url: string;
@@ -73,6 +79,15 @@ export async function startDaemon(args: StartDaemonArgs): Promise<DaemonHandle> 
     console.error(`brainlog prune at boot failed: ${(e as Error).message}`);
   }
 
+  // Phase 22 / Control 30.8 (feature #57): prune handoff snapshots at boot.
+  // Same best-effort pattern as runlog/brainlog prune.
+  try {
+    await pruneHandoffsAtBoot(args.repo, config.handoffs.keep_last_n);
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error(`handoff snapshot prune at boot failed: ${(e as Error).message}`);
+  }
+
   const authToken = await generateAuthToken(args.repo);
   const runtime = new InMemoryRuntime();
   const bus = new EventBus();
@@ -113,6 +128,37 @@ export async function startDaemon(args: StartDaemonArgs): Promise<DaemonHandle> 
     bus,
   });
 
+  // Phase 22 / Control 30.8 (feature #57): subscribe to `lead-handed-off`
+  // events. Two directions:
+  //   - human-takes-lead  (current=human, previous=llm) → capture snapshot.
+  //   - llm-takes-lead    (current=llm, previous=human) → run reconcile().
+  // Subscriber lives for the daemon's lifetime; unsubscribed in shutdown
+  // BEFORE brainLog.close() (same lifecycle invariant — see brain_log.ts).
+  // Adapter is lazily constructed on first reconcile (matches RPC handler
+  // pattern at src/rpc/methods.ts:348).
+  const reconciliationUnsubscribe = bus.subscribe((e) => {
+    if (e.kind !== 'lead-handed-off') return;
+    if (e.current.current === 'human' && e.previous.current === 'llm') {
+      // Fire-and-forget — snapshot capture must not block the event loop.
+      // Errors are logged but never re-thrown to the bus.
+      void captureAndPersistHandoff(args.repo).catch((err: unknown) => {
+        // eslint-disable-next-line no-console
+        console.error(`handoff snapshot capture failed: ${(err as Error)?.message ?? err}`);
+      });
+    } else if (e.current.current === 'llm' && e.previous.current === 'human') {
+      void reconcile({
+        repo: args.repo,
+        runtime,
+        bus,
+        config,
+        adapter: new RoutingAdapter(),
+      }).catch((err: unknown) => {
+        // eslint-disable-next-line no-console
+        console.error(`reconciliation pass failed: ${(err as Error)?.message ?? err}`);
+      });
+    }
+  });
+
   // Optional tracker poller — opt-in via tracker.poll_interval_ms > 0.
   let trackerPoller: TrackerPoller | undefined;
   if (config.tracker.kind !== 'none' && config.tracker.poll_interval_ms > 0) {
@@ -145,6 +191,11 @@ export async function startDaemon(args: StartDaemonArgs): Promise<DaemonHandle> 
       if (trackerPoller) await trackerPoller.stop();
       await watcher.close();
       await server.close();
+      // Phase 22 / Control 30.8 (feature #57): unsubscribe reconciliation
+      // BEFORE brainLog.close() so any in-flight reconcile.publish() reaches
+      // the brain log before the writer stops. Then close brainLog (unsubs
+      // itself) before bus.close() clears all listeners.
+      reconciliationUnsubscribe();
       try { await brainLog.close(); } finally { bus.close(); }
       await clearPidFile(args.repo);
       await clearEndpointFile(args.repo);

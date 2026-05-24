@@ -12,6 +12,7 @@ import type { TaskEvent } from '../agent/events.js';
 import type { WatcherEvent } from './watcher.js';
 import type { LeadState, LeadTransferReason } from '../conductor/lead.js';
 import type { Column } from '../engine/types.js';
+import type { CardDiff } from '../conductor/reconciliation_types.js';
 
 export type DaemonEvent =
   | WatcherEvent
@@ -56,6 +57,29 @@ export type DaemonEvent =
       /** Absent in pure-advisory mode (no choice made yet); set in
        *  post-action mode (wipe/branch already executed). */
       appliedChoice?: 'keep' | 'wipe' | 'branch';
+      ts: string;
+    }
+  // Phase 22 / Control 30.8 (feature #57): dual-driver lead-handoff
+  // reconciliation pass completed. Fired ONCE per llm-takes-lead handoff
+  // after the per-card decide() loop finishes. NOTE: the spec proposes
+  // `brain-reconciliation-summary` — we deviate by prefixing with
+  // `conductor-` so the BrainLogWriter filter (`startsWith('conductor-')`)
+  // persists the event automatically and the taxonomy stays aligned with
+  // `conductor-iteration`/`conductor-decision`/`conductor-halt`/`conductor-status`.
+  | {
+      kind: 'conductor-reconciliation-summary';
+      totalCardsOnBoard: number;
+      /** -1 sentinel when no prior snapshot existed (first-run or pruned). */
+      cardsAffected: number;
+      cardsEvaluated: number;
+      cardsDeferred: number;
+      perCard: ReadonlyArray<{
+        cardId: string;
+        action: string;
+        rationale: string;
+        deferred: boolean;
+      }>;
+      durationMs: number;
       ts: string;
     };
 

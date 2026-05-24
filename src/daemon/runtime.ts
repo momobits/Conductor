@@ -12,6 +12,7 @@
 // transferLead() in src/conductor/lead.ts.
 
 import type { Lead, LeadState } from '../conductor/lead.js';
+import type { CardDiff } from '../conductor/reconciliation_types.js';
 
 export interface SessionRecord {
   cardId: string;
@@ -48,6 +49,16 @@ export interface RuntimeStore {
    *  Called only by transferLead() in src/conductor/lead.ts — direct callers
    *  bypass the SSE publish + idempotency check. */
   setLead(state: LeadState): void;
+  /** Phase 22 / Control 30.8 (feature #57): deferred-reconciliation queue.
+   *  Producer: reconcile() populates on budget exhaustion (cards 11..N when
+   *  budget caps at 10). Consumer: feature #59 brain-loop-replacement reads
+   *  per-card on first touch and runs decide() with the deferred diff BEFORE
+   *  normal action. This feature ships producer-only; consumer is a future PR.
+   *  All accessors return defensive copies — caller cannot mutate internal state. */
+  getDeferredReconciliation(cardId: string): CardDiff | undefined;
+  setDeferredReconciliation(cardId: string, diff: CardDiff): void;
+  clearDeferredReconciliation(cardId: string): void;
+  listDeferredReconciliations(): ReadonlyArray<CardDiff>;
 }
 
 const ZERO: CostTotals = { inputTokens: 0, outputTokens: 0, dollars: 0 };
@@ -61,6 +72,10 @@ export class InMemoryRuntime implements RuntimeStore {
   // 'human' matches "brain is OFF by default"; the daemon defers explicit
   // transfer until operator runs `conductor brain start` or `conductor lead llm`.
   private lead: LeadState;
+  // Phase 22 / Control 30.8 (feature #57): per-card deferred-reconciliation
+  // queue. Populated by reconcile() on budget exhaustion; consumed by future
+  // feature #59 brain-loop-replacement.
+  private readonly deferredReconciliations = new Map<string, CardDiff>();
 
   constructor(opts: { now?: () => Date } = {}) {
     this.now = opts.now ?? (() => new Date());
@@ -129,6 +144,29 @@ export class InMemoryRuntime implements RuntimeStore {
 
   setLead(state: LeadState): void {
     this.lead = { ...state, since: new Date(state.since.getTime()) };
+  }
+
+  // Phase 22 / Control 30.8 (feature #57) — deferred-reconciliation accessors.
+  // Defensive deep-copy via JSON round-trip keeps internal CardDiff snapshots
+  // immutable from caller-side mutation. The CardDiff payload is pure JSON
+  // (no Date / Map / class instances) so JSON round-trip is correct.
+  getDeferredReconciliation(cardId: string): CardDiff | undefined {
+    const v = this.deferredReconciliations.get(cardId);
+    return v ? (JSON.parse(JSON.stringify(v)) as CardDiff) : undefined;
+  }
+
+  setDeferredReconciliation(cardId: string, diff: CardDiff): void {
+    this.deferredReconciliations.set(cardId, JSON.parse(JSON.stringify(diff)) as CardDiff);
+  }
+
+  clearDeferredReconciliation(cardId: string): void {
+    this.deferredReconciliations.delete(cardId);
+  }
+
+  listDeferredReconciliations(): ReadonlyArray<CardDiff> {
+    return [...this.deferredReconciliations.values()].map(
+      (d) => JSON.parse(JSON.stringify(d)) as CardDiff,
+    );
   }
 }
 

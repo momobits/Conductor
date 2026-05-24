@@ -45,6 +45,7 @@ coverage/
 .conductor/runtime.sqlite
 .conductor/snapshots/
 .conductor/runs/
+.conductor/handoffs/
 
 # --- Control framework ---
 .control/snapshots/
