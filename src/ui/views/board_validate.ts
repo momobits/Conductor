@@ -32,24 +32,39 @@ export const FORWARD_MAP: Record<Column, Column | null> = {
   archived: null,
 };
 
-/** Backward transitions — must stay in parity with src/engine/lifecycle.ts's
- *  BACKWARD set. Keyed as `${from}->${to}` to match the engine's encoding. */
-const BACKWARD_EDGES: ReadonlySet<string> = new Set([
-  'planned->discovered',
-  'approved->planned',
-  'building->approved',
-  'verifying->building',
-]);
+// Phase 30.6 / Relay #58: BACKWARD_EDGES set removed. All column→column
+// edges (except no-op `from===to`) are legal at both engine + UI layers.
+// Substrate hygiene moves to the advisory dialog opened by the shared
+// moveWithAdvisory helper (called by both board_dnd drop handler and
+// board_keys keyboard-move handler).
 
 /** Next forward column, or null if the column is terminal. */
 export function nextColumn(from: Column): Column | null {
   return FORWARD_MAP[from];
 }
 
-/** True iff (from, to) is either a valid forward step OR a valid backward
- *  edge. Mirrors canTransition() in src/engine/lifecycle.ts. */
+/** True iff (from, to) is a recognized non-no-op transition. Mirrors
+ *  canTransition() in src/engine/lifecycle.ts; Column union narrows at
+ *  type level so only no-op needs rejecting. */
 export function isLegalTransition(from: Column, to: Column): boolean {
-  if (FORWARD_MAP[from] === to) return true;
-  if (BACKWARD_EDGES.has(`${from}->${to}`)) return true;
-  return false;
+  return from !== to;
+}
+
+// Phase 30.6 / Relay #58: directionality classifier; mirrors
+// transitionDirection() in src/engine/lifecycle.ts. Used by
+// move_with_advisory to gate the substrate-orphan check.
+export function transitionDirection(
+  from: Column,
+  to: Column,
+): 'forward' | 'backward' | 'lateral' | 'noop' {
+  if (from === to) return 'noop';
+  const order: Column[] = [
+    'discovered', 'planned', 'approved', 'building',
+    'verifying', 'shipped', 'archived',
+  ];
+  const fromIdx = order.indexOf(from);
+  const toIdx = order.indexOf(to);
+  if (fromIdx < 0 || toIdx < 0) return 'lateral';
+  if (toIdx > fromIdx) return 'forward';
+  return 'backward';
 }

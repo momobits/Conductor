@@ -3,6 +3,7 @@ import {
   FORWARD_MAP,
   nextColumn,
   isLegalTransition,
+  transitionDirection,
   type Column,
 } from '../../src/ui/views/board_validate.js';
 import { canTransition } from '../../src/engine/lifecycle.js';
@@ -36,18 +37,31 @@ describe('board_validate (Relay #29 substrate; Phase 17 #41 dependency)', () => 
       }
     });
 
-    it('accepts the four backward edges (including Relay #30 approved→planned)', () => {
+    it('Phase 30.6 widen: accepts all backward edges (state machine widened beyond original 4)', () => {
       expect(isLegalTransition('planned', 'discovered')).toBe(true);
       expect(isLegalTransition('approved', 'planned')).toBe(true);
       expect(isLegalTransition('building', 'approved')).toBe(true);
       expect(isLegalTransition('verifying', 'building')).toBe(true);
+      expect(isLegalTransition('verifying', 'planned')).toBe(true);    // ← new
+      expect(isLegalTransition('archived', 'discovered')).toBe(true);  // ← new (full reset)
     });
 
-    it('rejects illegal transitions', () => {
-      expect(isLegalTransition('discovered', 'shipped')).toBe(false);
-      expect(isLegalTransition('archived', 'discovered')).toBe(false);
-      expect(isLegalTransition('shipped', 'building')).toBe(false);
+    it('Phase 30.6: previously-illegal cross-skip + reverse edges now legal', () => {
+      expect(isLegalTransition('discovered', 'shipped')).toBe(true);
+      expect(isLegalTransition('shipped', 'building')).toBe(true);
+    });
+
+    it('rejects no-op transitions (from === to is the only false case after widen)', () => {
       expect(isLegalTransition('discovered', 'discovered')).toBe(false);
+      expect(isLegalTransition('archived', 'archived')).toBe(false);
+    });
+  });
+
+  describe('transitionDirection (Phase 30.6)', () => {
+    it('classifies forward, backward, and noop', () => {
+      expect(transitionDirection('discovered', 'planned')).toBe('forward');
+      expect(transitionDirection('verifying', 'planned')).toBe('backward');
+      expect(transitionDirection('planned', 'planned')).toBe('noop');
     });
   });
 

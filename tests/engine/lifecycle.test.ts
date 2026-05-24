@@ -4,6 +4,7 @@ import {
   nextOperation,
   transitionPolicy,
   TerminalColumn,
+  transitionDirection,
 } from '../../src/engine/lifecycle.js';
 import type { ProjectConfig } from '../../src/config/schema.js';
 
@@ -39,10 +40,34 @@ describe('canTransition', () => {
     expect(canTransition('verifying', 'building')).toBe(true);
   });
 
-  it('rejects illegal transitions', () => {
-    expect(canTransition('discovered', 'shipped')).toBe(false);
-    expect(canTransition('archived', 'discovered')).toBe(false);
-    expect(canTransition('shipped', 'building')).toBe(false);
+  it('Phase 30.6 widen: accepts all column→column edges except no-op', () => {
+    // All forward + backward + cross-skip edges now legal.
+    expect(canTransition('discovered', 'shipped')).toBe(true);
+    expect(canTransition('archived', 'discovered')).toBe(true);
+    expect(canTransition('shipped', 'building')).toBe(true);
+  });
+
+  it('rejects no-op (from === to) transitions', () => {
+    expect(canTransition('planned', 'planned')).toBe(false);
+    expect(canTransition('archived', 'archived')).toBe(false);
+  });
+});
+
+describe('transitionDirection (Phase 30.6)', () => {
+  it('classifies forward edges', () => {
+    expect(transitionDirection('discovered', 'planned')).toBe('forward');
+    expect(transitionDirection('shipped', 'archived')).toBe('forward');
+    expect(transitionDirection('discovered', 'shipped')).toBe('forward');
+  });
+
+  it('classifies backward edges', () => {
+    expect(transitionDirection('verifying', 'planned')).toBe('backward');
+    expect(transitionDirection('archived', 'shipped')).toBe('backward');
+    expect(transitionDirection('approved', 'planned')).toBe('backward');
+  });
+
+  it('classifies no-op', () => {
+    expect(transitionDirection('planned', 'planned')).toBe('noop');
   });
 });
 
