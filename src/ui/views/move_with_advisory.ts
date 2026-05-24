@@ -11,6 +11,7 @@
 import type { RpcClient } from '../api.js';
 import { transitionDirection, type Column } from './board_validate.js';
 import { confirmTransition, chooseSubstrateAdvisory } from '../lib/dialog.js';
+import { opsForTransition, type ColumnOp } from '../lib/column_ops.js';
 
 type Policy = 'manual' | 'assist' | 'auto';
 
@@ -61,11 +62,45 @@ export async function moveWithAdvisory(args: MoveWithAdvisoryArgs): Promise<void
     await onDone();
     return;
   }
+  let transitionOk = false;
   try {
     await rpc.call('transition', { id, to });
+    transitionOk = true;
   } catch (err) {
     // eslint-disable-next-line no-console
     console.warn('[moveWithAdvisory] transition rejected by server:', (err as Error).message);
+  }
+  // Phase 30.11 / Relay #50: column-transition op triggering.
+  // After the transition commits, optionally chain engine ops per the
+  // brainstorm Decision 7 mapping (see lib/column_ops.ts). Triggering
+  // rules:
+  //   - Only forward transitions trigger ops (backward already handled
+  //     by the substrate-advisory branch above; no-op edges shouldn't
+  //     reach this point).
+  //   - 'manual' policy commits the move only — no ops fire (the user
+  //     opted into a metadata-only move, per spec).
+  //   - 'assist' policy: the confirm dialog already captured intent for
+  //     the entire move; per brainstorm Open Q3 that approval covers
+  //     the whole chain. We don't re-prompt per op.
+  //   - 'auto' policy fires the chain unconditionally.
+  // Op-chain failure handling: on first RPC error, log a warn, stop the
+  // chain, and DO NOT continue. The user can manually invoke remaining
+  // ops via the card-detail per-op buttons (#48). The column has
+  // already moved; partial chain is acceptable per spec Open Q4.
+  if (transitionOk && policy !== 'manual' && transitionDirection(from, to) === 'forward') {
+    const ops = opsForTransition(from, to);
+    for (const op of ops) {
+      try {
+        await rpc.call('op_invoke', { cardId: id, op } satisfies { cardId: string; op: ColumnOp });
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[moveWithAdvisory] op_invoke ${op} failed for ${from}→${to}; halting chain:`,
+          (err as Error).message,
+        );
+        break;
+      }
+    }
   }
   await onDone();
 }
