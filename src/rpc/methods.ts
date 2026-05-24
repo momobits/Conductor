@@ -17,6 +17,7 @@ import {
   ConfigGetParams, SessionStatusParams,
   ChatParams,
   ConductorStartParams, ConductorStopParams, ConductorStatusParams, ConductorSetAutonomyParams,
+  PendingDecisionResolveParams,
   TrackerPullParams,
   RunListParams, RunReplayParams, RunPruneParams,
   RunArtifactGetParams, CardChatHistoryParams, CardArtifactsIndexParams,
@@ -33,7 +34,7 @@ import { trackerPull } from '../engine/ops/tracker_pull.js';
 import { makeTrackerAdapter } from '../trackers/factory.js';
 import { listRuns, pruneRuns, replayRun } from '../agent/runlog_store.js';
 import { getCostSummary } from '../daemon/cost_summary.js';
-import { Conductor, defaultAgentFactory } from '../conductor/loop.js';
+import { Conductor } from '../conductor/loop.js';
 import { dump as yamlDump } from 'js-yaml';
 import { readFile, writeFile, readdir } from 'node:fs/promises';
 import { loadProjectConfig } from '../config/load.js';
@@ -546,15 +547,16 @@ async function conductor_start(ctx: MethodContext, raw: unknown) {
   if (!ctx.bus) {
     return { started: false, reason: 'no-bus' };
   }
-  const factory = defaultAgentFactory({
-    repo: ctx.repo, config: ctx.config, runtime: ctx.runtime, adapter: ctx.adapter,
-  });
   const onCardComplete = async () => {
     try { await methods.order(ctx, {}); } catch { /* best-effort */ }
   };
+  // Phase 30.13 / Relay #59: Conductor now consumes a ModelAdapter directly;
+  // the orchestrator-driven loop calls decide() per card per iter + dispatches
+  // via the shared executor (no per-card TaskAgent spawn).
+  const adapter = ctx.adapter ?? new RoutingAdapter();
   const conductor = new Conductor({
     repo: ctx.repo, config: ctx.config, runtime: ctx.runtime,
-    bus: ctx.bus, agentFactory: factory, onCardComplete,
+    bus: ctx.bus, adapter, onCardComplete,
   });
   ctx.conductor.instance = conductor;
   ctx.conductor.runPromise = conductor.start();
@@ -582,6 +584,23 @@ async function conductor_set_autonomy(ctx: MethodContext, raw: unknown) {
   const next = { ...ctx.config, autonomy: { ...ctx.config.autonomy, default: p.mode } };
   await methods.config_set(ctx, { config: next });
   return { ok: true as const, mode: p.mode };
+}
+
+// Phase 30.13 / Relay #59: operator response to a conductor-pending-decision
+// SSE event published by the executor when the autonomy gate decides
+// SURFACE_TO_OPERATOR. The executor's awaitResolution helper subscribes for
+// the matching pendingId; this RPC publishes the resolution event the
+// awaiter consumes. Bus-mediated to keep the executor's await pattern simple
+// (no per-pending-decision RPC-callback registry needed in v1).
+async function pending_decision_resolve(ctx: MethodContext, raw: unknown) {
+  const p = PendingDecisionResolveParams.parse(raw);
+  ctx.bus?.publish({
+    kind: 'conductor-pending-decision-resolved',
+    pendingId: p.pendingId,
+    resolution: p.resolution,
+    ts: new Date().toISOString(),
+  });
+  return { ok: true as const };
 }
 
 async function tracker_pull(ctx: MethodContext, raw: unknown) {
@@ -782,6 +801,7 @@ export const methods = {
   conductor_stop,
   conductor_status,
   conductor_set_autonomy,
+  pending_decision_resolve,
   tracker_pull,
   run_list,
   run_replay,

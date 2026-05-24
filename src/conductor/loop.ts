@@ -1,41 +1,40 @@
 // src/conductor/loop.ts
 //
-// Conductor — the queue-management loop from spec § 9. Runs inside the
-// daemon, reads ordering.md, spawns TaskAgents one at a time, calls
-// conduct() on assist gates, writes approved transitions, and re-runs
-// scan + order after each card completes.
+// Conductor — the queue-management loop. Phase 30.13 / Relay #59 replaced
+// the per-card TaskAgent-spawning model (defaultAgentFactory + hardcoded
+// column switch inside TaskAgent) with an orchestrator-driven loop: each
+// runOneCard call runs decide() then dispatches via the shared executor.
 //
-// In v1 we treat each TaskAgent run as a single-column advance: when an
-// agent halts at an assist/manual transition gate, we use conduct to
-// decide approve/escalate/halt. On approve, the conductor writes the
-// column itself and re-spawns an agent against the now-advanced card.
-// This avoids retrofitting bidirectional decision channels into the
-// existing async-generator-shaped TaskAgent.
+// The Conductor public surface (start/stop/status) is preserved; only the
+// constructor signature changed (agentFactory → adapter) and the internal
+// runOneCard implementation. defaultAgentFactory is gone — its sole brain
+// caller was runOneCard; TaskAgent itself is retained for the CLI
+// `conductor work` + RPC `card_work` single-card walk path.
 
 import { join } from 'node:path';
 import { readFile } from 'node:fs/promises';
 import type { ProjectConfig } from '../config/schema.js';
 import type { RuntimeStore } from '../daemon/runtime.js';
 import type { EventBus } from '../daemon/event_bus.js';
-import type { TaskEvent } from '../agent/events.js';
-import type { Column } from '../engine/types.js';
-import { readCard, writeCard, listCards } from '../engine/state/card.js';
-import { conduct, type ConductMode } from '../engine/ops/conduct.js';
+import { listCards } from '../engine/state/card.js';
 import { checkCostCeilings } from './cost_guard.js';
-import { classifyHalt } from './halt.js';
-import { bridgeSpectrumToConductMode } from './autonomy.js';
-import { TaskAgent } from '../agent/task_agent.js';
+import { classifyHalt, type HaltCategory } from './halt.js';
+import { getLead, transferLead } from './lead.js';
 import type { ModelAdapter } from '../adapters/adapter.js';
-import { resolveNextStep } from './step_resolver.js';
-
-export type AgentFactory = (cardId: string) => AsyncIterable<TaskEvent>;
+import { decide } from '../orchestrator/index.js';
+import type { NarrowedDecision } from '../orchestrator/types.js';
+import { executeDecision } from './executor.js';
 
 export interface ConductorArgs {
   repo: string;
   config: ProjectConfig;
   runtime: RuntimeStore;
   bus: EventBus;
-  agentFactory: AgentFactory;
+  // Phase 30.13 / Relay #59: agentFactory removed. The orchestrator-driven
+  // loop calls decide() per card per iter + dispatches via the shared
+  // executor; the adapter is consumed by decide() + the executor's call-op
+  // dispatch path.
+  adapter: ModelAdapter;
   iterationLimit?: number;
   now?: () => Date;
   onCardComplete?: (cardId: string) => Promise<void> | void;
@@ -53,7 +52,7 @@ export class Conductor {
   private readonly config: ProjectConfig;
   private readonly runtime: RuntimeStore;
   private readonly bus: EventBus;
-  private readonly agentFactory: AgentFactory;
+  private readonly adapter: ModelAdapter;
   private readonly iterationLimit: number;
   private readonly now: () => Date;
   private readonly onCardComplete?: (cardId: string) => Promise<void> | void;
@@ -76,13 +75,19 @@ export class Conductor {
   // 21 Playwright dogfood surfaced. The `break;` itself is always still
   // executed; this only conditionally elides the redundant publish + counter.
   private lastIterationHalted = false;
+  // Phase 30.13 / Relay #59: halt-loop circuit breaker counter — number of
+  // consecutive halt-with-handoff decisions on the SAME card. Resets when
+  // a different outcome lands or a different card is picked. Crosses
+  // config.autonomy.budgets.<mode>.halt_loop_threshold → transferLead to
+  // human + publish conductor-halt-loop-detected.
+  private haltLoopCount = 0;
 
   constructor(args: ConductorArgs) {
     this.repo = args.repo;
     this.config = args.config;
     this.runtime = args.runtime;
     this.bus = args.bus;
-    this.agentFactory = args.agentFactory;
+    this.adapter = args.adapter;
     this.iterationLimit = args.iterationLimit ?? 1000;
     this.now = args.now ?? (() => new Date());
     this.onCardComplete = args.onCardComplete;
@@ -145,64 +150,79 @@ export class Conductor {
   }
 
   private async runOneCard(cardId: string): Promise<{ queueHalted: boolean; advanced: boolean; halted: boolean }> {
-    const cardPath = join(this.repo, '.conductor', 'cards', `${cardId}.md`);
-    let advancedTo: Column | undefined;
-    let escalated = false;
-    let halt = false;
-    let haltReason: string | undefined;
-    try {
-      for await (const ev of this.agentFactory(cardId)) {
-        if (ev.kind === 'transition_request') {
-          const mode = this.effectiveMode(cardId);
-          const recommendation = ev.recommendation;
-          if (!recommendation || ev.policy === 'manual') {
-            this.bus.publish({ kind: 'conductor-decision', cardId, action: 'escalate', reason: ev.policy === 'manual' ? 'manual policy' : 'no recommendation', optionId: 'approve' });
-            escalated = true;
-            break;
-          }
-          const decision = await conduct({ mode, recommendation, threshold: this.config.confidence.threshold });
-          this.bus.publish({ kind: 'conductor-decision', cardId, action: decision.action, reason: decision.reason, optionId: decision.optionId });
-          if (decision.action === 'halt') {
-            this.haltCount += 1;
-            this.bus.publish({ kind: 'conductor-halt', reason: decision.reason, cardId });
-            return { queueHalted: true, advanced: false, halted: true };
-          }
-          if (decision.action === 'escalate') {
-            escalated = true;
-            break;
-          }
-          // approve: write the column transition
-          const card = await readCard(cardPath);
-          card.frontmatter.column = ev.to;
-          await writeCard(card);
-          advancedTo = ev.to;
-        } else if (ev.kind === 'recommendation') {
-          this.bus.publish({ kind: 'conductor-decision', cardId, action: 'escalate', reason: `${ev.recommendation.operation} recommendation: ${ev.recommendation.recommended}`, optionId: ev.recommendation.recommended });
-          escalated = true;
-        } else if (ev.kind === 'halt') {
-          if (advancedTo === undefined) {
-            haltReason = ev.reason;
-            halt = true;
-          }
-        } else if (ev.kind === 'error') {
-          haltReason = ev.message;
-          halt = true;
-        } else if (ev.kind === 'complete') {
-          advancedTo = ev.finalColumn;
-        }
-      }
-    } catch (e) {
-      haltReason = e instanceof Error ? e.message : String(e);
-      halt = true;
+    // Phase 30.13 / Relay #59: orchestrator-driven runOneCard.
+    //
+    // Sequence:
+    //   1. Lead-check guard (bail if lead is 'human').
+    //   2. Deferred-reconciliation check (#57 consumer-side wiring).
+    //   3. decide() — orchestrator returns NarrowedDecision.
+    //   4. executeDecision — dispatch via shared executor.
+    //   5. Halt-loop circuit breaker (3 consecutive halt-with-handoff on
+    //      same card → transferLead to human + conductor-halt-loop-detected).
+    //   6. Return outcome flags for the outer-loop wedge detector + queueHalted.
+
+    // Lead-check guard. Outer loop will also bail next iter, but checking here
+    // avoids a wasted decide() call when the operator just took lead.
+    const lead = getLead(this.runtime);
+    if (lead.current !== 'llm') {
+      return { queueHalted: true, advanced: false, halted: false };
     }
 
-    if (halt && haltReason) {
-      // Phase 30.10 / Relay #61: classifyHalt returns the typed category +
-      // preserved rawReason + optional context. The legacy event shape
-      // (`reason: "<category>: <rawReason>"`) is preserved verbatim so the
-      // existing tests + UI string-matchers (loop_redteam, monitor.ts)
-      // continue to work; the typed `category`/`rawReason`/`context` fields
-      // ride alongside for downstream consumers.
+    // Per-iter runId for substrate scoping (orchestrate.md audit +
+    // any call-op artifact writes). Mirrors TaskAgent.runId format.
+    const stamp = this.now().toISOString().replace(/[-:.]/g, '').slice(0, 15);
+    const runId = `${stamp}-${cardId}`;
+
+    // Deferred-reconciliation check. #57 producer populates the deferred
+    // map on budget-exhausted reconciliation; #59 (here) is the live consumer.
+    // On first touch per card per session, re-decide on the deferred diff
+    // BEFORE the normal decide().
+    const deferred = this.runtime.getDeferredReconciliation(cardId);
+    if (deferred) {
+      try {
+        const reconDecision = await decide({
+          repo: this.repo, cardId, adapter: this.adapter, config: this.config,
+          lead: 'llm',
+          userMessage: `DEFERRED RECONCILIATION: re-evaluate this card. Diff: ${JSON.stringify(deferred)}`,
+        });
+        await executeDecision({
+          repo: this.repo, cardId, decision: reconDecision,
+          adapter: this.adapter, config: this.config,
+          bus: this.bus, runtime: this.runtime, runId,
+          now: this.now,
+        });
+      } catch (e) {
+        // Review HIGH-2: surface failure as halt (not swallow); preserve the
+        // deferred entry so next iter can retry on transient failure.
+        const haltReason = e instanceof Error ? e.message : String(e);
+        const classification = classifyHalt(haltReason);
+        this.haltCount += 1;
+        this.bus.publish({
+          kind: 'conductor-halt',
+          reason: `reconciliation-failed: ${classification.rawReason}`,
+          cardId,
+          category: classification.category,
+          rawReason: classification.rawReason,
+          context: classification.context,
+        });
+        return { queueHalted: false, advanced: false, halted: true };
+      }
+      // Clear only on success — the reconciliation may have moved the card or
+      // wiped substrate; the next iter (or fall-through below) re-decides
+      // fresh against the post-reconciliation state.
+      this.runtime.clearDeferredReconciliation(cardId);
+    }
+
+    // Decide.
+    let decision: NarrowedDecision;
+    try {
+      decision = await decide({
+        repo: this.repo, cardId, adapter: this.adapter, config: this.config,
+        lead: 'llm',
+      });
+    } catch (e) {
+      // decide() throws on adapter error or schema/parse validation failure.
+      const haltReason = e instanceof Error ? e.message : String(e);
       const classification = classifyHalt(haltReason);
       this.haltCount += 1;
       this.bus.publish({
@@ -215,30 +235,81 @@ export class Conductor {
       });
       return { queueHalted: false, advanced: false, halted: true };
     }
-    if (escalated) return { queueHalted: false, advanced: advancedTo !== undefined, halted: false };
-    if (advancedTo === 'archived' && this.onCardComplete) {
+
+    // Dispatch via the shared executor.
+    let result;
+    try {
+      result = await executeDecision({
+        repo: this.repo, cardId, decision,
+        adapter: this.adapter, config: this.config,
+        bus: this.bus, runtime: this.runtime, runId,
+        now: this.now,
+      });
+    } catch (e) {
+      // Executor throws when dispatch itself fails (e.g. transferLead failure,
+      // missing required step for call-op:implement). Classify + publish halt.
+      const haltReason = e instanceof Error ? e.message : String(e);
+      const classification = classifyHalt(haltReason);
+      this.haltCount += 1;
+      this.bus.publish({
+        kind: 'conductor-halt',
+        reason: `${classification.category}: ${classification.rawReason}`,
+        cardId,
+        category: classification.category,
+        rawReason: classification.rawReason,
+        context: classification.context,
+      });
+      return { queueHalted: false, advanced: false, halted: true };
+    }
+
+    // Halt-loop circuit breaker: N consecutive halt-with-handoff on the same
+    // card → transferLead to human + publish conductor-halt-loop-detected.
+    // Resets on any non-halt outcome or different card.
+    if (result.outcome.kind === 'halt-published') {
+      if (this.lastIterationCard === cardId && this.lastIterationHalted) {
+        this.haltLoopCount += 1;
+        const mode = this.config.autonomy.default;
+        const threshold = this.config.autonomy.budgets[mode].halt_loop_threshold;
+        if (this.haltLoopCount >= threshold) {
+          // Review HIGH-1: carry lastCategory + lastRationale so operator
+          // triage doesn't require correlating against preceding halts.
+          this.bus.publish({
+            kind: 'conductor-halt-loop-detected',
+            cardId,
+            count: this.haltLoopCount,
+            lastCategory: result.outcome.category as HaltCategory,
+            lastRationale: decision.rationale,
+            ts: this.now().toISOString(),
+          });
+          await transferLead({
+            runtime: this.runtime, bus: this.bus, to: 'human',
+            reason: 'halt-with-handoff',
+            context: `Halt loop detected on ${cardId} (${this.haltLoopCount} consecutive halts)`,
+          });
+          this.haltLoopCount = 0;
+          return { queueHalted: true, advanced: false, halted: true };
+        }
+      } else {
+        // First halt on this card or different card → reset to 1 (current halt counts).
+        this.haltLoopCount = 1;
+      }
+    } else {
+      // Non-halt outcome → reset.
+      this.haltLoopCount = 0;
+    }
+
+    const advanced = result.outcome.kind === 'op-called' || result.outcome.kind === 'column-advanced';
+    const halted = result.outcome.kind === 'halt-published';
+    // If the outcome advanced the card into 'archived', fire onCardComplete.
+    if (
+      result.outcome.kind === 'column-advanced' &&
+      result.outcome.to === 'archived' &&
+      this.onCardComplete
+    ) {
       try { await this.onCardComplete(cardId); } catch { /* best-effort */ }
     }
-    return { queueHalted: false, advanced: advancedTo !== undefined, halted: false };
+    return { queueHalted: false, advanced, halted };
   }
-
-  private effectiveMode(_cardId: string): ConductMode {
-    // Phase 30.7 / Relay #60: config.autonomy.default is now spectrum-typed
-    // ('assist' | 'hybrid' | 'autonomous') courtesy of the schema preprocess
-    // that maps legacy values at load time. Bridge to the legacy ConductMode
-    // for the existing conduct.ts path. Once feature #6/#59 ships, this
-    // bridge moves into the executor and conduct.ts is retired.
-    //
-    // Per-card autonomy overrides are deferred: reading the card here would
-    // require an async readCard call inside a sync method. The card-level
-    // override is wired through `effectiveAutonomy(card, config)` at the
-    // future executor's call site instead.
-    return bridgeSpectrumToConductMode(this.config.autonomy.default);
-  }
-
-  /** Hook used by Sub-phase F daemon wiring to call scan + order after a
-   *  card transitions to archived. Public for symmetry with onCardComplete
-   *  ConductorArgs but typically the constructor callback is enough. */
 
   private async pickEligibleCard(): Promise<string | undefined> {
     const orderingPath = join(this.repo, '.conductor', 'ordering.md');
@@ -260,71 +331,4 @@ export class Conductor {
     }
     return undefined;
   }
-}
-
-export interface DefaultAgentFactoryArgs {
-  repo: string;
-  config: ProjectConfig;
-  runtime: RuntimeStore;
-  adapter?: ModelAdapter;
-}
-
-export function defaultAgentFactory(args: DefaultAgentFactoryArgs): AgentFactory {
-  return (cardId: string) => {
-    // Phase 30 (item 53): resolve `step` for cards in the `approved` column by
-    // reading the plan substrate + walking git log. Wrapped in an IIFE-style
-    // async generator so we can await the resolver BEFORE constructing
-    // TaskAgent while still satisfying AgentFactory's sync return contract
-    // (the IIFE returns an AsyncIterable<TaskEvent> synchronously).
-    return (async function* runWithResolvedStep(): AsyncIterable<TaskEvent> {
-      let resolvedStep: string | undefined;
-      try {
-        const card = await readCard(
-          join(args.repo, '.conductor', 'cards', `${cardId}.md`),
-        );
-        if (card.frontmatter.column === 'approved') {
-          const result = await resolveNextStep({
-            repo: args.repo,
-            cardId,
-            phase: card.frontmatter.phase,
-          });
-          if (result.kind === 'resolved') {
-            resolvedStep = result.step;
-          } else {
-            // Emit a synthetic halt with the SPECIFIC reason BEFORE building
-            // TaskAgent. Operator-visible discrimination of the three failure
-            // modes (no-plan / unparseable-plan / all-committed). All three
-            // share the substring "no implement step resolved" so classifyHalt
-            // matches them as `missing-step-arg`.
-            yield {
-              kind: 'halt',
-              cardId,
-              reason:
-                result.kind === 'no-plan'
-                  ? `Brain cannot advance: card '${cardId}' is in 'approved' but has no plan substrate yet — run plan op (no implement step resolved).`
-                  : result.kind === 'unparseable-plan'
-                    ? `Brain cannot advance: card '${cardId}' plan substrate has no parseable step headings — re-run plan op (no implement step resolved).`
-                    : `Brain cannot advance: card '${cardId}' has all plan steps already committed; manually transition the card or extend the plan (no implement step resolved).`,
-              finalColumn: 'approved',
-            };
-            return;
-          }
-        }
-      } catch {
-        /* swallow: TaskAgent's own readCard will surface the genuine error
-         * via its own throw + outer runOneCard try/catch. */
-      }
-      const agent = new TaskAgent({
-        repo: args.repo,
-        cardId,
-        config: args.config,
-        adapter: args.adapter,
-        step: resolvedStep,
-        onAdapterUsage: ({ inputTokens, outputTokens, dollars }) => {
-          args.runtime.addCost(cardId, { inputTokens, outputTokens, dollars });
-        },
-      });
-      yield* agent.run();
-    })();
-  };
 }

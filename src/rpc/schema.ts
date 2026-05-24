@@ -201,6 +201,15 @@ export const CardResumeParams = z.object({
 export const ConductorStartParams = z.object({});
 export const ConductorStopParams = z.object({});
 export const ConductorStatusParams = z.object({});
+// Phase 30.13 / Relay #59: pending-decision resolution. Operator response
+// to a conductor-pending-decision SSE event surfaced by the executor when
+// the autonomy gate decides SURFACE_TO_OPERATOR. The 'amend' resolution
+// payload is deferred to v2 (executor v1 honors the original decision on
+// amend; richer amend semantics live in feature #62 frame-b-chat-wire).
+export const PendingDecisionResolveParams = z.object({
+  pendingId: z.string().min(1).max(128),
+  resolution: z.enum(['approve', 'reject', 'amend']),
+}).strict();
 // Phase 30.7 / Relay #60: accept BOTH spectrum modes (assist | hybrid |
 // autonomous) AND legacy modes (escort | auto | critical). The
 // conductor_set_autonomy handler writes the value through ProjectConfigSchema
