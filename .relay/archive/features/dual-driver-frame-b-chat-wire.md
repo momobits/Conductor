@@ -1,8 +1,10 @@
 # Feature: Dual-Driver Frame B Chat Wire
 
+> **ARCHIVED** — Resolved. See [implementation doc](../../implemented/dual-driver-frame-b-chat-wire.md)
+
 *Created: 2026-05-23*
-*Brainstorm: [dual-driver-orchestration_brainstorm.md](dual-driver-orchestration_brainstorm.md)*
-*Status: DESIGNED*
+*Brainstorm: [dual-driver-orchestration_brainstorm.md](../features/dual-driver-orchestration_brainstorm.md)*
+*Status: IMPLEMENTED*
 
 ## Summary
 
@@ -1361,5 +1363,96 @@ LOW-1, LOW-2, MEDIUM-3 documented as accepted v1 trade-offs (no plan change; wil
     - **Actual**: [what was done instead]
     - **Reason**: [why the deviation was necessary]
 - Do NOT make changes beyond what the plan specifies
+
+---
+
+## Verification Report
+
+*Verified: 2026-05-24*
+
+### Implementation Status
+
+| Step | Planned | Implemented | Correct |
+|------|---------|-------------|---------|
+| 1 | New `src/rpc/chat_classifier.ts` (pure routing fn + exported COMMAND_PATTERNS) | YES | YES |
+| 2 | New `ChatCommandParams` + `ChatCommandResult` Zod schemas in `src/rpc/schema.ts` | YES | YES |
+| 3 | New `chat_command` handler + `describeOutcome` helper in `src/rpc/methods.ts`; imports extended (HIGH-1/MEDIUM-1/MEDIUM-2 applied) | YES | YES |
+| 4 | `src/ui/views/card_detail.ts` chat submit handler swapped `chat` → `chat_command`; discriminated-union branch | YES | YES |
+| 5 | New `tests/rpc/chat_classifier.test.ts` (5 tests) + `tests/rpc/chat_command.test.ts` (6 tests) | YES | YES |
+
+All 5 steps implemented per plan. Three review-driven trivial fixes applied verbatim:
+- HIGH-1: command-path tests use `ProjectConfigSchema.parse({ autonomy: { default: 'autonomous' } })` to avoid 5-min hybrid surface-and-wait
+- MEDIUM-1: dead-code `cardPath`/`readCard` removed from handler (comment explains why)
+- MEDIUM-2: `appendChatTurn` added to existing `chat_log.js` import line (no duplicate import)
+
+No undocumented deviations. No `## Implementation Deviations` section needed.
+
+### Test Results
+
+```
+$ npm test
+ Test Files  131 passed (131)
+      Tests  1096 passed (1096)
+   Duration  17.86s
+```
+
+Baseline 1085 → 1096 (+11 new tests; exactly matches plan's expected delta).
+
+Targeted re-run:
+```
+$ npx vitest run tests/rpc/
+ Test Files  7 passed (7)
+      Tests  88 passed (88)
+   Duration  2.87s
+```
+
+All 88 RPC tests pass: 5 new classifier + 6 new chat_command + 77 existing (including the unchanged chat tests at `tests/rpc/methods.test.ts:380-405` and the orchestrator_decide tests at `:701-831`). Zero regressions.
+
+```
+$ npm run typecheck
+> tsc --noEmit && tsc --noEmit -p tsconfig.ui.json
+(clean — both engine and UI typecheck pass)
+```
+
+### Diff Check (per-step)
+
+- **Step 1** — `src/rpc/chat_classifier.ts` (new file, 33 lines): matches plan verbatim. `COMMAND_PATTERNS` array exported as ReadonlyArray; `classifyChatMessage` empty-string + slash + regex-array branches all present.
+- **Step 2** — `src/rpc/schema.ts`: `ChatCommandParams` (cardId regex + message min(1)/max(8000)) + `ChatCommandResult` (discriminated union on `mode`) inserted between `CardResumeParams` and `ConductorStartParams`. Matches plan.
+- **Step 3** — `src/rpc/methods.ts`:
+  - Line 18: `ChatParams` → `ChatParams, ChatCommandParams` (matches MEDIUM-2 fix).
+  - Line 32: `readChatLog` → `readChatLog, appendChatTurn` (matches MEDIUM-2 fix).
+  - After line 68: 2 new imports for `executeDecision` and `classifyChatMessage`.
+  - `chat_command` handler (~85 lines): lead-transfer guard, user-turn append, decide() + runId stamp + executeDecision dispatch, assistant-turn append with `[decision]`/`[executed]` prefix. No `cardPath`/`readCard` (MEDIUM-1 applied; comment present).
+  - `describeOutcome` helper added below handler.
+  - Methods barrel: `chat_command` inserted between `chat` and `conductor_start`.
+- **Step 4** — `src/ui/views/card_detail.ts:340-380`: submit handler swapped `rpc.call<{reply:string}>('chat',...)` → `rpc.call<ChatCommandResp>('chat_command',...)`; local `ChatCommandResp` type defined inline; conversation branch unchanged; command branch renders `**Decision** (\`<action>\`, conf N%): <rationale>` + outcome.
+- **Step 5** — Tests:
+  - `tests/rpc/chat_classifier.test.ts`: 5 tests covering empty/slash/each-pattern/conversational-negatives/contract.
+  - `tests/rpc/chat_command.test.ts`: 6 tests covering conversational happy-path, command happy-path with persistence assertions, lead-transfer-on-command-from-llm with event-bus subscription, no-transfer-when-already-human, missing-cardId guard, path-traversal guard. HIGH-1 fix verified: all 3 command-path tests use explicit `autonomy: { default: 'autonomous' }`.
+
+### Correctness Check
+
+Re-read each modified function in full:
+
+- **`chat_command` handler** (methods.ts): Flow conversation → conversational `return` early; command → lead-transfer-if-llm → user-turn append → decide() → runId stamp → executeDecision → assistant-turn append → return command union. Error paths: `ChatCommandParams.parse` throws on invalid input (covered by tests #5 + #6); decide() throws propagate (no try/catch added — matches plan); appendChatTurn errors propagate (matches plan MEDIUM-3 trade-off). Bus-less guard correctly degrades both `transferLead` and `executeDecision` calls; `result` default `{executed:false, outcome:undefined}` ensures the assistant turn is still written with `[awaiting approval]` text.
+- **`describeOutcome` helper** (methods.ts): Switch covers all 8 ExecuteOutcome `kind` values from executor.ts (`op-called`, `column-advanced`, `halt-published`, `advise-published`, `substrate-wiped`, `substrate-branched`, `no-op`, `deferred`). Default JSON-stringify fallback matches plan LOW-1 documented trade-off. Null/scalar guard at top.
+- **`classifyChatMessage`** (chat_classifier.ts): trim → empty check → slash check → regex array. Pure; no side effects. Test #1 covers empty + whitespace-only; tests #2-#4 cover slash + each regex + conversational negatives.
+- **Chat panel submit handler** (card_detail.ts): Discriminated-union branch on `r.mode` — `conversation` branch identical to old behavior (`appendMsg('assistant', r.reply)`); `command` branch composes a markdown decision message. Existing `appendMsg('assistant', ...)` calls `renderMarkdown` per `card_detail.ts:317`, so the `**Decision** (...)` markdown renders correctly.
+
+### Regression Check
+
+Re-ran `tests/rpc/methods.test.ts` (56 tests including the chat persistence test at `:380-405` and the orchestrator_decide tests at `:701-831`): all pass. The chat handler is byte-identical pre/post-#62; chat_command is purely additive.
+
+`tests/conductor/executor.test.ts` not re-run as part of targeted sweep (covered by full suite); executor module untouched, so no regression risk.
+
+Brain loop (`tests/conductor/loop.test.ts`): full suite includes it; 1096/1096 confirms no regression.
+
+### Issues Found
+
+None.
+
+### Verdict
+
+**COMPLETE**: all 5 plan steps implemented, all 11 new tests pass, full suite 1085 → 1096 (+11 exactly as planned), typecheck clean, no undocumented deviations, no regressions. Frame B chat panel is now wired as the second invocation surface to the orchestrator; cross-cluster bridge between Frame B Cohort A (#47, #48) and the dual-driver foundation (#54-#61) is closed. Archived #51 `brain-halt-on-user-chat.md` supersession obligation fulfilled (chat-driven lead transfer with reason='user-chat' implemented and tested). Unblocks Frame B Cohort B (#49 `chat-driven-description-authoring` — next sweep item 30.15).
 
 
