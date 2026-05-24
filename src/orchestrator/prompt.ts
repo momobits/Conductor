@@ -7,6 +7,14 @@
 
 import { type CardSnapshot, SNAPSHOT_OPS } from './snapshot.js';
 import type { DecideArgs } from './core.js';
+import { HaltCategorySchema } from '../conductor/halt.js';
+
+// Phase 30.10 / Relay #61: pull the category list from the schema rather
+// than hardcoding so the prompt + taxonomy can never drift. The list is
+// joined with "|" so it slots into the inline JSON schema doc block below.
+const HALT_CATEGORY_LIST = HaltCategorySchema.options
+  .map((c) => `"${c}"`)
+  .join('|');
 
 export interface AssembledPrompt {
   system: string;
@@ -47,7 +55,7 @@ Return ONE JSON object matching this exact shape:
 Per-action params:
 - call-op: { "op": "analyze"|"plan"|"review"|"verify"|"notebook"|"implement"|"resolve"|"chat", "step"?: "<id>" }
 - advance-column: { "from": "<column>", "to": "<column>" }
-- halt-with-handoff: { "reason": "<str>", "suggestedHumanAction"?: "<str>", "category": "missing-step-arg"|"verify-failed"|"transition-needs-decision"|"out-of-sequence-human-action"|"cost-ceiling-reached"|"unknown" }
+- halt-with-handoff: { "reason": "<str>", "suggestedHumanAction"?: "<str>", "category": ${HALT_CATEGORY_LIST} }
 - advise: { "message": "<str>", "severity": "info"|"warn" }
 - wipe-substrate / branch-substrate: { "fromColumn": "<column>", "targetRunIds": ["<runId>", ...] }
 - no-op: { "reason": "<str>" }

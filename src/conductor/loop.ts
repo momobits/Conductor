@@ -197,9 +197,22 @@ export class Conductor {
     }
 
     if (halt && haltReason) {
-      const reason = classifyHalt(haltReason);
+      // Phase 30.10 / Relay #61: classifyHalt returns the typed category +
+      // preserved rawReason + optional context. The legacy event shape
+      // (`reason: "<category>: <rawReason>"`) is preserved verbatim so the
+      // existing tests + UI string-matchers (loop_redteam, monitor.ts)
+      // continue to work; the typed `category`/`rawReason`/`context` fields
+      // ride alongside for downstream consumers.
+      const classification = classifyHalt(haltReason);
       this.haltCount += 1;
-      this.bus.publish({ kind: 'conductor-halt', reason: `${reason}: ${haltReason}`, cardId });
+      this.bus.publish({
+        kind: 'conductor-halt',
+        reason: `${classification.category}: ${classification.rawReason}`,
+        cardId,
+        category: classification.category,
+        rawReason: classification.rawReason,
+        context: classification.context,
+      });
       return { queueHalted: false, advanced: false, halted: true };
     }
     if (escalated) return { queueHalted: false, advanced: advancedTo !== undefined, halted: false };

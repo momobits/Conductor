@@ -13,6 +13,7 @@ import type { WatcherEvent } from './watcher.js';
 import type { LeadState, LeadTransferReason } from '../conductor/lead.js';
 import type { Column } from '../engine/types.js';
 import type { CardDiff } from '../conductor/reconciliation_types.js';
+import type { HaltCategory } from '../conductor/halt.js';
 
 export type DaemonEvent =
   | WatcherEvent
@@ -23,7 +24,22 @@ export type DaemonEvent =
   | { kind: 'config-changed' }
   | { kind: 'conductor-iteration'; cardId: string; iteration: number }
   | { kind: 'conductor-decision'; cardId: string; action: 'approve' | 'escalate' | 'halt'; reason: string; optionId: string }
-  | { kind: 'conductor-halt'; reason: string; cardId?: string }
+  // Phase 30.10 / Relay #61: `reason` retains its legacy "<category>: <rawReason>"
+  // shape for backward-compat (loop_redteam tests, monitor.ts string-matchers).
+  // The typed `category`, `rawReason`, `context` fields ride alongside for
+  // downstream consumers that want category-typed dispatch. Optional because
+  // pre-#61 publishers (wedge detector, conduct() halt path, cost-ceiling
+  // breach) still publish without classification — that's a deliberate
+  // narrow-window scope cut; those sites can adopt categorization in a
+  // follow-up if the typed surface proves useful.
+  | {
+      kind: 'conductor-halt';
+      reason: string;
+      cardId?: string;
+      category?: HaltCategory;
+      rawReason?: string;
+      context?: Record<string, string>;
+    }
   | { kind: 'conductor-status'; running: boolean }
   | { kind: 'tracker-poll'; created: string[]; updated: string[]; error?: string }
   // Phase 22 / Control 30.3 (feature #55): dual-driver lead-follow protocol.

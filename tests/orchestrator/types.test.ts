@@ -112,13 +112,27 @@ describe('narrowDecision', () => {
     }
   });
 
-  it('narrows halt-with-handoff with each category', () => {
+  it('narrows halt-with-handoff with each category from the HaltCategory taxonomy', () => {
+    // Phase 30.10 / Relay #61: aligned with the widened HaltCategorySchema.
+    // The 'out-of-sequence-human-action' / 'cost-ceiling-reached' values from
+    // the original v1 6-category subset are replaced by 'cost-ceiling' and
+    // by the broader cluster — out-of-sequence is observer-advisor's
+    // RuleMatch.ruleId surface, not a halt category itself.
     const categories = [
       'missing-step-arg',
+      'missing-substrate',
+      'invalid-model-output',
       'verify-failed',
+      'review-needs-changes',
+      'implement-conflict',
       'transition-needs-decision',
-      'out-of-sequence-human-action',
-      'cost-ceiling-reached',
+      'blocker-no-hypothesis',
+      'confidence-below-threshold',
+      'iteration-budget',
+      'cost-ceiling',
+      'adr-needed',
+      'destructive-action',
+      'auth-needed',
       'unknown',
     ] as const;
     for (const category of categories) {

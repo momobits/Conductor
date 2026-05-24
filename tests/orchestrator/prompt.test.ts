@@ -64,9 +64,18 @@ describe('assemblePrompt', () => {
     }
   });
 
-  it('system prompt mentions every HaltWithHandoffParams category', () => {
+  it('system prompt mentions every HaltCategory option (taxonomy alignment via HaltCategorySchema)', () => {
     const { system } = assemblePrompt(mkSnapshot(), mkArgs());
-    const cats = ['missing-step-arg', 'verify-failed', 'transition-needs-decision', 'out-of-sequence-human-action', 'cost-ceiling-reached', 'unknown'];
+    // Phase 30.10 / Relay #61: prompt pulls the list from HaltCategorySchema
+    // directly so the assertion stays in sync if the taxonomy is widened.
+    // Spot-check a handful of representative categories from each cluster.
+    const cats = [
+      'missing-step-arg', 'missing-substrate', 'invalid-model-output',
+      'verify-failed', 'review-needs-changes', 'implement-conflict',
+      'transition-needs-decision', 'blocker-no-hypothesis',
+      'confidence-below-threshold', 'iteration-budget', 'cost-ceiling',
+      'adr-needed', 'destructive-action', 'auth-needed', 'unknown',
+    ];
     for (const c of cats) {
       expect(system).toContain(c);
     }

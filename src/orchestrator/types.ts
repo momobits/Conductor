@@ -10,6 +10,7 @@
 // narrowDecision(). Per spec § "Why a record-then-narrow pattern".
 
 import { z } from 'zod';
+import { HaltCategorySchema } from '../conductor/halt.js';
 
 export const OrchestratorActionSchema = z.enum([
   'call-op',
@@ -49,18 +50,12 @@ export type AdvanceColumnParams = z.infer<typeof AdvanceColumnParamsSchema>;
 export const HaltWithHandoffParamsSchema = z.object({
   reason: z.string(),
   suggestedHumanAction: z.string().optional(),
-  // NOTE: this enum is a v1 subset of the wider taxonomy that will live in
-  // dual-driver-halt-categories.md feature #61. When #61 ships, refactor to
-  // import HaltCategorySchema from src/conductor/halt.ts (which feature #61
-  // adds). Keep the 6 v1 values listed in the spec verbatim.
-  category: z.enum([
-    'missing-step-arg',
-    'verify-failed',
-    'transition-needs-decision',
-    'out-of-sequence-human-action',
-    'cost-ceiling-reached',
-    'unknown',
-  ]),
+  // Phase 30.10 / Relay #61: aligned with the widened HaltCategory taxonomy
+  // in src/conductor/halt.ts. Previously a 6-value v1 subset; now points at
+  // the single source of truth. The orchestrator may return any category
+  // value the brain loop also publishes, so observer-advisor + reconciliation
+  // + UI dispatch on the same taxonomy.
+  category: HaltCategorySchema,
 });
 export type HaltWithHandoffParams = z.infer<typeof HaltWithHandoffParamsSchema>;
 
