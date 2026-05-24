@@ -33,6 +33,20 @@ export interface CostTotals {
   dollars: number;
 }
 
+/** Phase 30.15 / Relay #49: server-side record of a chat-proposed body edit.
+ *  Created by chat_agent.ts when the model emits a propose_description_edit
+ *  tool call; consumed by chat_apply_edit and chat_proposed_edit_get RPCs.
+ *  In-memory only — daemon restart loses pending proposals (operator can
+ *  re-prompt). TTL eviction is lazy (on read), no background timer needed. */
+export interface ProposedEditRecord {
+  cardId: string;
+  summary: string;
+  oldBody: string;
+  newBody: string;
+  /** Epoch ms; getProposedEdit returns undefined past this. */
+  expiresAt: number;
+}
+
 export interface RuntimeStore {
   startSession(args: { cardId: string; runId: string; operation: string }): SessionRecord;
   endSession(cardId: string): void;
@@ -59,6 +73,15 @@ export interface RuntimeStore {
   setDeferredReconciliation(cardId: string, diff: CardDiff): void;
   clearDeferredReconciliation(cardId: string): void;
   listDeferredReconciliations(): ReadonlyArray<CardDiff>;
+  /** Phase 30.15 / Relay #49 — chat-proposed-edit accessors. Lazy TTL
+   *  eviction on getProposedEdit. Defensive shallow-copy on read/write
+   *  (records are pure primitive shapes; no nested mutation hazard). */
+  setProposedEdit(editId: string, record: ProposedEditRecord): void;
+  getProposedEdit(editId: string): ProposedEditRecord | undefined;
+  clearProposedEdit(editId: string): void;
+  /** Clears all proposals for a card. Called when a new proposal supersedes
+   *  prior pending proposals for the same card (chat-during-edit semantics). */
+  clearProposedEditsForCard(cardId: string): void;
 }
 
 const ZERO: CostTotals = { inputTokens: 0, outputTokens: 0, dollars: 0 };
@@ -76,6 +99,9 @@ export class InMemoryRuntime implements RuntimeStore {
   // queue. Populated by reconcile() on budget exhaustion; consumed by future
   // feature #59 brain-loop-replacement.
   private readonly deferredReconciliations = new Map<string, CardDiff>();
+  // Phase 30.15 / Relay #49: chat-proposed-edit store. editId → record.
+  // In-memory only; daemon restart loses pending proposals. Lazy TTL eviction.
+  private readonly proposedEdits = new Map<string, ProposedEditRecord>();
 
   constructor(opts: { now?: () => Date } = {}) {
     this.now = opts.now ?? (() => new Date());
@@ -167,6 +193,32 @@ export class InMemoryRuntime implements RuntimeStore {
     return [...this.deferredReconciliations.values()].map(
       (d) => JSON.parse(JSON.stringify(d)) as CardDiff,
     );
+  }
+
+  // Phase 30.15 / Relay #49 — chat-proposed-edit accessors. Lazy TTL eviction
+  // on getProposedEdit (returns undefined AND removes the entry if expired).
+  setProposedEdit(editId: string, record: ProposedEditRecord): void {
+    this.proposedEdits.set(editId, { ...record });
+  }
+
+  getProposedEdit(editId: string): ProposedEditRecord | undefined {
+    const r = this.proposedEdits.get(editId);
+    if (!r) return undefined;
+    if (r.expiresAt <= this.now().getTime()) {
+      this.proposedEdits.delete(editId);
+      return undefined;
+    }
+    return { ...r };
+  }
+
+  clearProposedEdit(editId: string): void {
+    this.proposedEdits.delete(editId);
+  }
+
+  clearProposedEditsForCard(cardId: string): void {
+    for (const [id, r] of this.proposedEdits.entries()) {
+      if (r.cardId === cardId) this.proposedEdits.delete(id);
+    }
   }
 }
 
