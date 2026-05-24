@@ -11,6 +11,7 @@
 import type { TaskEvent } from '../agent/events.js';
 import type { WatcherEvent } from './watcher.js';
 import type { LeadState, LeadTransferReason } from '../conductor/lead.js';
+import type { Column } from '../engine/types.js';
 
 export type DaemonEvent =
   | WatcherEvent
@@ -34,6 +35,27 @@ export type DaemonEvent =
       current: LeadState;
       reason: LeadTransferReason;
       context?: string;
+      ts: string;
+    }
+  // Phase 30.6 / Relay #58: substrate-orphaned advisory event. Fires in
+  // TWO modes per spec:
+  //   (a) advisory mode — UI drag-drop (via moveWithAdvisory) detects a
+  //       backward move with orphans and the wipe/branch RPC publishes
+  //       this event with appliedChoice set after the operator picks;
+  //   (b) auto mode — orchestrator's wipe-substrate/branch-substrate
+  //       decision dispatched by the brain loop (built in #59) publishes
+  //       this event with appliedChoice set.
+  // UI consumer in card_detail (step 10) surfaces both for audit.
+  | {
+      kind: 'substrate-orphaned';
+      cardId: string;
+      from: Column;
+      to: Column;
+      orphanedArtifacts: ReadonlyArray<{ runId: string; op: string }>;
+      choices: readonly ['keep', 'wipe', 'branch'];
+      /** Absent in pure-advisory mode (no choice made yet); set in
+       *  post-action mode (wipe/branch already executed). */
+      appliedChoice?: 'keep' | 'wipe' | 'branch';
       ts: string;
     };
 
