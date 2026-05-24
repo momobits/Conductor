@@ -1,0 +1,62 @@
+{
+  "item": "48",
+  "file_path": ".relay/features/card-detail-op-controls-and-button-states.md",
+  "complexity": "M",
+  "planner_used": "plan",
+  "stale_analysis": false,
+  "pipeline": {
+    "analyze": {
+      "status": "complete",
+      "scope_decision_mode": "keep narrow",
+      "related_work_findings": 6
+    },
+    "plan": {
+      "skill": "plan",
+      "status": "complete",
+      "step_count": 7,
+      "files_touched_in_plan": 8,
+      "v1_caveat_closure_included": true
+    },
+    "review": {
+      "verdict": "APPROVED-WITH-CHANGES",
+      "iterations": 1,
+      "trivial_changes_applied": 3
+    },
+    "implement": {
+      "status": "complete",
+      "deviations_count": 0,
+      "commits_during_impl": 1,
+      "commit_shas_during_impl": ["b9b78b4"],
+      "commit_pattern_note": "Two-commit pattern (separate feat(30.5) + docs(30.5) for /relay-resolve close-out). Agent reverted from the single-combined pattern used in 30.3 and 30.4. Both patterns valid; agent picks per its own judgment."
+    },
+    "verify": {
+      "verdict": "COMPLETE",
+      "iterations": 1,
+      "fixes_applied": 0,
+      "subagent_escalation_used": false,
+      "test_count_before": 885,
+      "test_count_after": 912
+    },
+    "resolve": {
+      "status": "complete",
+      "commit_sha": "4ea777d",
+      "implementation_doc": ".relay/implemented/card-detail-op-controls-and-button-states.md",
+      "archived_to": ".relay/archive/features/card-detail-op-controls-and-button-states.md",
+      "v1_caveat_30_4_closed": true,
+      "v1_caveat_closure_note": "30.4 v1 caveat (#47's empty-state CTAs wired to card_work as placeholder) closed in-step: CTAs swapped to op_invoke as part of b9b78b4. No Phase 31+ technical debt left from 30.4."
+    }
+  },
+  "all_commit_shas_produced": ["b9b78b4", "4ea777d"],
+  "control_bridge": {
+    "scope": "30.5",
+    "scope_verified": true,
+    "commit_subjects_verified": [
+      "feat(30.5): per-op sidebar buttons + 4-state button machine + op_invoke + card_resume RPCs + 30.4 caveat closure",
+      "docs(30.5): /relay-resolve close out card-detail-op-controls-and-button-states (commits: b9b78b4)"
+    ]
+  },
+  "exit_status": "resolved",
+  "pause_reason": null,
+  "pause_detail": null,
+  "errors": []
+}

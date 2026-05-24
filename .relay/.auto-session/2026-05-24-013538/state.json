@@ -1,0 +1,44 @@
+{
+  "session": "2026-05-24-013538",
+  "mode": "single",
+  "sweep_target": null,
+  "created": "2026-05-24T01:35:38Z",
+  "last_activity": "2026-05-24T02:00:00Z",
+  "queue": [
+    {
+      "id": "48",
+      "title": "card-detail-op-controls-and-button-states — per-op sidebar buttons + 4-state button machine + op_invoke + card_resume RPCs + card-detail keyboard shortcuts via global dispatcher",
+      "file_path": ".relay/features/card-detail-op-controls-and-button-states.md",
+      "complexity": "M",
+      "complexity_raw": "M",
+      "recommended_planner": "plan",
+      "dependencies": ["Phase 18 #44 (satisfied)", "#47 multi-surface-view (just shipped in 30.4)"],
+      "phase": "20",
+      "control_step": "30.5"
+    }
+  ],
+  "completed": [
+    {
+      "id": "48",
+      "exit_status": "resolved",
+      "summary_path": ".relay/.auto-session/2026-05-24-013538/48.json",
+      "commit_shas": ["b9b78b4", "4ea777d"],
+      "implementation_doc": ".relay/implemented/card-detail-op-controls-and-button-states.md",
+      "archived_to": ".relay/archive/features/card-detail-op-controls-and-button-states.md",
+      "test_delta": "885 → 912 (+27)",
+      "control_scope": "30.5",
+      "v1_caveat_closure": "30.4 v1 caveat closed in-step (CTAs swapped from card_work to op_invoke)"
+    }
+  ],
+  "current_index": 1,
+  "status": "complete",
+  "pause_reason": null,
+  "ordering_mtime_at_dispatch": 1779579051,
+  "control_bridge": {
+    "phase": "30",
+    "step": "30.5",
+    "steps_md_path": ".control/phases/phase-30-frame-b-and-dual-driver/steps.md",
+    "checkbox_flipped": false,
+    "bridge_commit_pending": "docs(30.5): /relay-auto close out card-detail-op-controls-and-button-states (commits: b9b78b4, 4ea777d)"
+  }
+}
