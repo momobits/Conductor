@@ -198,6 +198,35 @@ export const CardResumeParams = z.object({
   cardId: z.string().min(1).max(128).regex(/^[a-zA-Z0-9._-]+$/, 'cardId must match [a-zA-Z0-9._-]+'),
 }).strict();
 
+// Phase 22 (Control 30.14) feature #62: composite chat-command RPC. Routes a
+// chat panel submission to either the conversational chat op or the orchestrator
+// decide()+executeDecision() pipeline per classifyChatMessage(). cardId regex
+// mirrors CardChatHistoryParams (path-traversal guard at RPC boundary parity).
+export const ChatCommandParams = z.object({
+  cardId: z.string().min(1).max(128).regex(/^[a-zA-Z0-9._-]+$/, 'cardId must match [a-zA-Z0-9._-]+'),
+  message: z.string().min(1).max(8000),
+}).strict();
+
+// Result schema is a discriminated union on `mode`. The 'conversation' variant
+// matches today's chat() shape (`{reply: string}`); the 'command' variant carries
+// the orchestrator decision + execution metadata. The decision is the FULL
+// NarrowedDecision shape (carried as z.unknown() at the RPC boundary; consumers
+// re-narrow via narrowDecision if they need per-action params). The outcome
+// mirrors executor.ts ExecuteOutcome but is also passed through as z.unknown()
+// to avoid duplicating the union shape across module boundaries.
+export const ChatCommandResult = z.discriminatedUnion('mode', [
+  z.object({
+    mode: z.literal('conversation'),
+    reply: z.string(),
+  }).strict(),
+  z.object({
+    mode: z.literal('command'),
+    decision: z.unknown(),
+    executed: z.boolean(),
+    outcome: z.unknown().optional(),
+  }).strict(),
+]);
+
 export const ConductorStartParams = z.object({});
 export const ConductorStopParams = z.object({});
 export const ConductorStatusParams = z.object({});

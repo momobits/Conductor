@@ -344,8 +344,32 @@ export async function renderCardDetail(
     chatInput.value = '';
     appendMsg('user', text);
     try {
-      const r = await rpc.call<{ reply: string }>('chat', { cardId, message: text });
-      appendMsg('assistant', r.reply);
+      // Phase 22 (Control 30.14) feature #62: swap chat → chat_command. Server-
+      // side classifier routes between conversation (chat op) and command
+      // (orchestrator decide()+executeDecision()). Discriminated union on `mode`
+      // controls render: conversation → plain assistant message; command →
+      // render decision rationale + execution outcome inline. SSE events for
+      // pending-decision approval flow are handled by the existing handler below.
+      type ChatCommandResp =
+        | { mode: 'conversation'; reply: string }
+        | { mode: 'command'; decision: { rationale: string; action: string; confidence: number; params: unknown }; executed: boolean; outcome?: unknown };
+      const r = await rpc.call<ChatCommandResp>('chat_command', { cardId, message: text });
+      if (r.mode === 'conversation') {
+        appendMsg('assistant', r.reply);
+      } else {
+        // Render decision rationale + outcome as a markdown assistant message.
+        // v2 polish (per design Open Q #5) would surface [Approve][Reject]
+        // affordances for executed:false; v1 surfaces via SSE pending-decision.
+        const outcomeStr = r.executed
+          ? `\n\n**Executed**: \`${JSON.stringify(r.outcome)}\``
+          : '\n\n_Awaiting your approval (see pending decision banner)._';
+        const action = r.decision.action;
+        const conf = Math.round(r.decision.confidence * 100);
+        appendMsg(
+          'assistant',
+          `**Decision** (\`${action}\`, conf ${conf}%): ${r.decision.rationale}${outcomeStr}`,
+        );
+      }
     } catch (err) {
       appendMsg('assistant', `[error: ${(err as Error).message}]`);
     }

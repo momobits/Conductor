@@ -15,7 +15,7 @@ import {
   ExerciseNewParams, ExerciseFileParams,
   WorkCardParams, WorkNextParams, RecommendParams,
   ConfigGetParams, SessionStatusParams,
-  ChatParams,
+  ChatParams, ChatCommandParams,
   ConductorStartParams, ConductorStopParams, ConductorStatusParams, ConductorSetAutonomyParams,
   PendingDecisionResolveParams,
   TrackerPullParams,
@@ -29,7 +29,7 @@ import {
   FindOrphanedSubstrateParams, WipeSubstrateParams, BranchSubstrateParams,
 } from './schema.js';
 import { readRunArtifact, findLatestArtifactRunId } from '../agent/run_artifact.js';
-import { readChatLog } from '../engine/state/chat_log.js';
+import { readChatLog, appendChatTurn } from '../engine/state/chat_log.js';
 import { trackerPull } from '../engine/ops/tracker_pull.js';
 import { makeTrackerAdapter } from '../trackers/factory.js';
 import { listRuns, pruneRuns, replayRun } from '../agent/runlog_store.js';
@@ -66,6 +66,8 @@ import { decide as orchestratorDecide } from '../orchestrator/index.js';
 import { transferLead, getLead } from '../conductor/lead.js';
 import { resolveNextStep } from '../conductor/step_resolver.js';
 import { checkCostCeilings } from '../conductor/cost_guard.js';
+import { executeDecision } from './../conductor/executor.js';
+import { classifyChatMessage } from './chat_classifier.js';
 
 export interface MethodContext {
   repo: string;
@@ -339,6 +341,142 @@ async function chat(ctx: MethodContext, raw: unknown) {
   const model = ctx.config.routing.functions['chat'] ?? ctx.config.routing.default;
   const result = await chatOp({ repo: ctx.repo, card, message: p.message, adapter, model });
   return { reply: result.reply };
+}
+
+// Phase 22 (Control 30.14) feature #62: composite chat-command RPC. Routes the
+// chat panel submission via classifyChatMessage() to either the conversational
+// chat op (mode='conversation') or the orchestrator decide()+executeDecision()
+// pipeline (mode='command'). On the command path, transfers lead to 'human' if
+// the brain is currently leading (closes the brain-halt-on-user-chat SUPERSEDED
+// supersession from #51 archived spec). Persists chat turns to chat.jsonl on
+// BOTH paths so the chat panel history replay surfaces decisions inline.
+async function chat_command(ctx: MethodContext, raw: unknown) {
+  const p = ChatCommandParams.parse(raw);
+  const isCommand = classifyChatMessage(p.message);
+
+  if (!isCommand) {
+    // Delegate to the existing chat() handler. Reuses adapter resolution +
+    // readCard + chat op persistence (chat op writes both user+assistant turns).
+    const r = await chat(ctx, p);
+    return { mode: 'conversation' as const, reply: r.reply };
+  }
+
+  // COMMAND path. First: if the brain is leading (lead==='llm'), transfer lead
+  // to 'human' with reason='user-chat'. This realizes the supersession-closure
+  // obligation from archived brain-halt-on-user-chat.md (#51): "user chat halts
+  // the brain" generalized as transferLead({to:'human', reason:'user-chat'}).
+  if (ctx.bus) {
+    const lead = getLead(ctx.runtime);
+    if (lead.current === 'llm') {
+      await transferLead({
+        runtime: ctx.runtime, bus: ctx.bus,
+        to: 'human', reason: 'user-chat', context: p.message,
+      });
+    }
+  }
+
+  // Append the user's turn FIRST (regardless of decide() outcome — operator
+  // intent is recorded even if decide() throws). Matches chat op semantic where
+  // user turn persists before the model invoke.
+  await appendChatTurn(ctx.repo, p.cardId, {
+    ts: new Date().toISOString(),
+    role: 'user',
+    text: p.message,
+  });
+
+  // Decide. Lead is always 'human' for chat_command (operator-initiated; per
+  // orchestrator prompt § 'When lead=human, frame your decisions as advisories').
+  // Card is read internally by orchestratorDecide()'s buildSnapshot() and
+  // executeDecision()'s autonomy-gate readCard. Don't double-read here.
+  const adapter = ctx.adapter ?? new RoutingAdapter();
+  const decision = await orchestratorDecide({
+    repo: ctx.repo,
+    cardId: p.cardId,
+    adapter,
+    config: ctx.config,
+    lead: 'human',
+    userMessage: p.message,
+    onAdapterUsage: ({ inputTokens, outputTokens, dollars }) => {
+      ctx.runtime.addCost(p.cardId, { inputTokens, outputTokens, dollars });
+    },
+  });
+
+  // Generate a runId following TaskAgent format (YYYYMMDDTHHMMSS-cardId). This
+  // shape lets card_artifacts_index discover the orchestrate.md artifact written
+  // by executeDecision's persistDecision() helper. Matches op_invoke's runId
+  // generation pattern at methods.ts:428.
+  const stamp = new Date().toISOString().replace(/[-:.]/g, '').slice(0, 15);
+  const runId = `${stamp}-${p.cardId}`;
+
+  // Dispatch. executeDecision handles the autonomy gate internally (always-
+  // execute | threshold | always-surface). On always-surface (assist mode),
+  // it awaits the operator's pending_decision_resolve via the bus (5min default
+  // per #59). For v1, chat_command awaits the resolution and returns the final
+  // outcome. The chat panel's existing SSE handlers surface intermediate
+  // pending-decision events to the operator.
+  let result: { executed: boolean; outcome: unknown } = { executed: false, outcome: undefined };
+  if (ctx.bus) {
+    result = await executeDecision({
+      repo: ctx.repo,
+      cardId: p.cardId,
+      decision,
+      adapter,
+      config: ctx.config,
+      bus: ctx.bus,
+      runtime: ctx.runtime,
+      runId,
+    });
+  }
+
+  // Append assistant turn summarizing the decision + outcome. Format follows
+  // design Open Question #4 lean: structured text prefix in chat.jsonl.
+  // Programmatic consumers parse the prefix; humans see rationale + outcome.
+  const outcomeStr = result.executed
+    ? `[executed] ${describeOutcome(result.outcome)}`
+    : '[awaiting approval]';
+  await appendChatTurn(ctx.repo, p.cardId, {
+    ts: new Date().toISOString(),
+    role: 'assistant',
+    text: `[decision] ${decision.rationale}\n${outcomeStr}`,
+  });
+
+  return {
+    mode: 'command' as const,
+    decision,
+    executed: result.executed,
+    outcome: result.outcome,
+  };
+}
+
+/** Render an ExecuteOutcome union into a chat-line-friendly summary string.
+ *  Mirrors the executor's ExecuteOutcome union variants. Helper is local
+ *  because the executor's union isn't exported as a value (only the type).
+ *  Falls back to JSON-stringify for unknown shapes (defense-in-depth).
+ *  Maintenance contract: when executor.ts adds a new ExecuteOutcome variant,
+ *  add a matching case here (review LOW-1 documented trade-off). */
+function describeOutcome(outcome: unknown): string {
+  if (!outcome || typeof outcome !== 'object') return String(outcome);
+  const o = outcome as { kind?: string; [k: string]: unknown };
+  switch (o.kind) {
+    case 'op-called':
+      return `op ${String(o['op'])}${o['step'] ? ` step ${String(o['step'])}` : ''} ran in ${String(o['durationMs'])}ms`;
+    case 'column-advanced':
+      return `column ${String(o['from'])} → ${String(o['to'])}`;
+    case 'halt-published':
+      return `halt published: ${String(o['category'])} — ${String(o['reason'])}`;
+    case 'advise-published':
+      return `${String(o['severity'])}: ${String(o['message'])}`;
+    case 'substrate-wiped':
+      return `wiped ${Array.isArray(o['removedFiles']) ? (o['removedFiles'] as unknown[]).length : 0} substrate files`;
+    case 'substrate-branched':
+      return `branched substrate to ${String(o['archiveDir'])}`;
+    case 'no-op':
+      return `no-op: ${String(o['reason'])}`;
+    case 'deferred':
+      return `deferred: ${String(o['deferReason'])}`;
+    default:
+      return JSON.stringify(o);
+  }
 }
 
 // Phase 22 (Control phase 30.2): wires the dual-driver orchestrator-core
@@ -797,6 +935,7 @@ export const methods = {
   config_set,
   session_status,
   chat,
+  chat_command,
   conductor_start,
   conductor_stop,
   conductor_status,
