@@ -42,7 +42,7 @@ export function attachTransition(program: Command): void {
   program
     .command('transition <cardId> <column>')
     .description(
-      `Manually transition a card to an ADJACENT column (forward by one step, or one of three explicit backward moves: planned→discovered, building→approved, verifying→building). Skips autonomy policy gates but NOT the lifecycle adjacency rule. Columns: ${COLUMNS.join(' | ')}`,
+      `Manually transition a card to ANY other column (forward or backward). Phase 30.6 widened the lifecycle to permit all column->column moves; for backward moves with substrate-hygiene control (keep/wipe/branch), prefer 'conductor card backward' instead. Skips autonomy policy gates. Columns: ${COLUMNS.join(' | ')}`,
     )
     .action(async (cardId: string, column: string) => {
       if (!(COLUMNS as readonly string[]).includes(column)) {
