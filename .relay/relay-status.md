@@ -51,7 +51,7 @@ All active features have status `DESIGNED` with no `## Analysis` section yet. Br
 - **`card-detail-multi-surface-view.md`** — OUTSTANDING, DESIGNED. Restructures `renderCardDetail` into a top-to-bottom narrative (description → per-op artifacts → chat); new `card_artifacts_index` RPC; per-section `<details>` with re-run + history affordances. Cohort A.
 - **`card-detail-op-controls-and-button-states.md`** — OUTSTANDING, DESIGNED. Per-op sidebar buttons + 4-state button machine; new RPCs `op_invoke` + `card_resume`. Cohort A.
 - **`chat-driven-description-authoring.md`** — OUTSTANDING, DESIGNED. L-complexity. Extends `ModelAdapter` with `invokeWithTools`; new `chat_agent.ts` with 4-tool surface; diff-preview UI. Cohort B; depends on Cohort A. Also depends on dual-driver feature #9 (`frame-b-chat-wire`) for command-routing infrastructure.
-- **`column-transition-op-triggering.md`** — OUTSTANDING, DESIGNED. Column moves trigger corresponding op per autonomy policy. Cohort C.
+- **`column-transition-op-triggering.md`** — RESOLVED 2026-05-24 (Control 30.11). Column moves chain ops via `moveWithAdvisory` + `op_invoke`; new `lib/column_ops.ts` helper. Cohort C.
 - **`card-detail-run-history-surface.md`** — OUTSTANDING, DESIGNED. Per-op `⋯` history toggle; new `card_runs_list` RPC. Cohort C (polish; anytime after multi-surface view).
 
 ### Cross-cluster interaction notes
@@ -98,7 +98,7 @@ None. The issues directory is empty. All 14 active features are at their initial
 | `card-detail-multi-surface-view.md` | individual feature | DESIGNED (no analysis) | `/relay-analyze` — Frame B Cohort A. |
 | `card-detail-op-controls-and-button-states.md` | individual feature | DESIGNED (no analysis) | `/relay-analyze` — Frame B Cohort A. |
 | `chat-driven-description-authoring.md` | individual feature | DESIGNED (no analysis) | `/relay-analyze` — Frame B Cohort B. Depends on dual-driver feature #9. |
-| `column-transition-op-triggering.md` | individual feature | DESIGNED (no analysis) | `/relay-analyze` — Frame B Cohort C. |
+| `column-transition-op-triggering.md` | individual feature | RESOLVED (Control 30.11) | archived to `.relay/archive/features/` |
 | `card-detail-run-history-surface.md` | individual feature | DESIGNED (no analysis) | `/relay-analyze` — Frame B Cohort C (polish). |
 
 **Staleness check**: no in-progress items with pipeline-stage dates. All items are pre-pipeline (DESIGNED but never analyzed) so the >7-day staleness rule does not apply. Earliest creation date is 2026-05-17 (Frame B features); newest is 2026-05-23 (dual-driver features).
