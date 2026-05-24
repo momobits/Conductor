@@ -82,6 +82,17 @@ export const AutonomyBudgetSchema = z
     // edits/moves a card. Global per-minute ceiling is governed by
     // `observer_calls_per_minute` above.
     observer_advisory_rate_limit_ms: z.number().int().nonnegative().default(5000),
+    // Phase 30.13 / Relay #59: halt-loop circuit-breaker threshold.
+    // Number of consecutive halt-with-handoff decisions on the SAME card
+    // before the brain auto-transfers lead to human + publishes
+    // `conductor-halt-loop-detected`. Default 3 matches design OQ #5 lean.
+    halt_loop_threshold: z.number().int().positive().default(3),
+    // Phase 30.13 / Relay #59: pending-decision wait timeout for assist mode
+    // (and hybrid sub-threshold). When the executor publishes
+    // conductor-pending-decision, it waits this long for operator resolution
+    // before auto-deferring the decision. 5min default per design § Pending-
+    // decision pattern; can be overridden per autonomy mode.
+    pending_decision_timeout_ms: z.number().int().positive().default(300_000),
   })
   .default({});
 
