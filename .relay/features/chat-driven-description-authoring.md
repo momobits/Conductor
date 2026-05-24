@@ -1890,3 +1890,70 @@ Updating the plan in-place now.
   - **Actual**: [what was done instead]
   - **Reason**: [why the deviation was necessary]
 - Do NOT make changes beyond what the plan specifies
+
+---
+
+## Verification Report
+
+*Verified: 2026-05-24*
+
+### Implementation Status
+
+| Step | Planned | Implemented | Correct |
+|------|---------|-------------|---------|
+| 1 | RuntimeStore + ProposedEditRecord + 4 accessors with lazy TTL eviction | YES — `src/daemon/runtime.ts` extended additively; defensive shallow-copy on set/get | YES |
+| 1.5 | Grep tripwire `implements RuntimeStore` | YES — 0 hits in `src/` and `tests/`; tripwire silent (no test fakes needed) | YES |
+| 2 | `commitCardEdit` git helper in `src/engine/state/git.ts` | YES — appended as sibling to `commitStep`; same empty-files rejection (T6-1) | YES |
+| 3 | NEW `src/engine/ops/chat_agent.ts` with 4-tool surface, sandboxed walker, 2-invoke 1-round loop | YES — full module with safeResolve / shouldExclude / runGrep / runRead / runGlob / simpleGlobMatch; EXCLUDE_DIRS includes `.relay/exercise` + `.relay/archive`; cross-OS path normalization in shouldExclude (LOW-4) and grep glob filter; simpleGlobMatch normalizes backslashes (MEDIUM-1) | YES |
+| 4 | `chat.ts` delegates to `chatAgent`; widens `ChatResult` with optional toolCalls/proposedEdit/diagnostic; preserves JSONL persistence | YES — clean delegation, history loaded via `readChatLog`, persistence unchanged at JSONL layer, return composition spreads only present fields (backward-compat) | YES |
+| 5 | Schema additions (`ChatApplyEditParams`, `ChatProposedEditGetParams`); `ChatCommandResult` conversation variant widened; `ChatParams` cardId regex tightened | YES — all three additions land in `src/rpc/schema.ts` with boundary-parity regex | YES |
+| 6 | `chat_apply_edit` (cross-card guard, lazy-evicted lookup, writeCard + commitCardEdit, clearProposedEditsForCard) + `chat_proposed_edit_get` handlers, both registered in methods barrel; `chat` handler passes runtime + propagates extras; `chat_command` conversation branch spreads extras | YES — handlers in place; per HIGH-1 no explicit `bus.publish` after writeCard (watcher fires ~150ms later) | YES |
+| 7 | UI: `appendMsg` widened with `extras`; investigation log renders above assistant text; `[propose-edit:<id>]` marker swapped for placeholder + hydrated via `chat_proposed_edit_get`; Apply/Reject buttons; post-Apply description refresh via direct `card_get` refetch | YES — `ChatExtras` interface, `renderToolCallsHtml` helper, `hydrateProposedEdit` async hydration with apply/reject handlers; selector `.surface.description .render` confirmed stable | YES |
+| 8 | CSS for `.tool-call`, `.diagnostic`, `.proposed-edit`, `.diff` (grid-2-col), `.diff-actions button` with CSS-var fallbacks | YES — block appended to `src/ui/app.css` (lines 1602-1670); uses `--ink-100`, `--hairline`, `--warn`, `--err`, `--ok` with safe fallbacks | YES |
+| 9 | `tests/engine/ops/chat.test.ts` updated: pass runtime, assert diagnostic on fallback | YES — 3 tests pass; existing assertions preserved | YES |
+| 10 | `tests/rpc/chat_command.test.ts` +1 case for diagnostic propagation | YES — 7/7 tests pass | YES |
+| 11 | NEW `tests/engine/ops/chat_agent.test.ts` (13), NEW `tests/rpc/chat_apply_edit.test.ts` (9), `tests/daemon/runtime.test.ts` +4 cases for proposed-edit lifecycle | YES — 26 new tests total; covers MEDIUM-2's "ignore-not-prevent" round-2 cap explicitly | YES |
+| 12 | Manual smoke (`npm run dev`) | SKIPPED — non-blocking manual step per dispatch brief; suite + targeted tests cover all programmatic behavior | N/A |
+
+No implementation deviations from the plan. All review changes (HIGH-1/HIGH-2/MEDIUM-1/MEDIUM-2/MEDIUM-3/LOW-1/LOW-2/LOW-4) applied in-place during the relevant step.
+
+### Test Results
+
+- **Full suite**: `npm test` → **1123/1123 passed, 133 test files** (baseline 1096 → +27 net additions). Duration 19.01s. Zero regressions.
+- **Targeted runs** (during implementation):
+  - `tests/daemon/runtime.test.ts` — 16/16 pass (+4 new cases for proposed-edit lifecycle).
+  - `tests/engine/ops/chat.test.ts` — 3/3 pass (signature widened with runtime; diagnostic assertion added).
+  - `tests/engine/ops/chat_agent.test.ts` — 13/13 pass (all tool surface paths + 1-round cap).
+  - `tests/rpc/chat_apply_edit.test.ts` — 9/9 pass (apply happy path + 5 guards + 3 get cases).
+  - `tests/rpc/chat_command.test.ts` — 7/7 pass (+1 diagnostic propagation case).
+  - `tests/rpc/` aggregate — 91/91 pass (zero regressions in existing RPC suite).
+- **Typecheck**: `npm run typecheck` clean (engine `tsconfig.json` + UI `tsconfig.ui.json`).
+- **Loop.test.ts flake watch**: no flake observed in suite output.
+
+### Post-Implementation Checks (per plan)
+
+| # | Check | Result |
+|---|-------|--------|
+| 1 | `npm run typecheck` | PASS (engine + UI tsconfigs clean) |
+| 2 | `npx vitest run tests/daemon/runtime.test.ts` | PASS (16/16) |
+| 3 | `npx vitest run tests/engine/state/git.test.ts` | PASS (14/14, existing) — commitCardEdit not directly tested but exercised via chat_apply_edit happy path |
+| 4 | `npx vitest run tests/engine/ops/chat_agent.test.ts` | PASS (13/13) |
+| 5 | `npx vitest run tests/engine/ops/chat.test.ts` | PASS (3/3) |
+| 6 | `npx vitest run tests/rpc/chat_apply_edit.test.ts tests/rpc/chat_proposed_edit_get.test.ts tests/rpc/chat_command.test.ts` | PASS (chat_proposed_edit_get cases live in chat_apply_edit.test.ts; combined 9 + 7 = 16/16) |
+| 7 | `npm test` | PASS (1123/1123) |
+| 8 | Loop.test.ts flake watch | PASS (no flake) |
+| 9 | Manual `npm run dev` smoke | SKIPPED per dispatch brief (notebook + manual smoke optional) |
+| 10 | Grep guard `chat({ ... runtime: ...` (HIGH-2) | PASS — only 5 chat tests hit; all pass `runtime: new InMemoryRuntime()` |
+| 11 | Tripwire `implements RuntimeStore` (LOW-1) | PASS — 0 hits in `src/` and `tests/` (only the interface definition in runtime.ts itself surfaces) |
+
+### Issues Found
+
+None. All review-mandated fixes applied during implementation; no deviation surfaced during verification.
+
+### Verification Fixes
+
+None.
+
+### Verdict
+
+**COMPLETE.** All 12 plan steps implemented (step 12 SKIPPED per dispatch brief; non-blocking manual smoke). All review changes applied in-place. Full suite 1123/1123 with +27 new tests; baseline 1096 → 1123. Zero regressions. Typecheck clean both targets. Both grep guards from Post-Implementation Checks #10 and #11 surface only expected results.
