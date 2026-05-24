@@ -18,6 +18,7 @@ interface AppContext {
   stream: EventStream;
   refreshCurrentView: () => Promise<void>;
   boardKeyHandler: ((ev: KeyboardEvent) => boolean) | null;
+  cardKeyHandler: ((ev: KeyboardEvent) => boolean) | null;
   boardInMoveMode: () => boolean;
 }
 
@@ -99,6 +100,7 @@ async function bootstrap(): Promise<AppContext | null> {
     rpc, token, stream,
     refreshCurrentView: async () => {},
     boardKeyHandler: null,
+    cardKeyHandler: null,
     boardInMoveMode: () => false,
   };
 }
@@ -110,6 +112,7 @@ async function dispatch(ctx: AppContext) {
   detailCleanup = null;
   ctx.refreshCurrentView = async () => {};
   ctx.boardKeyHandler = null;
+  ctx.cardKeyHandler = null;
   ctx.boardInMoveMode = () => false;
   setActiveNav();
   const root = document.getElementById('root') as HTMLElement;
@@ -127,10 +130,12 @@ async function dispatch(ctx: AppContext) {
     try {
       const result = await renderCardDetail(ctx.rpc, ctx.stream, root, cardId);
       detailCleanup = result.cleanup;
+      ctx.cardKeyHandler = result.cardKeys.handle;
       ctx.refreshCurrentView = async () => {
         detailCleanup?.();
         const fresh = await renderCardDetail(ctx.rpc, ctx.stream, root, cardId);
         detailCleanup = fresh.cleanup;
+        ctx.cardKeyHandler = fresh.cardKeys.handle;
       };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -175,6 +180,7 @@ async function main() {
     openHelpOverlay: () => openHelpOverlay(currentViewName()),
     navigateTo: (v) => { window.location.hash = `#/${v}`; },
     get boardKeyHandler() { return ctx.boardKeyHandler; },
+    get cardKeyHandler() { return ctx.cardKeyHandler; },
     boardInMoveMode: () => ctx.boardInMoveMode(),
     dialogIsOpen: () => document.querySelector('dialog[open]') !== null,
     currentView: currentViewName,

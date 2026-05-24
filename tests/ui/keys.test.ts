@@ -11,6 +11,7 @@ function stubCtx(overrides: Partial<KeyContext> = {}): KeyContext {
     openHelpOverlay:    vi.fn().mockResolvedValue(undefined),
     navigateTo:         vi.fn(),
     boardKeyHandler:    null,
+    cardKeyHandler:     null,
     dialogIsOpen:       vi.fn().mockReturnValue(false),
     currentView:        vi.fn().mockReturnValue('board'),
     boardInMoveMode:    vi.fn().mockReturnValue(false),
@@ -126,6 +127,35 @@ describe('handleKey — help overlay (?)', () => {
     const ctx = stubCtx();
     expect(handleKey(makeEvent('?', { tagName: 'TEXTAREA' }), ctx)).toBe(false);
     expect(ctx.openHelpOverlay).not.toHaveBeenCalled();
+  });
+});
+
+describe('handleKey — card delegation (Phase 22 Control 30.5 feature #48)', () => {
+  it('delegates to cardKeyHandler on card view when handler is set', () => {
+    const handler = vi.fn().mockReturnValue(true);
+    const ctx = stubCtx({ cardKeyHandler: handler, currentView: () => 'card' });
+    expect(handleKey(makeEvent('Z'), ctx)).toBe(true);
+    expect(handler).toHaveBeenCalled();
+  });
+  it('does NOT delegate when cardKeyHandler is null', () => {
+    const ctx = stubCtx({ cardKeyHandler: null, currentView: () => 'card' });
+    expect(handleKey(makeEvent('Z'), ctx)).toBe(false);
+  });
+  it('does NOT delegate when on a non-card view', () => {
+    const handler = vi.fn().mockReturnValue(true);
+    const ctx = stubCtx({ cardKeyHandler: handler, currentView: () => 'board' });
+    expect(handleKey(makeEvent('Z'), ctx)).toBe(false);
+    expect(handler).not.toHaveBeenCalled();
+  });
+  it('cardKeyHandler is bypassed when dialog open', () => {
+    const handler = vi.fn().mockReturnValue(true);
+    const ctx = stubCtx({
+      cardKeyHandler: handler,
+      currentView: () => 'card',
+      dialogIsOpen: vi.fn().mockReturnValue(true),
+    });
+    expect(handleKey(makeEvent('Z'), ctx)).toBe(false);
+    expect(handler).not.toHaveBeenCalled();
   });
 });
 

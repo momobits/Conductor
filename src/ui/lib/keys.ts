@@ -13,6 +13,10 @@ export interface KeyContext {
   openHelpOverlay: () => Promise<void>;
   navigateTo: (view: 'board' | 'monitor' | 'routing') => void;
   boardKeyHandler: ((ev: KeyboardEvent) => boolean) | null;
+  /** Phase 22 (Control 30.5) feature #48: card-detail per-view key handler.
+   *  Symmetric with boardKeyHandler. Set from renderCardDetail's return value
+   *  in main.ts's dispatch(). Null when no card-detail view is active. */
+  cardKeyHandler: ((ev: KeyboardEvent) => boolean) | null;
   dialogIsOpen: () => boolean;
   currentView: () => ViewName;
   boardInMoveMode: () => boolean;
@@ -75,6 +79,9 @@ export function handleKey(ev: KeyboardEvent, ctx: KeyContext): boolean {
 
     if (ctx.currentView() === 'board' && ctx.boardKeyHandler) {
       return ctx.boardKeyHandler(ev);
+    }
+    if (ctx.currentView() === 'card' && ctx.cardKeyHandler) {
+      return ctx.cardKeyHandler(ev);
     }
   }
 

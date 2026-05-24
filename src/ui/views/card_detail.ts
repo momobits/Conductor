@@ -18,8 +18,12 @@ import {
   OP_RENDER_ORDER,
   columnToFocusOp,
   hostSectionAttrs,
+  CONTROL_OPS,
+  computeButtonStates,
   type ArtifactOp,
   type OpIndexEntry,
+  type ControlOp,
+  type ButtonState,
 } from './card_detail_helpers.js';
 
 interface CardGetResult {
@@ -49,12 +53,16 @@ function fmtFrontmatter(fm: Record<string, unknown>): string {
   }).join('');
 }
 
+function capitalize(s: string): string {
+  return s.length === 0 ? s : s[0]!.toUpperCase() + s.slice(1);
+}
+
 export async function renderCardDetail(
   rpc: RpcClient,
   stream: EventStream,
   root: HTMLElement,
   cardId: string,
-): Promise<{ cleanup: () => void }> {
+): Promise<{ cleanup: () => void; cardKeys: { handle: (ev: KeyboardEvent) => boolean } }> {
   // Parallel-fetch primary card surfaces. Index + body in parallel saves a
   // round-trip vs. sequential awaits.
   const [card, status, indexResult] = await Promise.all([
@@ -89,17 +97,42 @@ export async function renderCardDetail(
       <aside class="side">
         <h3>${escape(String(card.frontmatter['title'] ?? cardId))}</h3>
         <dl>${fmtFrontmatter(card.frontmatter)}</dl>
-        <button id="work-btn" ${status.session ? 'disabled' : ''}>
-          ${status.session ? `Running (${escape(status.session.operation)})` : 'Work this card'}
-        </button>
+        <div class="op-controls" id="op-controls">
+          ${CONTROL_OPS.map((op) =>
+            `<button class="op-btn" data-op="${escape(op)}">${escape(capitalize(op))}</button>`,
+          ).join('')}
+          <button class="op-btn op-work-all" data-op="work-all">Work all</button>
+          <button class="op-btn op-continue" data-op="continue" hidden>Continue this card</button>
+        </div>
         <div class="stream"><div class="stream-scroll" id="stream"></div></div>
       </aside>
     </div>
   `;
 
   const streamEl = root.querySelector<HTMLElement>('#stream')!;
-  const workBtn = root.querySelector<HTMLButtonElement>('#work-btn')!;
   const article = root.querySelector<HTMLElement>('.body')!;
+  const controlsEl = root.querySelector<HTMLElement>('#op-controls')!;
+
+  // ─── Button state machine ──────────────────────────────────────────────
+  // 4-state: idle / running / halted-by-chat / halted-by-assist.
+  // State transitions live in the SSE handler; DOM updates funnel through
+  // applyButtonStates() so per-op enablement + visibility stay consistent.
+  let buttonState: ButtonState = status.session ? 'running' : 'idle';
+  let runningOp: string | undefined = status.session?.operation;
+  let currentColumn = String(card.frontmatter['column'] ?? '');
+
+  function applyButtonStates(): void {
+    const descriptors = computeButtonStates({ state: buttonState, column: currentColumn, runningOp });
+    for (const d of descriptors) {
+      const btn = controlsEl.querySelector<HTMLButtonElement>(`button[data-op="${d.op}"]`);
+      if (!btn) continue;
+      btn.disabled = d.disabled;
+      btn.hidden = d.hidden;
+      btn.textContent = d.label;
+      if (d.tooltip) btn.title = d.tooltip; else btn.removeAttribute('title');
+    }
+  }
+  applyButtonStates();
 
   function appendEvent(label: string, klass = '') {
     const el = document.createElement('div');
@@ -142,23 +175,24 @@ export async function renderCardDetail(
       const { html, state } = renderOpSection({ op, index: entry, artifactText, isOpen, errorMissing });
       host.setAttribute('data-state', state);
       host.innerHTML = html;
-      // Wire empty-state CTA buttons to card_work as v1 placeholder
-      // (per Feature #47 spec; swap target is Feature #48's op_invoke).
+      // Empty-state CTA + re-run buttons call op_invoke (feature #48). This
+      // closes the v1 placeholder caveat documented in feature #47's impl doc
+      // (Control phase 30.5 retires the 30.4 work_card placeholder).
       host.querySelectorAll<HTMLButtonElement>('button[data-act="run"]').forEach((btn) => {
         btn.addEventListener('click', async () => {
           btn.disabled = true;
-          appendEvent(`› starting work for ${op} (v1: card_work placeholder)`);
-          try { await rpc.call('work_card', { id: cardId }); }
-          catch (err) { appendEvent(`✗ work_card failed: ${(err as Error).message}`, 'error'); }
+          appendEvent(`› starting ${op}`);
+          try { await rpc.call('op_invoke', { cardId, op }); }
+          catch (err) { appendEvent(`✗ op_invoke ${op} failed: ${(err as Error).message}`, 'error'); }
           finally { btn.disabled = false; }
         });
       });
       host.querySelectorAll<HTMLButtonElement>('button[data-act="re-run"]').forEach((btn) => {
         btn.addEventListener('click', async () => {
           btn.disabled = true;
-          appendEvent(`› re-running ${op} (v1: card_work placeholder)`);
-          try { await rpc.call('work_card', { id: cardId }); }
-          catch (err) { appendEvent(`✗ work_card failed: ${(err as Error).message}`, 'error'); }
+          appendEvent(`› re-running ${op}`);
+          try { await rpc.call('op_invoke', { cardId, op }); }
+          catch (err) { appendEvent(`✗ op_invoke ${op} failed: ${(err as Error).message}`, 'error'); }
           finally { btn.disabled = false; }
         });
       });
@@ -221,18 +255,56 @@ export async function renderCardDetail(
     }
   });
 
-  // ─── Stream pane + work button (existing behavior preserved) ───────────
-  workBtn.addEventListener('click', async () => {
-    workBtn.disabled = true;
+  // ─── Op control click handlers ────────────────────────────────────────
+  // Per-op buttons dispatch op_invoke; Work all keeps work_card (master
+  // pipeline runner); Continue dispatches card_resume (lead → llm). State
+  // transitions are driven by SSE events, not handler completion.
+
+  async function handleOpClick(op: ControlOp): Promise<void> {
+    // Resolve archives the card destructively — confirm before invoking.
+    if (op === 'resolve') {
+      const ok = await confirmTransition({
+        id: cardId, from: 'shipped', to: 'archived',
+        titleHtml: 'Resolve and archive this card?',
+      });
+      if (!ok) { appendEvent('· cancelled by user'); return; }
+    }
+    appendEvent(`› starting ${op}`);
+    try {
+      await rpc.call<{ runId: string; status: 'started' }>('op_invoke', { cardId, op });
+    } catch (err) {
+      appendEvent(`✗ op_invoke ${op} failed: ${(err as Error).message}`, 'error');
+    }
+  }
+
+  async function handleWorkAllClick(): Promise<void> {
     appendEvent('› starting Task Agent…');
     try {
       const result = await rpc.call<{ runId: string; finalColumn: string; halted: boolean; reason?: string }>('work_card', { id: cardId });
       appendEvent(`✓ ${result.halted ? 'halted' : 'complete'}: ${result.reason ?? result.finalColumn}`, result.halted ? 'halt' : 'complete');
     } catch (err) {
       appendEvent(`✗ error: ${(err as Error).message}`, 'error');
-    } finally {
-      workBtn.disabled = false;
     }
+  }
+
+  async function handleContinueClick(): Promise<void> {
+    appendEvent('› continuing this card (lead → llm)');
+    try {
+      const r = await rpc.call<{ status: 'resumed' | 'no-active-halt' }>('card_resume', { cardId });
+      appendEvent(`✓ ${r.status}`);
+      // SSE lead-handed-off will follow; state machine transitions via that handler.
+    } catch (err) {
+      appendEvent(`✗ continue failed: ${(err as Error).message}`, 'error');
+    }
+  }
+
+  controlsEl.querySelectorAll<HTMLButtonElement>('button[data-op]').forEach((btn) => {
+    const op = btn.dataset['op']!;
+    btn.addEventListener('click', () => {
+      if (op === 'work-all') void handleWorkAllClick();
+      else if (op === 'continue') void handleContinueClick();
+      else void handleOpClick(op as ControlOp);
+    });
   });
 
   // ─── SSE handler: dispatch op_complete to per-section re-render ────────
@@ -246,14 +318,54 @@ export async function renderCardDetail(
   }
 
   const unsub = stream.on((e: DaemonEventEnvelope) => {
+    // Lead-handed-off → Halted-by-chat state transition. Fires when someone
+    // (typically Frame B chat via #62 once it lands) transfers lead to human
+    // with reason 'user-chat'. The state machine surfaces Continue and re-
+    // enables per-op buttons so the user can choose: click Continue (resume)
+    // or click a specific per-op (run a different op manually).
+    if (e.kind === 'lead-handed-off') {
+      const env = e as DaemonEventEnvelope & {
+        current: { current: 'human' | 'llm' };
+        reason: string;
+      };
+      if (env.current.current === 'human' && env.reason === 'user-chat') {
+        buttonState = 'halted-by-chat';
+        runningOp = undefined;
+        applyButtonStates();
+        appendEvent('■ halted by user chat — click Continue to resume', 'halt');
+      } else if (env.current.current === 'llm' && buttonState === 'halted-by-chat') {
+        // Lead back to LLM (resume); state returns to idle pending next op_start.
+        buttonState = 'idle';
+        applyButtonStates();
+      }
+      return;
+    }
+    // session-end on this card → exit Running (for op_invoke single-op flows
+    // where op_complete keeps state Running for chained pipelines).
+    if (e.kind === 'session-end') {
+      const env = e as DaemonEventEnvelope & { cardId: string };
+      if (env.cardId === cardId && buttonState === 'running') {
+        buttonState = 'idle';
+        runningOp = undefined;
+        applyButtonStates();
+      }
+      return;
+    }
     if (e.kind !== 'task-event') return;
     const ev = e as DaemonEventEnvelope & { cardId: string; runId?: string; event: { kind: string; operation?: string; from?: string; to?: string; reason?: string; message?: string } };
     if (ev.cardId !== cardId) return;
     const evt = ev.event;
     switch (evt.kind) {
-      case 'op_start': appendEvent(`▸ ${evt.operation}`); break;
+      case 'op_start':
+        appendEvent(`▸ ${evt.operation}`);
+        buttonState = 'running';
+        runningOp = evt.operation;
+        applyButtonStates();
+        break;
       case 'op_complete': {
         appendEvent(`✓ ${evt.operation}`);
+        // Stay in Running for chained pipelines (work_card emits multiple ops);
+        // for op_invoke single-op flows, session-end handler above exits Running.
         if (ev.runId && isArtifactOp(evt.operation)) {
           // Refresh the index then re-render the section. The index refresh
           // is what feeds the latestTs/runCount; the section render reads
@@ -265,15 +377,24 @@ export async function renderCardDetail(
         }
         break;
       }
-      case 'transition': appendEvent(`→ ${evt.from} → ${evt.to}`); break;
+      case 'transition':
+        appendEvent(`→ ${evt.from} → ${evt.to}`);
+        // Column changed → refresh per-op enablement matrix.
+        if (evt.to) { currentColumn = evt.to; applyButtonStates(); }
+        break;
       case 'transition_request': {
         appendEvent(`? ${evt.from} → ${evt.to} (awaiting approval)`, 'halt');
+        buttonState = 'halted-by-assist';
+        applyButtonStates();
         confirmTransition({
           id: cardId,
           from: evt.from!,
           to: evt.to!,
           titleHtml: 'Approve transition?',
         }).then(async (approved) => {
+          // Dialog closed → back to Idle (next op_start re-enters Running).
+          buttonState = 'idle';
+          applyButtonStates();
           if (!approved) {
             appendEvent('· cancelled by user');
             return;
@@ -289,12 +410,51 @@ export async function renderCardDetail(
         });
         break;
       }
-      case 'halt': appendEvent(`■ halt: ${evt.reason}`, 'halt'); break;
-      case 'error': appendEvent(`✗ ${evt.message}`, 'error'); break;
-      case 'complete': appendEvent(`■ done`, 'complete'); break;
+      case 'halt':
+        appendEvent(`■ halt: ${evt.reason}`, 'halt');
+        buttonState = 'idle';
+        runningOp = undefined;
+        applyButtonStates();
+        break;
+      case 'error':
+        appendEvent(`✗ ${evt.message}`, 'error');
+        buttonState = 'idle';
+        runningOp = undefined;
+        applyButtonStates();
+        break;
+      case 'complete':
+        appendEvent(`■ done`, 'complete');
+        buttonState = 'idle';
+        runningOp = undefined;
+        applyButtonStates();
+        break;
       default: appendEvent(`· ${evt.kind}`);
     }
   });
 
-  return { cleanup: unsub };
+  // ─── Keyboard handler for card-detail view (feature #48) ──────────────
+  // Maps bare letters Z/P/V/I/F/O/W/C to the corresponding sidebar button.
+  // The global dispatcher's isInFormField + dialogIsOpen gates handle
+  // input-focus + dialog-open guards (see src/ui/lib/keys.ts:49,65).
+  function handleCardKey(ev: KeyboardEvent): boolean {
+    const map: Record<string, ControlOp | 'work-all' | 'continue'> = {
+      z: 'analyze',   Z: 'analyze',
+      p: 'plan',      P: 'plan',
+      v: 'review',    V: 'review',
+      i: 'implement', I: 'implement',
+      f: 'verify',    F: 'verify',
+      o: 'resolve',   O: 'resolve',
+      w: 'work-all',  W: 'work-all',
+      c: 'continue',  C: 'continue',
+    };
+    const target = map[ev.key];
+    if (!target) return false;
+    // Find the button and click it (respects disabled+hidden state).
+    const btn = controlsEl.querySelector<HTMLButtonElement>(`button[data-op="${target}"]`);
+    if (!btn || btn.disabled || btn.hidden) return false;
+    btn.click();
+    return true;
+  }
+
+  return { cleanup: unsub, cardKeys: { handle: handleCardKey } };
 }

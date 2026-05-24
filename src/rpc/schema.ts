@@ -165,6 +165,30 @@ export const LeadSetParams = z.object({
   context: z.string().max(8000).optional(),
 }).strict();
 
+// Phase 22 (Control 30.5) feature #48: per-op invocation RPC. Mirrors
+// WorkCardParams shape (cardId regex matches CardChatHistoryParams pattern
+// for path-traversal guard parity). The `op` enum mirrors ArtifactOp at
+// src/agent/run_artifact.ts:26 PLUS 'resolve' which writes archive state
+// without producing a <runId>/resolve.md artifact (the enum at
+// RunArtifactGetParams.op excludes 'resolve' because that RPC only reads
+// markdown artifacts; op_invoke INVOKES ops, so resolve is includable here).
+// 'orchestrate' is intentionally excluded — it is an internal audit substrate
+// invoked by the orchestrator engine, not a user-facing per-op action.
+export const OpInvokeParams = z.object({
+  cardId: z.string().min(1).max(128).regex(/^[a-zA-Z0-9._-]+$/, 'cardId must match [a-zA-Z0-9._-]+'),
+  op: z.enum(['analyze', 'plan', 'review', 'verify', 'notebook', 'implement', 'resolve']),
+  step: z.string().optional(),
+}).strict();
+
+// Phase 22 (Control 30.5) feature #48: card resume RPC. Under the dual-driver
+// model (shipped 30.3) this is a thin wrapper that transfers the global lead
+// back to 'llm' with reason='ui-button'. The original per-card userTouched
+// flag mechanism from the SUPERSEDED #51 spec does not exist in the codebase;
+// see card-detail-op-controls-and-button-states.md Implementation Deviations.
+export const CardResumeParams = z.object({
+  cardId: z.string().min(1).max(128).regex(/^[a-zA-Z0-9._-]+$/, 'cardId must match [a-zA-Z0-9._-]+'),
+}).strict();
+
 export const ConductorStartParams = z.object({});
 export const ConductorStopParams = z.object({});
 export const ConductorStatusParams = z.object({});

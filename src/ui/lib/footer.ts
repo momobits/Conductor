@@ -33,6 +33,15 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { key: 'M',     label: 'move card',              scope: 'board' },
   { key: '⇧M',   label: 'move forward (next col)', scope: 'board' },
   { key: 'Esc',   label: 'back to Board',          scope: 'card'  },
+  // Phase 22 (Control 30.5) feature #48: card-detail per-op shortcuts.
+  { key: 'Z',     label: 'analyze',                scope: 'card'  },
+  { key: 'P',     label: 'plan',                   scope: 'card'  },
+  { key: 'V',     label: 'review',                 scope: 'card'  },
+  { key: 'I',     label: 'implement',              scope: 'card'  },
+  { key: 'F',     label: 'verify',                 scope: 'card'  },
+  { key: 'O',     label: 'resolve',                scope: 'card'  },
+  { key: 'W',     label: 'work all',               scope: 'card'  },
+  { key: 'C',     label: 'continue (when halted)', scope: 'card'  },
 ];
 
 /** Per-view footer pick: ordered, deterministic. Pure helper for tests. */
@@ -44,7 +53,9 @@ export function selectFooterShortcuts(
     return pickByKeys(all, ['Q–U', 'M', 'A', '?']);
   }
   if (view === 'card') {
-    return pickByKeys(all, ['Esc', 'A', '?'], 'card');
+    // Phase 22 (Control 30.5) feature #48: showcase the most-used per-op keys
+    // plus the always-present Esc/?. Full set always available via help overlay.
+    return pickByKeys(all, ['W', 'Z', 'P', 'I', 'Esc', '?'], 'card');
   }
   return pickByKeys(all, ['A', '1', '?']);
 }

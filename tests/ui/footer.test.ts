@@ -13,11 +13,18 @@ describe('selectFooterShortcuts (Phase 25.5: Q–U columns, A refresh)', () => {
     expect(picks[0]?.scope).toBe('board');
   });
 
-  it('Card picks: Esc back (card-scoped), A re-tune, ? shortcuts', () => {
+  it('Card picks: W work-all, Z analyze, P plan, I implement, Esc back, ? shortcuts (Phase 22 Control 30.5 feature #48)', () => {
     const picks = selectFooterShortcuts('card');
-    expect(picks.map((s) => s.key)).toEqual(['Esc', 'A', '?']);
-    expect(picks[0]?.label).toBe('back to Board');
-    expect(picks[0]?.scope).toBe('card');
+    expect(picks.map((s) => s.key)).toEqual(['W', 'Z', 'P', 'I', 'Esc', '?']);
+    // Esc remains card-scoped (back to Board); per-op letters are card-scoped.
+    const esc = picks.find((s) => s.key === 'Esc');
+    expect(esc?.scope).toBe('card');
+    expect(esc?.label).toBe('back to Board');
+  });
+
+  it('Card scope includes all 8 per-op + Esc shortcuts in SHORTCUTS (full set available via help overlay)', () => {
+    const cardScoped = SHORTCUTS.filter((s) => s.scope === 'card').map((s) => s.key);
+    expect(cardScoped).toEqual(expect.arrayContaining(['Esc', 'Z', 'P', 'V', 'I', 'F', 'O', 'W', 'C']));
   });
 
   it('Monitor picks: A re-tune, 1 Board, ? shortcuts (all global)', () => {

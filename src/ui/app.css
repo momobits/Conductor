@@ -903,6 +903,38 @@ button.danger:hover:not(:disabled) { background: var(--paper); color: var(--ink-
 /* Work button (primary action on card) */
 #work-btn { width: 100%; padding: 14px; font-size: 12px; margin-bottom: 18px; }
 
+/* Op controls — per-op sidebar (Phase 22 Control 30.5 feature #48) */
+.op-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+.op-controls .op-btn {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 11px;
+  text-align: left;
+  letter-spacing: var(--tracking-cap);
+  text-transform: uppercase;
+}
+.op-controls .op-work-all {
+  margin-top: 6px;
+  padding: 12px;
+  font-size: 12px;
+}
+.op-controls .op-continue {
+  background: var(--signal);
+  border-color: var(--signal);
+  color: var(--ink-000);
+  padding: 12px;
+  font-size: 12px;
+}
+.op-controls .op-continue:hover:not(:disabled) {
+  background: var(--paper);
+  border-color: var(--paper);
+}
+
 /* =====================================================================
    DIALOG
    ===================================================================== */

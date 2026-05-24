@@ -23,8 +23,9 @@ import {
   CostShowParams,
   OrchestratorDecideParams,
   LeadGetParams, LeadSetParams,
+  OpInvokeParams, CardResumeParams,
 } from './schema.js';
-import { readRunArtifact } from '../agent/run_artifact.js';
+import { readRunArtifact, findLatestArtifactRunId } from '../agent/run_artifact.js';
 import { readChatLog } from '../engine/state/chat_log.js';
 import { trackerPull } from '../engine/ops/tracker_pull.js';
 import { makeTrackerAdapter } from '../trackers/factory.js';
@@ -46,8 +47,17 @@ import { discover as discoverOp } from '../engine/ops/discover.js';
 import { appendExerciseFinding } from '../engine/ops/exercise.js';
 import { RoutingAdapter } from '../adapters/routing.js';
 import { chat as chatOp } from '../engine/ops/chat.js';
+import { analyze as analyzeOp } from '../engine/ops/analyze.js';
+import { plan as planOp } from '../engine/ops/plan.js';
+import { review as reviewOp } from '../engine/ops/review.js';
+import { verify as verifyOp, defaultRunner } from '../engine/ops/verify.js';
+import { notebook as notebookOp } from '../engine/ops/notebook.js';
+import { implement as implementOp } from '../engine/ops/implement.js';
+import { resolve as resolveOp } from '../engine/ops/resolve.js';
 import { decide as orchestratorDecide } from '../orchestrator/index.js';
 import { transferLead, getLead } from '../conductor/lead.js';
+import { resolveNextStep } from '../conductor/step_resolver.js';
+import { checkCostCeilings } from '../conductor/cost_guard.js';
 
 export interface MethodContext {
   repo: string;
@@ -369,6 +379,157 @@ async function lead_set(ctx: MethodContext, raw: unknown) {
   return result;
 }
 
+// Phase 22 (Control 30.5) feature #48: per-op invocation. Wraps one engine op
+// (no TaskAgent ceremony, no column transition gate). Returns immediately;
+// SSE events deliver progress. The runId follows the same YYYYMMDDTHHMMSS-<cardId>
+// shape TaskAgent uses (so artifact-discovery helpers find op_invoke artifacts
+// transparently). Honors cost-ceiling check + concurrent-op rejection.
+async function op_invoke(ctx: MethodContext, raw: unknown) {
+  const p = OpInvokeParams.parse(raw);
+  if (ctx.runtime.getActiveSession(p.cardId)) {
+    throw new Error(`already-running: ${p.cardId}`);
+  }
+  // Cost-ceiling check BEFORE starting the op. Mirrors Conductor.start's loop
+  // guard at src/conductor/loop.ts:117-125.
+  const day = new Date().toISOString().slice(0, 10);
+  const breach = checkCostCeilings({ runtime: ctx.runtime, config: ctx.config, cardId: p.cardId, day });
+  if (!breach.ok) {
+    throw new Error(`cost-ceiling: ${breach.scope} $${breach.spent.toFixed(4)} > $${breach.ceiling}`);
+  }
+  // Read the card for op invocation (each op needs the Card object).
+  const card = await readCard(join(cardsDir(ctx.repo), `${p.cardId}.md`));
+  // Resolve step for 'implement' op via step_resolver (Phase 29.3 helper).
+  let resolvedStep: string | undefined = p.step;
+  if (p.op === 'implement' && !resolvedStep) {
+    const r = await resolveNextStep({ repo: ctx.repo, cardId: p.cardId, phase: card.frontmatter.phase });
+    if (r.kind === 'resolved') resolvedStep = r.step;
+    else {
+      throw new Error(
+        `op_invoke implement: ${
+          r.kind === 'no-plan'
+            ? 'no plan substrate — run plan op first'
+            : r.kind === 'unparseable-plan'
+              ? 'plan substrate has no parseable steps'
+              : 'all plan steps already committed'
+        }`,
+      );
+    }
+  }
+  // Generate a runId matching TaskAgent's format so findLatestArtifactRunId and
+  // card_artifacts_index discover op_invoke artifacts transparently.
+  const stamp = new Date().toISOString().replace(/[-:.]/g, '').slice(0, 15);
+  const runId = `${stamp}-${p.cardId}`;
+  // Start a runtime session so concurrent-op rejection works AND so cost telemetry
+  // accrues against this card. operation field set per op kind.
+  ctx.runtime.startSession({ cardId: p.cardId, runId, operation: p.op });
+  ctx.bus?.publish({ kind: 'session-start', cardId: p.cardId, runId });
+  const modelFor = (op: string): string =>
+    card.frontmatter.model_overrides[op] ?? ctx.config.routing.functions[op] ?? ctx.config.routing.default;
+  // Build adapter with cost tracking (mirrors TaskAgent's wrapWithUsage shape
+  // but inline — we don't need the full TaskAgent wrapper for one op).
+  const baseAdapter = ctx.adapter ?? new RoutingAdapter();
+  const trackedAdapter: ModelAdapter = {
+    id: `${baseAdapter.id}+usage`,
+    invoke: async (req) => {
+      const resp = await baseAdapter.invoke(req);
+      const cost = baseAdapter.estimateCost(req);
+      ctx.runtime.addCost(p.cardId, {
+        inputTokens: resp.inputTokens,
+        outputTokens: resp.outputTokens,
+        dollars: cost.dollars,
+      });
+      return resp;
+    },
+    capabilities: () => baseAdapter.capabilities(),
+    estimateCost: (req) => baseAdapter.estimateCost(req),
+  };
+  // Run the requested op async (do NOT await — return runId immediately, SSE
+  // events deliver progress).
+  void (async () => {
+    const t0 = Date.now();
+    ctx.bus?.publish({
+      kind: 'task-event', cardId: p.cardId, runId,
+      event: { kind: 'op_start', cardId: p.cardId, operation: p.op, model: modelFor(p.op) },
+    });
+    try {
+      switch (p.op) {
+        case 'analyze': {
+          await analyzeOp({ card, adapter: trackedAdapter, model: modelFor('analyze'), repo: ctx.repo, runId });
+          break;
+        }
+        case 'plan': {
+          // Plan needs analysis text; pass empty string if no analyze artifact yet
+          // (planOp handles gracefully). Latest analyze may belong to a prior runId.
+          const latestAnalyze = await findLatestArtifactRunId(ctx.repo, p.cardId, 'analyze');
+          const analysisText = latestAnalyze?.text ?? '';
+          await planOp({ card, adapter: trackedAdapter, model: modelFor('plan'), analysis: analysisText, repo: ctx.repo, runId });
+          break;
+        }
+        case 'review': {
+          await reviewOp({ card, adapter: trackedAdapter, model: modelFor('review'), repo: ctx.repo, runId });
+          break;
+        }
+        case 'verify': {
+          await verifyOp({
+            card, adapter: trackedAdapter, model: modelFor('verify'),
+            command: ctx.config.verify_command, runner: defaultRunner,
+            repo: ctx.repo, runId,
+          });
+          break;
+        }
+        case 'notebook': {
+          await notebookOp({ repo: ctx.repo, card, command: ctx.config.verify_command, runId });
+          break;
+        }
+        case 'implement': {
+          await implementOp({
+            repo: ctx.repo, card, adapter: trackedAdapter,
+            model: modelFor('implement'), step: resolvedStep!, runId,
+          });
+          break;
+        }
+        case 'resolve': {
+          await resolveOp({ repo: ctx.repo, card, adapter: trackedAdapter, model: modelFor('resolve') });
+          break;
+        }
+      }
+      ctx.bus?.publish({
+        kind: 'task-event', cardId: p.cardId, runId,
+        event: { kind: 'op_complete', cardId: p.cardId, operation: p.op, durationMs: Date.now() - t0 },
+      });
+    } catch (err) {
+      ctx.bus?.publish({
+        kind: 'task-event', cardId: p.cardId, runId,
+        event: { kind: 'error', cardId: p.cardId, message: (err as Error).message },
+      });
+    } finally {
+      ctx.runtime.endSession(p.cardId);
+      ctx.bus?.publish({ kind: 'session-end', cardId: p.cardId, runId });
+    }
+  })().catch(() => { /* errors already published via SSE; this catch is defense-in-depth */ });
+  return { runId, status: 'started' as const };
+}
+
+// Phase 22 (Control 30.5) feature #48: card resume. Under the dual-driver model
+// (shipped 30.3) this transfers the global lead back to 'llm'. The original
+// per-card userTouched flag from SUPERSEDED #51 does not exist; the lead-
+// transfer mechanism IS the post-30.3 resume primitive. cardId is included in
+// the transfer context for audit.
+async function card_resume(ctx: MethodContext, raw: unknown) {
+  const p = CardResumeParams.parse(raw);
+  if (!ctx.bus) {
+    // Mirror lead_set's no-bus discriminated failure (aligns with conductor_start
+    // pattern instead of throwing).
+    return { status: 'no-active-halt' as const, reason: 'no-bus' as const };
+  }
+  const result = await transferLead({
+    runtime: ctx.runtime, bus: ctx.bus,
+    to: 'llm', reason: 'ui-button',
+    context: `card-detail Continue button for ${p.cardId}`,
+  });
+  return { status: result.changed ? ('resumed' as const) : ('no-active-halt' as const) };
+}
+
 async function conductor_start(ctx: MethodContext, raw: unknown) {
   ConductorStartParams.parse(raw);
   if (!ctx.conductor) ctx.conductor = {};
@@ -543,6 +704,8 @@ export const methods = {
   orchestrator_decide,
   lead_get,
   lead_set,
+  op_invoke,
+  card_resume,
 } satisfies Record<string, Handler<unknown, unknown>>;
 
 export type MethodName = keyof typeof methods;

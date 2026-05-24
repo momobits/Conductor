@@ -115,3 +115,100 @@ export function hostSectionAttrs(op: ArtifactOp): string {
   const internalAttr = INTERNAL_OPS.has(op) ? ' data-internal="true"' : '';
   return `class="op-section op-${escapeHtml(op)}" data-op="${escapeHtml(op)}"${internalAttr}`;
 }
+
+// ─── Phase 22 (Control 30.5) feature #48: per-op control widget exports ─────
+
+// The full op set the sidebar surfaces. Includes 'resolve' (which OP_RENDER_ORDER
+// excludes because resolve doesn't write a markdown artifact); resolve IS a
+// valid op_invoke target (it archives the card). 'notebook' and 'orchestrate'
+// are intentionally excluded from CONTROL_OPS — notebook is internal verification
+// substrate; orchestrate is the dual-driver audit substrate. Both render in the
+// multi-surface view (per OP_RENDER_ORDER) but are not surfaced as user buttons.
+export type ControlOp = 'analyze' | 'plan' | 'review' | 'implement' | 'verify' | 'resolve';
+export const CONTROL_OPS: readonly ControlOp[] = [
+  'analyze', 'plan', 'review', 'implement', 'verify', 'resolve',
+] as const;
+
+// Column → enabled-ops matrix per spec Architecture §Per-op enabled-for-column.
+// archived has no enabled ops (terminal); discovered/planned/etc per matrix.
+// Spec source: card-detail-op-controls-and-button-states.md §Architecture lines 71-79.
+export const COLUMN_ENABLED_OPS: Record<string, ReadonlySet<ControlOp>> = {
+  discovered: new Set<ControlOp>(['analyze', 'plan']),
+  planned:    new Set<ControlOp>(['analyze', 'plan', 'review']),
+  approved:   new Set<ControlOp>(['plan', 'review', 'implement']),
+  building:   new Set<ControlOp>(['implement', 'verify']),
+  verifying:  new Set<ControlOp>(['verify']),
+  shipped:    new Set<ControlOp>(['resolve']),
+  archived:   new Set<ControlOp>([]),
+};
+
+// Reverse-map for disabled-button tooltip messages.
+const COLUMNS_FOR_OP: Record<ControlOp, string> = {
+  analyze:   'discovered or planned',
+  plan:      'discovered, planned, or approved',
+  review:    'planned or approved',
+  implement: 'approved or building',
+  verify:    'building or verifying',
+  resolve:   'shipped',
+};
+
+// 4-state button machine: Idle (default) / Running (any op in flight) /
+// Halted-by-chat (lead transferred to human via user-chat — surfaces Continue) /
+// Halted-by-assist (transition-approval dialog open).
+export type ButtonState = 'idle' | 'running' | 'halted-by-chat' | 'halted-by-assist';
+
+export interface ButtonComputeInput {
+  state: ButtonState;
+  column: string;
+  /** When state='running', label includes op name (e.g., "Running (analyze)"). */
+  runningOp?: string;
+}
+
+export interface ButtonDescriptor {
+  op: ControlOp | 'work-all' | 'continue';
+  label: string;
+  disabled: boolean;
+  hidden: boolean;
+  tooltip?: string;
+}
+
+/** Pure reducer: given (state, column, runningOp), compute the descriptor for
+ *  every button. Caller applies descriptors to DOM. Pure → unit-testable. */
+export function computeButtonStates(input: ButtonComputeInput): ButtonDescriptor[] {
+  const enabledForColumn = COLUMN_ENABLED_OPS[input.column] ?? new Set<ControlOp>();
+  const perOp: ButtonDescriptor[] = CONTROL_OPS.map((op): ButtonDescriptor => {
+    const eligible = enabledForColumn.has(op);
+    // Idle: enabled iff column eligible. Running: all disabled. Halted-by-chat:
+    // re-enabled iff column eligible (user can choose continue OR a per-op).
+    // Halted-by-assist: disabled (the assist dialog is the active surface).
+    let disabled = false;
+    let tooltip: string | undefined;
+    if (input.state === 'running') disabled = true;
+    else if (input.state === 'halted-by-assist') disabled = true;
+    else disabled = !eligible;
+    if (!eligible && (input.state === 'idle' || input.state === 'halted-by-chat')) {
+      tooltip = `${op}: card must be in ${COLUMNS_FOR_OP[op]} to run ${op}.`;
+    }
+    return { op, label: capitalizeLabel(op), disabled, hidden: false, tooltip };
+  });
+  // Work all: visible Idle; visible+disabled Running; hidden Halted-by-chat;
+  // disabled Halted-by-assist.
+  const workAll: ButtonDescriptor = {
+    op: 'work-all',
+    label: input.state === 'running' ? `Running (${input.runningOp ?? '…'})` : 'Work all',
+    disabled: input.state === 'running' || input.state === 'halted-by-assist',
+    hidden: input.state === 'halted-by-chat',
+  };
+  // Continue: shown ONLY when Halted-by-chat.
+  const cont: ButtonDescriptor = {
+    op: 'continue',
+    label: 'Continue this card',
+    disabled: false,
+    hidden: input.state !== 'halted-by-chat',
+  };
+  return [...perOp, workAll, cont];
+}
+
+function capitalizeLabel(s: string): string {
+  return s.length === 0 ? s : s[0]!.toUpperCase() + s.slice(1);
+}

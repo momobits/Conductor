@@ -20,7 +20,11 @@ import {
   INTERNAL_OPS,
   formatRelativeTime,
   hostSectionAttrs,
+  CONTROL_OPS,
+  COLUMN_ENABLED_OPS,
+  computeButtonStates,
   type OpIndexEntry,
+  type ControlOp,
 } from '../../src/ui/views/card_detail_helpers.js';
 
 describe('columnToFocusOp', () => {
@@ -152,5 +156,114 @@ describe('hostSectionAttrs', () => {
   it('always emits class and data-op attributes', () => {
     expect(hostSectionAttrs('plan')).toContain('class="op-section op-plan"');
     expect(hostSectionAttrs('plan')).toContain('data-op="plan"');
+  });
+});
+
+// ─── Phase 22 (Control 30.5) feature #48: per-op control widget ──────────
+
+describe('CONTROL_OPS', () => {
+  it('contains the 6 user-facing per-op buttons', () => {
+    expect(CONTROL_OPS).toEqual(['analyze', 'plan', 'review', 'implement', 'verify', 'resolve']);
+  });
+  it('contains resolve (vs OP_RENDER_ORDER which excludes it)', () => {
+    expect(CONTROL_OPS).toContain('resolve');
+    expect(OP_RENDER_ORDER).not.toContain('resolve');
+  });
+  it('does NOT contain notebook or orchestrate (internal-only)', () => {
+    expect(CONTROL_OPS).not.toContain('notebook' as ControlOp);
+    expect(CONTROL_OPS).not.toContain('orchestrate' as ControlOp);
+  });
+});
+
+describe('COLUMN_ENABLED_OPS', () => {
+  it('matches the spec matrix per column', () => {
+    expect([...COLUMN_ENABLED_OPS['discovered']!].sort()).toEqual(['analyze', 'plan']);
+    expect([...COLUMN_ENABLED_OPS['planned']!].sort()).toEqual(['analyze', 'plan', 'review']);
+    expect([...COLUMN_ENABLED_OPS['approved']!].sort()).toEqual(['implement', 'plan', 'review']);
+    expect([...COLUMN_ENABLED_OPS['building']!].sort()).toEqual(['implement', 'verify']);
+    expect([...COLUMN_ENABLED_OPS['verifying']!].sort()).toEqual(['verify']);
+    expect([...COLUMN_ENABLED_OPS['shipped']!].sort()).toEqual(['resolve']);
+    expect([...COLUMN_ENABLED_OPS['archived']!]).toEqual([]);
+  });
+  it('returns empty set semantics for unknown column (caller fallback)', () => {
+    expect(COLUMN_ENABLED_OPS['nonexistent']).toBeUndefined();
+  });
+});
+
+describe('computeButtonStates', () => {
+  function findByOp(descriptors: ReturnType<typeof computeButtonStates>, op: string) {
+    return descriptors.find((d) => d.op === op);
+  }
+
+  it('idle on discovered: analyze + plan enabled, others disabled with tooltip', () => {
+    const descriptors = computeButtonStates({ state: 'idle', column: 'discovered' });
+    expect(findByOp(descriptors, 'analyze')!.disabled).toBe(false);
+    expect(findByOp(descriptors, 'plan')!.disabled).toBe(false);
+    expect(findByOp(descriptors, 'review')!.disabled).toBe(true);
+    expect(findByOp(descriptors, 'review')!.tooltip).toMatch(/planned or approved/);
+    expect(findByOp(descriptors, 'implement')!.disabled).toBe(true);
+    expect(findByOp(descriptors, 'resolve')!.disabled).toBe(true);
+  });
+
+  it('idle on shipped: only resolve enabled', () => {
+    const descriptors = computeButtonStates({ state: 'idle', column: 'shipped' });
+    expect(findByOp(descriptors, 'resolve')!.disabled).toBe(false);
+    expect(findByOp(descriptors, 'analyze')!.disabled).toBe(true);
+    expect(findByOp(descriptors, 'verify')!.disabled).toBe(true);
+  });
+
+  it('idle on archived: all per-op buttons disabled', () => {
+    const descriptors = computeButtonStates({ state: 'idle', column: 'archived' });
+    for (const op of ['analyze', 'plan', 'review', 'implement', 'verify', 'resolve']) {
+      expect(findByOp(descriptors, op)!.disabled).toBe(true);
+    }
+  });
+
+  it('running: ALL per-op buttons disabled, Work all shows running label', () => {
+    const descriptors = computeButtonStates({ state: 'running', column: 'discovered', runningOp: 'analyze' });
+    for (const op of ['analyze', 'plan', 'review', 'implement', 'verify', 'resolve']) {
+      expect(findByOp(descriptors, op)!.disabled).toBe(true);
+    }
+    const workAll = findByOp(descriptors, 'work-all')!;
+    expect(workAll.disabled).toBe(true);
+    expect(workAll.label).toBe('Running (analyze)');
+    expect(workAll.hidden).toBe(false);
+  });
+
+  it('running without runningOp: Work all shows ellipsis placeholder', () => {
+    const descriptors = computeButtonStates({ state: 'running', column: 'discovered' });
+    expect(findByOp(descriptors, 'work-all')!.label).toBe('Running (…)');
+  });
+
+  it('halted-by-chat on discovered: per-op re-enabled by column, Continue shown, Work all hidden', () => {
+    const descriptors = computeButtonStates({ state: 'halted-by-chat', column: 'discovered' });
+    expect(findByOp(descriptors, 'analyze')!.disabled).toBe(false);
+    expect(findByOp(descriptors, 'plan')!.disabled).toBe(false);
+    expect(findByOp(descriptors, 'review')!.disabled).toBe(true);
+    expect(findByOp(descriptors, 'work-all')!.hidden).toBe(true);
+    expect(findByOp(descriptors, 'continue')!.hidden).toBe(false);
+    expect(findByOp(descriptors, 'continue')!.disabled).toBe(false);
+  });
+
+  it('halted-by-assist: all per-op disabled, Work all disabled (dialog is active)', () => {
+    const descriptors = computeButtonStates({ state: 'halted-by-assist', column: 'discovered' });
+    for (const op of ['analyze', 'plan', 'review', 'implement', 'verify', 'resolve']) {
+      expect(findByOp(descriptors, op)!.disabled).toBe(true);
+    }
+    expect(findByOp(descriptors, 'work-all')!.disabled).toBe(true);
+    expect(findByOp(descriptors, 'continue')!.hidden).toBe(true);
+  });
+
+  it('idle: Continue is hidden', () => {
+    const descriptors = computeButtonStates({ state: 'idle', column: 'discovered' });
+    expect(findByOp(descriptors, 'continue')!.hidden).toBe(true);
+  });
+
+  it('labels are capitalized', () => {
+    const descriptors = computeButtonStates({ state: 'idle', column: 'discovered' });
+    expect(findByOp(descriptors, 'analyze')!.label).toBe('Analyze');
+    expect(findByOp(descriptors, 'plan')!.label).toBe('Plan');
+    expect(findByOp(descriptors, 'work-all')!.label).toBe('Work all');
+    expect(findByOp(descriptors, 'continue')!.label).toBe('Continue this card');
   });
 });

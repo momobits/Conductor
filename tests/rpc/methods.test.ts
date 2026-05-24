@@ -757,4 +757,115 @@ describe('rpc methods - lead protocol (Phase 22 / Control 30.3 feature #55)', ()
     await methods.orchestrator_decide(ctxOrch2, { cardId: created.id });
     expect(adapter2.lastRequest?.user).toContain('Lead: human');
   });
+
+  // ─── Phase 22 (Control 30.5) feature #48: op_invoke + card_resume ────────
+
+  it('op_invoke analyze starts the op and returns {runId, status:started}', async () => {
+    const repo = setupRepo();
+    const runtime = new InMemoryRuntime();
+    const { EventBus } = await import('../../src/daemon/event_bus.js');
+    const bus = new EventBus();
+    const { MockAdapter } = await import('../../src/adapters/mock.js');
+    const adapter = new MockAdapter(['## Validation\n\nThe issue exists.\n\n## Root Cause\n\nFoo.\n\n## Blast Radius\n\nBar.\n\n## Approach\n\nBaz.\n']);
+    // Capture published events.
+    const events: Array<{ kind: string; runId?: string; event?: { kind: string; operation?: string } }> = [];
+    bus.subscribe((e) => events.push(e as never));
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime, bus, adapter };
+    const { id } = await methods.card_new(ctx, { slug: 'analyze-target', title: 'AnalyzeTarget', kind: 'issue' });
+    const result = await methods.op_invoke(ctx, { cardId: id, op: 'analyze' }) as { runId: string; status: 'started' };
+    expect(result.status).toBe('started');
+    expect(result.runId).toMatch(/^\d{8}T\d{6}-/);
+    expect(result.runId.endsWith(`-${id}`)).toBe(true);
+    // Wait one microtask for the async IIFE to publish op_start.
+    await new Promise((r) => setImmediate(r));
+    const opStart = events.find((e) => e.event?.kind === 'op_start');
+    expect(opStart).toBeDefined();
+    expect(opStart?.event?.operation).toBe('analyze');
+    // Drain the async IIFE so op_complete + session-end fire before test exit.
+    await new Promise((r) => setImmediate(r));
+    await new Promise((r) => setImmediate(r));
+  });
+
+  it('op_invoke rejects double-start (already-running)', async () => {
+    const repo = setupRepo();
+    const runtime = new InMemoryRuntime();
+    runtime.startSession({ cardId: '2026-05-07-double-x', runId: 'r1', operation: 'analyze' });
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime };
+    await expect(
+      methods.op_invoke(ctx, { cardId: '2026-05-07-double-x', op: 'analyze' }),
+    ).rejects.toThrow(/already-running/);
+  });
+
+  it('op_invoke rejects when cost ceiling breached', async () => {
+    const repo = setupRepo();
+    const runtime = new InMemoryRuntime();
+    // Pre-load runtime so card cost exceeds the ceiling.
+    const config = ProjectConfigSchema.parse({
+      cost_ceilings: { per_card_dollars: 0.01, per_day_dollars: 100, halt_on_breach: true },
+    });
+    runtime.addCost('budget-fail-card', { inputTokens: 0, outputTokens: 0, dollars: 0.05 });
+    const ctx = { repo, config, runtime };
+    // Card must exist for op_invoke to get past the active-session check;
+    // but the ceiling check fires BEFORE readCard, so card-missing is fine.
+    await expect(
+      methods.op_invoke(ctx, { cardId: 'budget-fail-card', op: 'analyze' }),
+    ).rejects.toThrow(/cost-ceiling/);
+  });
+
+  it('op_invoke implement without step rejects when no plan substrate exists', async () => {
+    const repo = setupRepo();
+    const runtime = new InMemoryRuntime();
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime };
+    const { id } = await methods.card_new(ctx, { slug: 'no-plan-card', title: 'NoPlan', kind: 'issue' });
+    await expect(
+      methods.op_invoke(ctx, { cardId: id, op: 'implement' }),
+    ).rejects.toThrow(/no plan substrate/);
+  });
+
+  it('op_invoke validates op enum (rejects orchestrate as not user-facing)', async () => {
+    const repo = setupRepo();
+    const runtime = new InMemoryRuntime();
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime };
+    await expect(
+      methods.op_invoke(ctx, { cardId: 'any', op: 'orchestrate' as never }),
+    ).rejects.toThrow();
+  });
+
+  it('card_resume transfers lead to llm with reason ui-button', async () => {
+    const repo = setupRepo();
+    const runtime = new InMemoryRuntime();
+    const { EventBus } = await import('../../src/daemon/event_bus.js');
+    const bus = new EventBus();
+    // Set initial state to human (default) → llm via lead_set first to verify
+    // resume's idempotency. Actually, we want resume to ACTUALLY transfer, so
+    // start at human and have card_resume transfer to llm.
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime, bus };
+    expect(runtime.getLead().current).toBe('human');
+    const result = await methods.card_resume(ctx, { cardId: 'resume-test-card' }) as { status: string };
+    expect(result.status).toBe('resumed');
+    expect(runtime.getLead().current).toBe('llm');
+    expect(runtime.getLead().reason).toBe('ui-button');
+  });
+
+  it('card_resume returns no-active-halt when already llm (idempotency)', async () => {
+    const repo = setupRepo();
+    const runtime = new InMemoryRuntime();
+    const { EventBus } = await import('../../src/daemon/event_bus.js');
+    const bus = new EventBus();
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime, bus };
+    // Set lead to llm first.
+    await methods.lead_set(ctx, { to: 'llm', reason: 'cli-command' });
+    // Now card_resume to llm is a no-op.
+    const result = await methods.card_resume(ctx, { cardId: 'idempotent-card' }) as { status: string };
+    expect(result.status).toBe('no-active-halt');
+  });
+
+  it('card_resume returns no-active-halt + reason:no-bus when ctx.bus is missing', async () => {
+    const repo = setupRepo();
+    const runtime = new InMemoryRuntime();
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime };
+    const result = await methods.card_resume(ctx, { cardId: 'no-bus-card' }) as { status: string; reason?: string };
+    expect(result.status).toBe('no-active-halt');
+    expect(result.reason).toBe('no-bus');
+  });
 });
