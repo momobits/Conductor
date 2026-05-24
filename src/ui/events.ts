@@ -21,7 +21,12 @@ export type DaemonEventKind =
   // of the lead indicator is deferred to feature #62 (frame-b-chat-wire); this
   // union extension just keeps the UI type-aware of the new SSE event kind so
   // the SSE forwarder doesn't drop unknown variants at the browser.
-  | 'lead-handed-off';
+  | 'lead-handed-off'
+  // Phase 22 / Control 30.6 (feature #58): substrate-orphaned advisory event.
+  // Consumed by card_detail.ts SSE handler — surfaces the advisory in the
+  // event stream + triggers card_artifacts_index re-query so per-op run
+  // counts reflect the wipe/branch impact.
+  | 'substrate-orphaned';
 
 export interface DaemonEventEnvelope {
   kind: DaemonEventKind;

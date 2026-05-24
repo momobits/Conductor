@@ -351,6 +351,32 @@ export async function renderCardDetail(
       }
       return;
     }
+    // Phase 30.6 / Relay #58: substrate-orphaned advisory event.
+    // Surfaces in the event stream so the operator sees the audit
+    // trail; also triggers a card_artifacts_index re-query so per-op
+    // run counts reflect the wipe/branch impact.
+    if (e.kind === 'substrate-orphaned') {
+      const env = e as DaemonEventEnvelope & {
+        cardId: string;
+        from: string;
+        to: string;
+        orphanedArtifacts: Array<{ runId: string; op: string }>;
+        appliedChoice?: 'keep' | 'wipe' | 'branch';
+      };
+      if (env.cardId !== cardId) return;
+      const n = env.orphanedArtifacts.length;
+      const choice = env.appliedChoice ?? 'pending';
+      appendEvent(`◇ substrate ${env.from}→${env.to} (${n} orphan${n === 1 ? '' : 's'}; ${choice})`, 'halt');
+      // Refresh artifacts index so per-op runCount/latestTs reflect the
+      // wipe/branch impact. Re-renders all sections to keep state aligned.
+      rpc.call<CardArtifactsIndexResult>('card_artifacts_index', { cardId })
+        .then((idx) => {
+          opsIndex = idx.ops;
+          for (const op of OP_RENDER_ORDER) void renderOpSectionInto(op);
+        })
+        .catch((err: Error) => appendEvent(`✗ index refresh failed: ${err.message}`, 'error'));
+      return;
+    }
     if (e.kind !== 'task-event') return;
     const ev = e as DaemonEventEnvelope & { cardId: string; runId?: string; event: { kind: string; operation?: string; from?: string; to?: string; reason?: string; message?: string } };
     if (ev.cardId !== cardId) return;
