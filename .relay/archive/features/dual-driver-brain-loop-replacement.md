@@ -1,8 +1,10 @@
+> **ARCHIVED** — Resolved. See [implementation doc](../../implemented/dual-driver-brain-loop-replacement.md)
+
 # Feature: Dual-Driver Brain Loop Replacement
 
 *Created: 2026-05-23*
 *Brainstorm: [dual-driver-orchestration_brainstorm.md](dual-driver-orchestration_brainstorm.md)*
-*Status: DESIGNED*
+*Status: IMPLEMENTED*
 
 ## Summary
 
@@ -1541,6 +1543,53 @@ The plan has been updated in-place: the event variant in Step 2 now carries `las
 - Apply review HIGH-1, HIGH-2, HIGH-3, LOW-1, MEDIUM-3 fixes verbatim as documented in the Adversarial Review section
 - Document the step_resolver.ts retain decision in the impl doc at /relay-resolve time
 - Re-run `tests/conductor/loop.test.ts` once if `Daemon shutdown stops the conductor brain` fails (known flake per spec OQ #7)
+
+---
+
+## Verification Report
+
+*Verified: 2026-05-24*
+
+### Implementation Status
+
+| Step | Planned | Implemented | Correct |
+|------|---------|-------------|---------|
+| 1 | Add halt_loop_threshold + pending_decision_timeout_ms to AutonomyBudgetSchema | YES (commit 5e3429f) | YES |
+| 2 | Add pending-decision/resolved + halt-loop-detected event variants + ui/events.ts | YES (commit 575c311) | YES |
+| 3 | New src/conductor/executor.ts shared dispatch module | YES (commit 25a89a2) | YES |
+| 4 | New tests/conductor/executor.test.ts (~14 tests) | YES (16 tests; commit 25a89a2) | YES |
+| 5 | Rewrite runOneCard + change ConductorArgs.adapter | YES (commit d4b0884) | YES |
+| 6 | Update conductor_start RPC + new pending_decision_resolve | YES (commit d4b0884) | YES |
+| 7 | Rewrite tests/conductor/loop.test.ts | YES (12 tests; commit d4b0884) | YES |
+| 8 | Update tests/adversarial/loop_redteam.test.ts | YES (5 tests; commit d4b0884) | YES |
+| 9 | Document step_resolver retain decision (impl doc time) | DEFERRED to /relay-resolve | n/a |
+
+### Test Results
+
+- `npm run typecheck` → clean (both tsconfig.json + tsconfig.ui.json).
+- `npx vitest run tests/conductor/executor.test.ts` → 16/16 pass.
+- `npx vitest run tests/conductor/loop.test.ts` → 12/12 pass (including `Daemon shutdown stops the conductor brain` — no flake observed).
+- `npx vitest run tests/adversarial/loop_redteam.test.ts` → 5/5 pass.
+- `npm test` → **1085/1085 pass** across 129 test files. Baseline 1068 → 1085 (+17 net: 16 new executor + 12 new loop - 11 deleted defaultAgentFactory describe block).
+
+### Review Fix Verification
+
+All review-driven fixes from /relay-review are implemented:
+
+- **HIGH-1 (halt-loop event payload)**: `conductor-halt-loop-detected` carries `lastCategory: HaltCategory` and `lastRationale: string` per the event_bus extension (event_bus.ts) and loop.ts halt-loop branch.
+- **HIGH-2 (deferred-reconciliation error handling)**: loop.ts deferred branch wraps decide()+executeDecision in try/catch with halt publish (reconciliation-failed prefix) and preserves the deferred entry on failure. Test `deferred-reconciliation failure publishes halt + retains deferred entry` exercises this path.
+- **HIGH-3 (halt-with-handoff ordering)**: executor.ts dispatchHaltWithHandoff calls transferLead FIRST (fail-loud wrap), then publishes conductor-halt. Test `dispatches halt-with-handoff: transferLead THEN conductor-halt` asserts the event ordering via findIndex.
+- **MEDIUM-3 (audit-of-decisions semantic)**: executor module docblock documents the orchestrate.md = audit-of-decisions semantic; persistDecision fires BEFORE the autonomy gate.
+- **LOW-1 (NarrowedDecision top-level import)**: event_bus.ts imports `NarrowedDecision` at the top alongside `HaltCategory` (no inline import syntax).
+
+### Issues Found
+
+None.
+
+### Verdict
+
+**COMPLETE** — all planned changes implemented, all tests pass (1085/1085, +17 from baseline), typecheck clean, all review fixes verified in place. The step_resolver.ts retain decision is documented in the Approach section and will be carried into the impl doc at /relay-resolve time per Step 9.
+
 
 
 
