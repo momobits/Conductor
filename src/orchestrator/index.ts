@@ -52,3 +52,21 @@ export {
   type CardChangeKind,
   type CardDiff,
 } from './reconciliation-diff.js';
+// Phase 22 / Control 30.9 (feature #56): dual-driver observer-advisor.
+export {
+  makeObserver,
+  type Observer,
+  type ObserverArgs,
+  type ObserverStatus,
+} from './observer.js';
+export {
+  OBSERVER_RULES,
+  matchOutOfSequence,
+  computeOrphans,
+  transitionForwardSubstrateCheckRule,
+  backwardTransitionWithOrphansRule,
+  archivedTouchedRule,
+  type Rule,
+  type RuleMatch,
+  type ObservedColumnTransition,
+} from './observer-rules.js';

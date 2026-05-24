@@ -105,6 +105,18 @@ function toRecord(e: DaemonEvent, ts: string): JsonlRecord {
           durationMs: e.durationMs,
         },
       };
+    case 'conductor-observer-advisory':
+      return {
+        ts,
+        kind: e.kind,
+        cardId: e.cardId,
+        payload: {
+          rationale: e.rationale,
+          severity: e.severity,
+          ruleId: e.ruleId,
+          decisionConfidence: e.decisionConfidence,
+        },
+      };
     default:
       return { ts, kind: e.kind };
   }

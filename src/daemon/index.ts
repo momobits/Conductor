@@ -28,6 +28,7 @@ import {
   pruneHandoffsAtBoot,
   reconcile,
 } from '../orchestrator/reconciliation.js';
+import { makeObserver } from '../orchestrator/observer.js';
 import { RoutingAdapter } from '../adapters/routing.js';
 
 export interface DaemonHandle {
@@ -159,6 +160,21 @@ export async function startDaemon(args: StartDaemonArgs): Promise<DaemonHandle> 
     }
   });
 
+  // Phase 22 / Control 30.9 (feature #56): instantiate + start the
+  // observer-advisor. The observer subscribes to `cards-changed` +
+  // `lead-handed-off`; active iff lead is 'human'. Adapter is a
+  // RoutingAdapter (same pattern as reconcile above). Unsubscribe runs
+  // BEFORE brainLog.close() to preserve the in-flight publish chain
+  // (same lifecycle invariant as #57).
+  const observer = makeObserver({
+    repo: args.repo,
+    runtime,
+    bus,
+    config,
+    adapter: new RoutingAdapter(),
+  });
+  const observerUnsubscribe = observer.start();
+
   // Optional tracker poller — opt-in via tracker.poll_interval_ms > 0.
   let trackerPoller: TrackerPoller | undefined;
   if (config.tracker.kind !== 'none' && config.tracker.poll_interval_ms > 0) {
@@ -191,10 +207,12 @@ export async function startDaemon(args: StartDaemonArgs): Promise<DaemonHandle> 
       if (trackerPoller) await trackerPoller.stop();
       await watcher.close();
       await server.close();
-      // Phase 22 / Control 30.8 (feature #57): unsubscribe reconciliation
-      // BEFORE brainLog.close() so any in-flight reconcile.publish() reaches
-      // the brain log before the writer stops. Then close brainLog (unsubs
-      // itself) before bus.close() clears all listeners.
+      // Phase 22 / Control 30.8 (feature #57) + Control 30.9 (feature #56):
+      // unsubscribe observer + reconciliation BEFORE brainLog.close() so any
+      // in-flight publish() reaches the brain log before the writer stops.
+      // Then close brainLog (unsubs itself) before bus.close() clears all
+      // listeners.
+      observerUnsubscribe();
       reconciliationUnsubscribe();
       try { await brainLog.close(); } finally { bus.close(); }
       await clearPidFile(args.repo);

@@ -31,7 +31,13 @@ export type DaemonEventKind =
   // of a reconciliation banner is deferred to a future UI polish ticket; this
   // union extension just keeps the UI type-aware of the new SSE event kind so
   // the SSE forwarder doesn't drop unknown variants at the browser.
-  | 'conductor-reconciliation-summary';
+  | 'conductor-reconciliation-summary'
+  // Phase 22 / Control 30.9 (feature #56): contract-drift guard for the
+  // observer-advisor SSE event. UI rendering of an advisor section in
+  // card_detail is deferred to a future UI polish ticket; this union
+  // extension just keeps the UI type-aware so the SSE forwarder doesn't
+  // drop the variant at the browser.
+  | 'conductor-observer-advisory';
 
 export interface DaemonEventEnvelope {
   kind: DaemonEventKind;

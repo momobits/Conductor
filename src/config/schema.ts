@@ -75,6 +75,13 @@ export const AutonomyBudgetSchema = z
     // in feature #59). Placed under autonomy.budgets (not flat
     // orchestrator.*) to align with #60's per-mode cost-ceiling framing.
     max_reconciliation_calls_per_handoff: z.number().int().positive().default(10),
+    // Phase 22 / Control 30.9 (feature #56): per-card cooldown for the
+    // observer-advisor. After the observer publishes one advisory for a
+    // given card, additional advisories for THAT card are suppressed for
+    // this many milliseconds. Prevents spam when the operator rapidly
+    // edits/moves a card. Global per-minute ceiling is governed by
+    // `observer_calls_per_minute` above.
+    observer_advisory_rate_limit_ms: z.number().int().nonnegative().default(5000),
   })
   .default({});
 

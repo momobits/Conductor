@@ -81,6 +81,26 @@ export type DaemonEvent =
       }>;
       durationMs: number;
       ts: string;
+    }
+  // Phase 22 / Control 30.9 (feature #56): dual-driver observer-advisor.
+  // The observer watches the operator's actions during their lead session
+  // (cards-changed events) + runs a heuristic pre-filter to detect
+  // out-of-sequence transitions. On a match, it calls decide() with
+  // lead='human' to generate an advisory rationale, then publishes this
+  // event. Producer-only ship per #57 precedent; UI render deferred. The
+  // `conductor-` prefix ensures BrainLogWriter persists the event to
+  // .conductor/brain.log.jsonl automatically (filter is
+  // `startsWith('conductor-')`).
+  | {
+      kind: 'conductor-observer-advisory';
+      cardId: string;
+      rationale: string;
+      severity: 'info' | 'warn';
+      /** Which heuristic rule fired (from observer-rules.ts). */
+      ruleId: string;
+      /** Confidence returned by decide(); useful for downstream filtering. */
+      decisionConfidence: number;
+      ts: string;
     };
 
 export type Listener = (e: DaemonEvent) => void;
