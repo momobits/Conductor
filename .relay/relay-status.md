@@ -40,7 +40,7 @@ All 9 features have status `DESIGNED` with no `## Analysis` section yet — each
 - **`dual-driver-lead-handoff-reconciliation.md`** — OUTSTANDING, DESIGNED. First-class feature per the brainstorm's most consequential decision: when brain reclaims lead, it diffs the board state since handoff and re-evaluates prior plans per affected card before resuming.
 - **`dual-driver-backward-transitions-and-substrate-advisory.md`** — OUTSTANDING, DESIGNED. Widens the lifecycle state machine to allow all column→column edges; adds keep/wipe/branch hygiene RPCs for transitions that orphan substrate.
 - **`dual-driver-brain-loop-replacement.md`** — OUTSTANDING, DESIGNED. The big-bang switch: replaces the current Conductor loop's hardcoded column switch with orchestrator-driven iter; preserves the `Conductor` class public surface.
-- **`dual-driver-autonomy-spectrum-config.md`** — OUTSTANDING, DESIGNED. Replaces `autonomy.transitions.*` per-edge config with `autonomy: assist | hybrid | autonomous` spectrum + per-mode budgets; legacy-config migration at load time.
+- **`dual-driver-autonomy-spectrum-config.md`** — RESOLVED 2026-05-24 (Control phase 30.7; commit `dc2dde2`). Spectrum config landed with legacy migration + new `src/conductor/autonomy.ts` helpers + per-mode budgets; see [implementation doc](implemented/dual-driver-autonomy-spectrum-config.md).
 - **`dual-driver-halt-categories.md`** — OUTSTANDING, DESIGNED. Typed halt taxonomy (~13 named categories) replacing the current free-string `classifyHalt()` return.
 - **`dual-driver-frame-b-chat-wire.md`** — OUTSTANDING, DESIGNED. Wires Frame B's Card Detail chat panel as a second invocation surface to the orchestrator-core; command-vs-conversation classifier; auto-dispatch per autonomy mode.
 
@@ -92,7 +92,7 @@ None. The issues directory is empty. All 14 active features are at their initial
 | `dual-driver-lead-handoff-reconciliation.md` | individual feature | DESIGNED (no analysis) | `/relay-analyze` after #1 + #2. |
 | `dual-driver-backward-transitions-and-substrate-advisory.md` | individual feature | DESIGNED (no analysis) | `/relay-analyze` (independently shippable; can ship in parallel with others). |
 | `dual-driver-brain-loop-replacement.md` | individual feature | DESIGNED (no analysis) | `/relay-analyze` after #1 + #2 + #4 + #5 + #7 + #8. The big-bang switch. |
-| `dual-driver-autonomy-spectrum-config.md` | individual feature | DESIGNED (no analysis) | `/relay-analyze` (can ship parallel with others). |
+| `dual-driver-autonomy-spectrum-config.md` | individual feature | RESOLVED 2026-05-24 | shipped Control phase 30.7 (commit `dc2dde2`); see [implementation doc](implemented/dual-driver-autonomy-spectrum-config.md). |
 | `dual-driver-halt-categories.md` | individual feature | DESIGNED (no analysis) | `/relay-analyze` (lightest dependency in cluster). |
 | `dual-driver-frame-b-chat-wire.md` | individual feature | DESIGNED (no analysis) | `/relay-analyze` after #1 + #2 + #6 + #7. Ships alongside Frame B Cohort B. |
 | `card-detail-multi-surface-view.md` | individual feature | DESIGNED (no analysis) | `/relay-analyze` — Frame B Cohort A. |
