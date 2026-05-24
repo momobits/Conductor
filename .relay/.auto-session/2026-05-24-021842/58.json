@@ -1,0 +1,59 @@
+{
+  "item": "58",
+  "file_path": ".relay/features/dual-driver-backward-transitions-and-substrate-advisory.md",
+  "complexity": "M",
+  "complexity_observation": "Plan landed at 10 steps × 19 files touched — closer to L than M. Three concurrent surfaces (UI dialog + CLI + SSE) inflated the surface area beyond typical M.",
+  "planner_used": "plan",
+  "stale_analysis": false,
+  "pipeline": {
+    "analyze": {
+      "status": "complete",
+      "scope_decision_mode": "keep narrow",
+      "related_work_findings": 7
+    },
+    "plan": {
+      "skill": "plan",
+      "status": "complete",
+      "step_count": 10,
+      "files_touched_in_plan": 19,
+      "v1_ux_path_pinned": "Three concurrent surfaces: UI dialog (extended src/ui/lib/dialog.ts chooseSubstrateAdvisory + shared moveWithAdvisory helper consumed by board_dnd + board_keys); CLI (conductor card backward); SSE event substrate-orphaned for brain-loop dispatch + UI telemetry"
+    },
+    "review": {
+      "verdict": "APPROVED-WITH-CHANGES",
+      "iterations": 1,
+      "trivial_changes_applied": 7
+    },
+    "implement": {
+      "status": "complete",
+      "deviations_count": 0,
+      "commits_during_impl": 8,
+      "commit_shas_during_impl": ["6acdaf7", "7561b0a", "8c8f4c7", "fb0467f", "39d7343", "c21babb", "f8edaa4", "5f2adca"],
+      "commit_pattern_note": "Fragmented 8-commit pattern — each commit is a coherent slice (state-machine widen / substrate-hygiene module / RPC handlers / event variant / drag-drop+keyboard wiring / CLI / UI advisory / test update). Much finer-grained than 30.2-30.5's 1-2 commits per step. Pattern fits a 10-step plan with 19 files touched (closer to L than M). Reviewability per commit is higher; the /relay-resolve close-out cites all 8 SHAs."
+    },
+    "verify": {
+      "verdict": "COMPLETE",
+      "iterations": 1,
+      "fixes_applied": 0,
+      "subagent_escalation_used": false,
+      "test_count_before": 912,
+      "test_count_after": 945
+    },
+    "resolve": {
+      "status": "complete",
+      "commit_sha": "6625b09",
+      "implementation_doc": ".relay/implemented/dual-driver-backward-transitions-and-substrate-advisory.md",
+      "archived_to": ".relay/archive/features/dual-driver-backward-transitions-and-substrate-advisory.md"
+    }
+  },
+  "all_commit_shas_produced": ["6acdaf7", "7561b0a", "8c8f4c7", "fb0467f", "39d7343", "c21babb", "f8edaa4", "5f2adca", "6625b09"],
+  "control_bridge": {
+    "scope": "30.6",
+    "scope_verified": true,
+    "commit_subjects_verified_count": 9,
+    "all_commits_carry_30_6": true
+  },
+  "exit_status": "resolved",
+  "pause_reason": null,
+  "pause_detail": null,
+  "errors": []
+}

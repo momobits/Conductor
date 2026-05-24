@@ -1,0 +1,44 @@
+{
+  "session": "2026-05-24-021842",
+  "mode": "single",
+  "sweep_target": null,
+  "created": "2026-05-24T02:18:42Z",
+  "last_activity": "2026-05-24T03:00:00Z",
+  "queue": [
+    {
+      "id": "58",
+      "title": "dual-driver-backward-transitions-and-substrate-advisory",
+      "file_path": ".relay/features/dual-driver-backward-transitions-and-substrate-advisory.md",
+      "complexity": "M",
+      "complexity_actual": "M-to-L (10 steps × 19 files)",
+      "recommended_planner": "plan",
+      "phase": "22",
+      "control_step": "30.6"
+    }
+  ],
+  "completed": [
+    {
+      "id": "58",
+      "exit_status": "resolved",
+      "summary_path": ".relay/.auto-session/2026-05-24-021842/58.json",
+      "commit_shas": ["6acdaf7", "7561b0a", "8c8f4c7", "fb0467f", "39d7343", "c21babb", "f8edaa4", "5f2adca", "6625b09"],
+      "commit_count": 9,
+      "implementation_doc": ".relay/implemented/dual-driver-backward-transitions-and-substrate-advisory.md",
+      "archived_to": ".relay/archive/features/dual-driver-backward-transitions-and-substrate-advisory.md",
+      "test_delta": "912 → 945 (+33)",
+      "control_scope": "30.6",
+      "pattern_note": "Fragmented 8-commit impl (one per coherent slice) + 1 resolve. Higher-fragmentation pattern."
+    }
+  ],
+  "current_index": 1,
+  "status": "complete",
+  "pause_reason": null,
+  "ordering_mtime_at_dispatch": 1779581192,
+  "control_bridge": {
+    "phase": "30",
+    "step": "30.6",
+    "steps_md_path": ".control/phases/phase-30-frame-b-and-dual-driver/steps.md",
+    "checkbox_flipped": false,
+    "bridge_commit_pending": "docs(30.6): /relay-auto close out dual-driver-backward-transitions-and-substrate-advisory (commits: 6acdaf7, 7561b0a, 8c8f4c7, fb0467f, 39d7343, c21babb, f8edaa4, 5f2adca, 6625b09)"
+  }
+}
