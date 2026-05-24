@@ -806,6 +806,9 @@ async function conductor_set_autonomy(ctx: MethodContext, raw: unknown) {
 // (no per-pending-decision RPC-callback registry needed in v1).
 async function pending_decision_resolve(ctx: MethodContext, raw: unknown) {
   const p = PendingDecisionResolveParams.parse(raw);
+  // Phase 31 / Relay #63: persist resolution to disk so the pending-decision
+  // record is marked resolved and not re-surfaced on next daemon restart.
+  ctx.runtime.resolvePendingDecision(p.pendingId, p.resolution);
   ctx.bus?.publish({
     kind: 'conductor-pending-decision-resolved',
     pendingId: p.pendingId,

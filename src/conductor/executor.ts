@@ -121,11 +121,18 @@ export async function executeDecision(args: ExecuteArgs): Promise<ExecuteResult>
   if (!shouldExecute) {
     const pendingId = `pd-${runId}-${Math.random().toString(36).slice(2, 8)}`;
     const timeoutMs = config.autonomy.budgets[mode].pending_decision_timeout_ms;
+    // Phase 31 / Relay #63: persist pending decision BEFORE publishing to bus
+    // so it survives daemon restart and can be re-surfaced to the UI on rehydration.
+    runtime.setPendingDecision(pendingId, {
+      cardId, pendingId, decision, publishedAt: now().toISOString(), timeoutMs,
+    });
     bus.publish({
       kind: 'conductor-pending-decision',
       cardId, pendingId, decision, ts: now().toISOString(),
     });
     const resolution = await awaitResolution(bus, pendingId, timeoutMs);
+    // Phase 31 / Relay #63: persist resolution outcome.
+    runtime.resolvePendingDecision(pendingId, resolution);
     if (resolution === 'timeout') {
       return { executed: false, outcome: { kind: 'deferred', deferReason: 'pending-decision timeout' } };
     }

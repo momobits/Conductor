@@ -90,9 +90,26 @@ export async function startDaemon(args: StartDaemonArgs): Promise<DaemonHandle> 
   }
 
   const authToken = await generateAuthToken(args.repo);
-  const runtime = new InMemoryRuntime();
+  // Phase 31 / Relay #63: pass dataDir so proposed-edits and pending-decisions
+  // are persisted to disk and survive daemon restart.
+  const runtime = new InMemoryRuntime({ dataDir: join(args.repo, '.conductor') });
   const bus = new EventBus();
   const brainLog = new BrainLogWriter({ repo: args.repo, bus });
+
+  // Phase 31 / Relay #63: re-publish unresolved pending decisions to the bus
+  // so SSE-connected UIs see Approve/Reject buttons for decisions that were
+  // in flight when the daemon last shut down. Runs BEFORE any brain loop or
+  // RPC handler can process cards, so the rehydrated decisions are visible
+  // before any re-deciding happens.
+  for (const pd of runtime.getUnresolvedPendingDecisions()) {
+    bus.publish({
+      kind: 'conductor-pending-decision',
+      cardId: pd.cardId,
+      pendingId: pd.pendingId,
+      decision: pd.decision,
+      ts: pd.publishedAt,
+    });
+  }
 
   const ctx = {
     repo: args.repo, config, runtime, bus,

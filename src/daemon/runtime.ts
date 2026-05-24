@@ -10,9 +10,18 @@
 // (current: 'human' | 'llm'). The lead defaults to 'human' on daemon start
 // (matches "brain is OFF by default" semantic); explicit transfers go through
 // transferLead() in src/conductor/lead.ts.
+//
+// Phase 31 / Relay #63: ephemeral-state-persistence. When `dataDir` is set,
+// proposed-edits and pending-decisions are flushed to JSON files under
+// `dataDir` on mutation and hydrated from disk on construction. This survives
+// daemon restart so pending proposals don't expire and unresolved pending
+// decisions are re-surfaced to the UI.
 
+import { readFileSync, writeFileSync, mkdirSync, renameSync } from 'node:fs';
+import { join, dirname } from 'node:path';
 import type { Lead, LeadState } from '../conductor/lead.js';
 import type { CardDiff } from '../conductor/reconciliation_types.js';
+import type { NarrowedDecision } from '../orchestrator/types.js';
 
 export interface SessionRecord {
   cardId: string;
@@ -45,6 +54,18 @@ export interface ProposedEditRecord {
   newBody: string;
   /** Epoch ms; getProposedEdit returns undefined past this. */
   expiresAt: number;
+}
+
+/** Phase 31 / Relay #63: server-side record of a pending decision awaiting
+ *  operator approval. Persisted to disk when `dataDir` is set so unresolved
+ *  decisions survive daemon restart and are re-surfaced to the UI. */
+export interface PendingDecisionRecord {
+  cardId: string;
+  pendingId: string;
+  decision: NarrowedDecision;
+  publishedAt: string;    // ISO timestamp
+  timeoutMs: number;
+  resolvedAs?: 'approve' | 'reject' | 'amend' | 'timeout';
 }
 
 export interface RuntimeStore {
@@ -82,6 +103,12 @@ export interface RuntimeStore {
   /** Clears all proposals for a card. Called when a new proposal supersedes
    *  prior pending proposals for the same card (chat-during-edit semantics). */
   clearProposedEditsForCard(cardId: string): void;
+  /** Phase 31 / Relay #63: pending-decision persistence accessors.
+   *  Records are persisted to disk when dataDir is set. */
+  setPendingDecision(pendingId: string, record: PendingDecisionRecord): void;
+  getPendingDecision(pendingId: string): PendingDecisionRecord | undefined;
+  resolvePendingDecision(pendingId: string, resolution: 'approve' | 'reject' | 'amend' | 'timeout'): void;
+  getUnresolvedPendingDecisions(): PendingDecisionRecord[];
 }
 
 const ZERO: CostTotals = { inputTokens: 0, outputTokens: 0, dollars: 0 };
@@ -100,16 +127,28 @@ export class InMemoryRuntime implements RuntimeStore {
   // feature #59 brain-loop-replacement.
   private readonly deferredReconciliations = new Map<string, CardDiff>();
   // Phase 30.15 / Relay #49: chat-proposed-edit store. editId → record.
-  // In-memory only; daemon restart loses pending proposals. Lazy TTL eviction.
+  // When dataDir is set, flushed to disk on mutation and hydrated on startup.
   private readonly proposedEdits = new Map<string, ProposedEditRecord>();
+  // Phase 31 / Relay #63: pending-decision store. pendingId → record.
+  // When dataDir is set, flushed to disk on mutation and hydrated on startup.
+  private readonly pendingDecisions = new Map<string, PendingDecisionRecord>();
+  // Phase 31 / Relay #63: optional dataDir for disk persistence of ephemeral
+  // state. When undefined (tests), behavior is pure in-memory with no I/O.
+  private readonly dataDir?: string;
+  // Fire-and-forget flush chain (same pattern as BrainLogWriter.pending).
+  private flushPending: Promise<void> = Promise.resolve();
 
-  constructor(opts: { now?: () => Date } = {}) {
+  constructor(opts: { now?: () => Date; dataDir?: string } = {}) {
     this.now = opts.now ?? (() => new Date());
+    this.dataDir = opts.dataDir;
     this.lead = {
       current: 'human' as Lead,
       since: this.now(),
       reason: 'daemon-start',
     };
+    if (this.dataDir) {
+      this.loadSync();
+    }
   }
 
   startSession(args: { cardId: string; runId: string; operation: string }): SessionRecord {
@@ -197,8 +236,10 @@ export class InMemoryRuntime implements RuntimeStore {
 
   // Phase 30.15 / Relay #49 — chat-proposed-edit accessors. Lazy TTL eviction
   // on getProposedEdit (returns undefined AND removes the entry if expired).
+  // Phase 31 / Relay #63: mutation methods now flush to disk when dataDir is set.
   setProposedEdit(editId: string, record: ProposedEditRecord): void {
     this.proposedEdits.set(editId, { ...record });
+    this.flushProposedEdits();
   }
 
   getProposedEdit(editId: string): ProposedEditRecord | undefined {
@@ -206,6 +247,7 @@ export class InMemoryRuntime implements RuntimeStore {
     if (!r) return undefined;
     if (r.expiresAt <= this.now().getTime()) {
       this.proposedEdits.delete(editId);
+      this.flushProposedEdits();
       return undefined;
     }
     return { ...r };
@@ -213,12 +255,104 @@ export class InMemoryRuntime implements RuntimeStore {
 
   clearProposedEdit(editId: string): void {
     this.proposedEdits.delete(editId);
+    this.flushProposedEdits();
   }
 
   clearProposedEditsForCard(cardId: string): void {
     for (const [id, r] of this.proposedEdits.entries()) {
       if (r.cardId === cardId) this.proposedEdits.delete(id);
     }
+    this.flushProposedEdits();
+  }
+
+  // Phase 31 / Relay #63 — pending-decision accessors.
+  setPendingDecision(pendingId: string, record: PendingDecisionRecord): void {
+    this.pendingDecisions.set(pendingId, { ...record });
+    this.flushPendingDecisions();
+  }
+
+  getPendingDecision(pendingId: string): PendingDecisionRecord | undefined {
+    const r = this.pendingDecisions.get(pendingId);
+    return r ? { ...r } : undefined;
+  }
+
+  resolvePendingDecision(pendingId: string, resolution: 'approve' | 'reject' | 'amend' | 'timeout'): void {
+    const r = this.pendingDecisions.get(pendingId);
+    if (!r) return;
+    this.pendingDecisions.set(pendingId, { ...r, resolvedAs: resolution });
+    this.flushPendingDecisions();
+  }
+
+  getUnresolvedPendingDecisions(): PendingDecisionRecord[] {
+    const now = this.now().getTime();
+    const result: PendingDecisionRecord[] = [];
+    for (const r of this.pendingDecisions.values()) {
+      if (r.resolvedAs) continue;
+      // Discard timed-out entries (timed out while daemon was down).
+      if (new Date(r.publishedAt).getTime() + r.timeoutMs < now) continue;
+      result.push({ ...r });
+    }
+    return result;
+  }
+
+  // --- Persistence helpers (Phase 31 / Relay #63) ---
+
+  /** Synchronously hydrate proposed-edits and pending-decisions from disk.
+   *  Called from constructor when dataDir is set. Tolerates missing/corrupt
+   *  files gracefully — a missing file means no prior state; a corrupt file
+   *  is treated as empty (logged once). */
+  private loadSync(): void {
+    if (!this.dataDir) return;
+    // Load proposed edits
+    try {
+      const raw = readFileSync(join(this.dataDir, 'proposed-edits.json'), 'utf8');
+      const data = JSON.parse(raw) as Record<string, ProposedEditRecord>;
+      const now = this.now().getTime();
+      for (const [id, rec] of Object.entries(data)) {
+        // TTL eviction on load: discard expired entries.
+        if (rec.expiresAt <= now) continue;
+        this.proposedEdits.set(id, rec);
+      }
+    } catch {
+      // Missing or corrupt file — start fresh.
+    }
+    // Load pending decisions
+    try {
+      const raw = readFileSync(join(this.dataDir, 'pending-decisions.json'), 'utf8');
+      const data = JSON.parse(raw) as Record<string, PendingDecisionRecord>;
+      const now = this.now().getTime();
+      for (const [id, rec] of Object.entries(data)) {
+        // Discard already-resolved entries.
+        if (rec.resolvedAs) continue;
+        // Discard timed-out entries (publishedAt + timeoutMs < now).
+        if (new Date(rec.publishedAt).getTime() + rec.timeoutMs < now) continue;
+        this.pendingDecisions.set(id, rec);
+      }
+    } catch {
+      // Missing or corrupt file — start fresh.
+    }
+  }
+
+  /** Flush proposed-edits Map to disk. Fire-and-forget via chained Promise
+   *  (same pattern as BrainLogWriter.pending). No-op when dataDir is unset. */
+  private flushProposedEdits(): void {
+    if (!this.dataDir) return;
+    const data = Object.fromEntries(this.proposedEdits);
+    const filePath = join(this.dataDir, 'proposed-edits.json');
+    this.flushPending = this.flushPending.then(() =>
+      atomicWriteJson(filePath, data),
+    );
+  }
+
+  /** Flush pending-decisions Map to disk. Fire-and-forget via chained Promise.
+   *  No-op when dataDir is unset. */
+  private flushPendingDecisions(): void {
+    if (!this.dataDir) return;
+    const data = Object.fromEntries(this.pendingDecisions);
+    const filePath = join(this.dataDir, 'pending-decisions.json');
+    this.flushPending = this.flushPending.then(() =>
+      atomicWriteJson(filePath, data),
+    );
   }
 }
 
@@ -232,4 +366,17 @@ function addTotals(a: CostTotals, b: CostDelta): CostTotals {
 
 function round6(n: number): number {
   return Math.round(n * 1_000_000) / 1_000_000;
+}
+
+/** Atomic JSON write: write to .tmp then rename. Prevents partial-write
+ *  corruption. Best-effort: errors are swallowed (audit, not behavior). */
+async function atomicWriteJson(filePath: string, data: unknown): Promise<void> {
+  try {
+    mkdirSync(dirname(filePath), { recursive: true });
+    const tmp = filePath + '.tmp';
+    writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
+    renameSync(tmp, filePath);
+  } catch {
+    // Best-effort persistence; do not propagate.
+  }
 }
