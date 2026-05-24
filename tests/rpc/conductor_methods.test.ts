@@ -78,7 +78,10 @@ describe('conductor RPC methods', () => {
     expect(stopped.stopped).toBe(true);
   });
 
-  it('conductor_set_autonomy mutates config and emits config-changed', async () => {
+  it('conductor_set_autonomy mutates config and emits config-changed (legacy "auto" maps to "autonomous")', async () => {
+    // Phase 30.7 / Relay #60: schema preprocess maps legacy autonomy default
+    // values to the new spectrum. 'auto' → 'autonomous'. This test verifies
+    // both the RPC mutation path AND the legacy-mapping behavior.
     const { repo } = setupRepo();
     writeFileSync(join(repo, '.conductor', 'config.yaml'), 'autonomy:\n  default: assist\n', 'utf8');
     const config = ProjectConfigSchema.parse({ autonomy: { default: 'assist' } });
@@ -89,7 +92,22 @@ describe('conductor RPC methods', () => {
     const ctx = { repo, config, runtime, bus };
     const result = await methods.conductor_set_autonomy(ctx, { mode: 'auto' });
     expect(result.ok).toBe(true);
-    expect(ctx.config.autonomy.default).toBe('auto');
+    expect(ctx.config.autonomy.default).toBe('autonomous');
     expect(events.some((e) => (e as { kind: string }).kind === 'config-changed')).toBe(true);
+  });
+
+  it('conductor_set_autonomy accepts spectrum values directly', async () => {
+    // Phase 30.7 / Relay #60: callers should prefer spectrum values
+    // (assist | hybrid | autonomous). The legacy values still work via the
+    // preprocess but the spectrum-direct path is the future.
+    const { repo } = setupRepo();
+    writeFileSync(join(repo, '.conductor', 'config.yaml'), 'autonomy:\n  default: assist\n', 'utf8');
+    const config = ProjectConfigSchema.parse({ autonomy: { default: 'assist' } });
+    const runtime = new InMemoryRuntime();
+    const bus = new EventBus();
+    const ctx = { repo, config, runtime, bus };
+    const result = await methods.conductor_set_autonomy(ctx, { mode: 'hybrid' });
+    expect(result.ok).toBe(true);
+    expect(ctx.config.autonomy.default).toBe('hybrid');
   });
 });

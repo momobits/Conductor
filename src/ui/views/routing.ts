@@ -6,9 +6,17 @@
 
 import type { RpcClient } from '../api.js';
 
+// Phase 30.7 / Relay #60: autonomy block is now spectrum-shaped
+// ({default: 'assist'|'hybrid'|'autonomous', hybrid_confidence_threshold,
+// budgets}). The legacy `transitions` block remains optional on the wire so
+// pre-migration daemons / configs still parse cleanly through this shape.
 interface ProjectConfigShape {
   routing: { default: string; functions: Record<string, string> };
-  autonomy: { default: string; transitions: Record<string, string> };
+  autonomy: {
+    default: string;
+    transitions?: Record<string, string>;
+    hybrid_confidence_threshold?: number;
+  };
   verify_command: string;
 }
 
@@ -46,26 +54,49 @@ function configToYaml(config: ProjectConfigShape): string {
   // Hand-roll a minimal YAML dump so we don't need js-yaml in the browser.
   // The server will validate the result, so format quirks become 32602
   // errors with helpful messages.
-  return [
+  //
+  // Phase 30.7 / Relay #60: autonomy is now spectrum-shaped. Legacy
+  // `transitions` block is preserved if present (for partial-migration
+  // configs) but otherwise omitted. `hybrid_confidence_threshold` is emitted
+  // when present so round-tripping doesn't drop operator tuning.
+  const lines: string[] = [
     `routing:`,
     `  default: ${config.routing.default}`,
     `  functions:`,
-    ...Object.entries(config.routing.functions).map(([k, v]) => `    ${k}: ${v}`),
-    `autonomy:`,
-    `  default: ${config.autonomy.default}`,
-    `  transitions:`,
-    ...Object.entries(config.autonomy.transitions).map(([k, v]) => `    ${k}: ${v}`),
-    `verify_command: ${config.verify_command}`,
-    '',
-  ].join('\n');
+  ];
+  for (const [k, v] of Object.entries(config.routing.functions)) {
+    lines.push(`    ${k}: ${v}`);
+  }
+  lines.push(`autonomy:`);
+  lines.push(`  default: ${config.autonomy.default}`);
+  if (typeof config.autonomy.hybrid_confidence_threshold === 'number') {
+    lines.push(`  hybrid_confidence_threshold: ${config.autonomy.hybrid_confidence_threshold}`);
+  }
+  if (config.autonomy.transitions && Object.keys(config.autonomy.transitions).length > 0) {
+    lines.push(`  transitions:`);
+    for (const [k, v] of Object.entries(config.autonomy.transitions)) {
+      lines.push(`    ${k}: ${v}`);
+    }
+  }
+  lines.push(`verify_command: ${config.verify_command}`);
+  lines.push('');
+  return lines.join('\n');
 }
 
 function yamlToConfig(yaml: string): ProjectConfigShape {
   // Minimal parser for the shape we emit. Top-level keys followed by
   // nested 2-space indents. Falls back to throwing on anything odd.
+  //
+  // Phase 30.7 / Relay #60: autonomy block now carries an optional
+  // hybrid_confidence_threshold key. Legacy `transitions:` block remains
+  // parsed if present.
   const lines = yaml.split('\n');
   const routing = { default: '', functions: {} as Record<string, string> };
-  const autonomy = { default: '', transitions: {} as Record<string, string> };
+  const autonomy: {
+    default: string;
+    transitions?: Record<string, string>;
+    hybrid_confidence_threshold?: number;
+  } = { default: '' };
   let verify_command = '';
   let section: 'routing' | 'routing.functions' | 'autonomy' | 'autonomy.transitions' | null = null;
   for (const raw of lines) {
@@ -83,15 +114,28 @@ function yamlToConfig(yaml: string): ProjectConfigShape {
       else if (section === 'autonomy') autonomy.default = v;
       continue;
     }
+    if (section === 'autonomy' && line.startsWith('  hybrid_confidence_threshold:')) {
+      const v = line.slice(line.indexOf(':') + 1).trim();
+      const n = Number(v);
+      if (!Number.isNaN(n)) autonomy.hybrid_confidence_threshold = n;
+      continue;
+    }
     if (line.startsWith('  functions:')) { section = 'routing.functions'; continue; }
-    if (line.startsWith('  transitions:')) { section = 'autonomy.transitions'; continue; }
+    if (line.startsWith('  transitions:')) {
+      section = 'autonomy.transitions';
+      autonomy.transitions = autonomy.transitions ?? {};
+      continue;
+    }
     if (line.startsWith('    ')) {
       const idx = line.indexOf(':');
       if (idx === -1) throw new Error(`Malformed: ${line}`);
       const k = line.slice(4, idx).trim();
       const v = line.slice(idx + 1).trim();
       if (section === 'routing.functions') routing.functions[k] = v;
-      else if (section === 'autonomy.transitions') autonomy.transitions[k] = v;
+      else if (section === 'autonomy.transitions') {
+        autonomy.transitions = autonomy.transitions ?? {};
+        autonomy.transitions[k] = v;
+      }
       continue;
     }
   }
@@ -114,10 +158,9 @@ export async function renderRouting(
       <div class="autonomy-picker">
         <label for="autonomy-select"><strong>Autonomy</strong> · current mode</label>
         <select id="autonomy-select">
-          <option value="escort">escort — every decision to user</option>
-          <option value="assist">assist — auto-approve high-confidence + low-blast</option>
-          <option value="auto">auto — auto-approve any high-confidence decision</option>
-          <option value="critical">critical — auto, but halt queue if confidence drops</option>
+          <option value="assist">assist — every decision surfaces to operator</option>
+          <option value="hybrid">hybrid — auto-execute above confidence threshold; surface below</option>
+          <option value="autonomous">autonomous — executor never surfaces; always execute</option>
         </select>
         <span id="autonomy-status" class="status" hidden>Saved.</span>
       </div>

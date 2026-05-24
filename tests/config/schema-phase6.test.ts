@@ -11,9 +11,13 @@ describe('Phase 6 autonomy modes', () => {
     expect(() => AutonomySchema.parse('critical')).not.toThrow();
   });
 
-  it('ProjectConfigSchema autonomy.default accepts critical', () => {
+  it('ProjectConfigSchema autonomy.default accepts critical (legacy; maps to "autonomous" per Phase 30.7 / Relay #60 spectrum)', () => {
+    // Phase 30.7 / Relay #60: legacy 'critical' default no longer persists at
+    // the project config layer; it's preprocessed onto the spectrum at parse
+    // time. The card-frontmatter-level enum (AutonomySchema) still accepts
+    // 'critical' as a card override (see test above).
     const cfg = ProjectConfigSchema.parse({ autonomy: { default: 'critical' } });
-    expect(cfg.autonomy.default).toBe('critical');
+    expect(cfg.autonomy.default).toBe('autonomous');
   });
 });
 

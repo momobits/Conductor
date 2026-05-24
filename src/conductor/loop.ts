@@ -23,6 +23,7 @@ import { readCard, writeCard, listCards } from '../engine/state/card.js';
 import { conduct, type ConductMode } from '../engine/ops/conduct.js';
 import { checkCostCeilings } from './cost_guard.js';
 import { classifyHalt } from './halt.js';
+import { bridgeSpectrumToConductMode } from './autonomy.js';
 import { TaskAgent } from '../agent/task_agent.js';
 import type { ModelAdapter } from '../adapters/adapter.js';
 import { resolveNextStep } from './step_resolver.js';
@@ -209,9 +210,17 @@ export class Conductor {
   }
 
   private effectiveMode(_cardId: string): ConductMode {
-    const def = this.config.autonomy.default;
-    if (def === 'inherit') return 'assist';
-    return def as ConductMode;
+    // Phase 30.7 / Relay #60: config.autonomy.default is now spectrum-typed
+    // ('assist' | 'hybrid' | 'autonomous') courtesy of the schema preprocess
+    // that maps legacy values at load time. Bridge to the legacy ConductMode
+    // for the existing conduct.ts path. Once feature #6/#59 ships, this
+    // bridge moves into the executor and conduct.ts is retired.
+    //
+    // Per-card autonomy overrides are deferred: reading the card here would
+    // require an async readCard call inside a sync method. The card-level
+    // override is wired through `effectiveAutonomy(card, config)` at the
+    // future executor's call site instead.
+    return bridgeSpectrumToConductMode(this.config.autonomy.default);
   }
 
   /** Hook used by Sub-phase F daemon wiring to call scan + order after a

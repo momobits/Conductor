@@ -18,8 +18,40 @@ export type Column = (typeof COLUMNS)[number];
 export const KINDS = ['issue', 'feature', 'exercise-finding', 'imported'] as const;
 export type Kind = (typeof KINDS)[number];
 
-export const AUTONOMY_MODES = ['inherit', 'escort', 'assist', 'auto', 'critical'] as const;
+// Phase 30.7 / Relay #60 dual-driver-autonomy-spectrum-config:
+//
+// Two distinct enums now coexist:
+//   - AUTONOMY_MODES: card-frontmatter-level (per-card override). Additive:
+//     keeps legacy values ('escort' | 'auto' | 'critical') so existing card
+//     files continue to parse; adds spectrum values ('hybrid' | 'autonomous')
+//     so cards can opt into the new shape. 'inherit' (project-default
+//     deferral) is card-only and stays here.
+//   - AUTONOMY_SPECTRUM: project-default-level (config.autonomy.default). The
+//     canonical 3-mode spectrum the orchestrator's executor (#6/#59) reads to
+//     gate execute-vs-surface. Legacy project-default values are accepted at
+//     load time via src/config/schema.ts preprocess + mapped onto spectrum.
+//
+// Mapping (applied by mapLegacyAutonomy in src/conductor/autonomy.ts):
+//   escort/assist  → assist    (every decision surfaces; assist preserves)
+//   auto           → autonomous (executor never surfaces; just executes)
+//   critical       → autonomous (halt-on-low-conf semantic relaxed; see
+//                                conduct.ts's threshold path for parity)
+//   hybrid         → hybrid     (new; threshold-gated execute vs surface)
+//   autonomous     → autonomous (new; always-execute)
+//   inherit        → (card-only; defers to config.autonomy.default)
+export const AUTONOMY_MODES = [
+  'inherit',
+  'escort',
+  'assist',
+  'auto',
+  'critical',
+  'hybrid',
+  'autonomous',
+] as const;
 export type Autonomy = (typeof AUTONOMY_MODES)[number];
+
+export const AUTONOMY_SPECTRUM = ['assist', 'hybrid', 'autonomous'] as const;
+export type AutonomyMode = (typeof AUTONOMY_SPECTRUM)[number];
 
 export type ModelOverrides = Record<string, string>;
 

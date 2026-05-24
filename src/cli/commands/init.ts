@@ -56,15 +56,16 @@ routing:
     discover:     gemini-2.5-pro
     order:        claude-haiku-4-5
     detect_drift: local:llama-3.3-70b    # deterministic; regex+git
+# Phase 30.7 / Relay #60: spectrum-shape autonomy config. Project default is
+# one of assist (every decision surfaces to operator) | hybrid (threshold-gated
+# auto-execute) | autonomous (executor never surfaces). Per-card override via
+# card frontmatter autonomy field (also accepts 'inherit' to defer to this
+# default). Legacy transitions per-edge block (and legacy default values
+# escort | auto | critical) still accepted on input with a deprecation warning;
+# they're mapped to spectrum at load time.
 autonomy:
-  default: assist
-  transitions:
-    discovered_to_planned:    auto
-    planned_to_approved:      assist
-    approved_to_building:     manual
-    building_to_verifying:    auto
-    verifying_to_shipped:     assist
-    shipped_to_archived:      manual
+  default: hybrid
+  hybrid_confidence_threshold: 0.7
 verify_command: npm test
 `;
 

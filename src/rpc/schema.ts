@@ -192,8 +192,12 @@ export const CardResumeParams = z.object({
 export const ConductorStartParams = z.object({});
 export const ConductorStopParams = z.object({});
 export const ConductorStatusParams = z.object({});
+// Phase 30.7 / Relay #60: accept BOTH spectrum modes (assist | hybrid |
+// autonomous) AND legacy modes (escort | auto | critical). The
+// conductor_set_autonomy handler writes the value through ProjectConfigSchema
+// which preprocesses legacy values onto the spectrum at parse time.
 export const ConductorSetAutonomyParams = z.object({
-  mode: z.enum(['escort', 'assist', 'auto', 'critical']),
+  mode: z.enum(['escort', 'assist', 'auto', 'critical', 'hybrid', 'autonomous']),
 });
 
 // Phase 30.6 / Relay #58: substrate-hygiene RPC schemas. Mirror the

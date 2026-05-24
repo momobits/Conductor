@@ -84,16 +84,22 @@ describe('Phase 6 end-to-end', () => {
     }
   });
 
-  it('conductor.set_autonomy mutates the config in place', async () => {
+  it('conductor.set_autonomy mutates the config in place (Phase 30.7 / Relay #60: legacy mode "critical" maps to spectrum "autonomous")', async () => {
+    // Phase 30.7 / Relay #60: the RPC accepts legacy modes for backward-
+    // compat with existing CLI/UI callers, but the on-disk write is always
+    // the spectrum equivalent ('critical' → 'autonomous').
     const repo = seed(['p6-card']);
     const handle = await startDaemon({ repo, port: 0 });
     try {
       const token = readFileSync(join(repo, '.conductor', 'auth.token'), 'utf8').trim();
       const result = await rpc(handle.url, token, 'conductor_set_autonomy', { mode: 'critical' }) as { ok: boolean; mode: string };
       expect(result.ok).toBe(true);
+      // The RPC handler returns the mode the caller passed (per the existing
+      // contract — `return { ok, mode: p.mode }`). Spectrum normalization
+      // happens via the schema preprocess applied during config_set's parse.
       expect(result.mode).toBe('critical');
       const yaml = readFileSync(join(repo, '.conductor', 'config.yaml'), 'utf8');
-      expect(yaml).toMatch(/default:\s*critical/);
+      expect(yaml).toMatch(/default:\s*autonomous/);
     } finally {
       await handle.shutdown();
     }

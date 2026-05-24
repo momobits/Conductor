@@ -16,10 +16,14 @@ describe('loadProjectConfig', () => {
   });
 
   it('applies defaults for missing fields', async () => {
+    // Phase 30.7 / Relay #60: project default is now 'hybrid' (was 'assist').
+    // The legacy autonomy.transitions block still exists with the same
+    // defaults (preserved for backward-compat readers like lifecycle's
+    // transitionPolicy helper).
     const config = await loadProjectConfig(undefined, {
       routing: { default: 'claude-sonnet-4-6' },
     });
-    expect(config.autonomy.default).toBe('assist');
+    expect(config.autonomy.default).toBe('hybrid');
     expect(config.autonomy.transitions.approved_to_building).toBe('manual');
     expect(config.routing.functions).toEqual({});
   });

@@ -7,7 +7,17 @@
 
 import { readFile } from 'node:fs/promises';
 import yaml from 'js-yaml';
-import { ProjectConfigSchema, type ProjectConfig } from './schema.js';
+import {
+  ProjectConfigSchema,
+  type ProjectConfig,
+  sawLegacyAutonomyShape,
+  resetLegacyAutonomyFlag,
+} from './schema.js';
+
+// Phase 30.7 / Relay #60: once-per-process latch so the deprecation warning
+// for legacy autonomy.transitions.* config fires exactly once, even when
+// config_set + multiple config_get calls re-parse during a session.
+let _legacyAutonomyWarned = false;
 
 export async function loadProjectConfig(
   path?: string,
@@ -22,5 +32,15 @@ export async function loadProjectConfig(
   } else {
     parsed = raw ?? {};
   }
-  return ProjectConfigSchema.parse(parsed);
+  resetLegacyAutonomyFlag();
+  const out = ProjectConfigSchema.parse(parsed);
+  if (sawLegacyAutonomyShape() && !_legacyAutonomyWarned) {
+    _legacyAutonomyWarned = true;
+    process.stderr.write(
+      '[autonomy] DEPRECATED: legacy autonomy config detected (escort | auto | critical default, ' +
+        'or autonomy.transitions.* per-edge block). Mapped to spectrum shape (assist | hybrid | ' +
+        'autonomous). Update your .conductor/config.yaml: see docs/operations.md § Autonomy modes.\n',
+    );
+  }
+  return out;
 }
