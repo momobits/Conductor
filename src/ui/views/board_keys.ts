@@ -15,9 +15,9 @@
 
 import type { RpcClient } from '../api.js';
 import { shakeTile } from './board_dnd.js';
-import { confirmTransition } from '../lib/dialog.js';
 import { updateFooter } from '../lib/footer.js';
 import { isLegalTransition, nextColumn, type Column } from './board_validate.js';
+import { moveWithAdvisory } from './move_with_advisory.js';
 
 const COLUMNS: readonly Column[] = [
   'discovered', 'planned', 'approved', 'building',
@@ -230,23 +230,23 @@ export function attachBoardKeys(opts: BoardKeysOpts): BoardKeysHandle {
   }
 
   async function executeMove(id: string, from: Column, to: Column): Promise<void> {
-    let proceeded = false;
+    // Phase 30.6 / Relay #58: delegate to shared advisory-aware mover
+    // so keyboard backward moves get the same keep/wipe/branch dialog
+    // as drag-drop. The confirmTransition + transition + refresh
+    // sequence is owned by moveWithAdvisory; we only need to handle
+    // refresh failure here (kept the same warning surface).
     try {
-      proceeded = await confirmTransition({ id, from, to, policy: policyFor(from, to) });
+      await moveWithAdvisory({
+        rpc: opts.rpc,
+        id, from, to,
+        policy: policyFor(from, to),
+        onDone: async () => {
+          try { await opts.refresh(); }
+          catch (err) { console.warn('[board_keys] refresh failed:', (err as Error).message); }
+        },
+      });
     } catch (err) {
-      console.warn('[board_keys] dialog threw:', (err as Error).message);
-      return;
-    }
-    if (!proceeded) return;
-    try {
-      await opts.rpc.call('transition', { id, to });
-    } catch (err) {
-      console.warn('[board_keys] transition rejected by server:', (err as Error).message);
-    }
-    try {
-      await opts.refresh();
-    } catch (err) {
-      console.warn('[board_keys] refresh failed:', (err as Error).message);
+      console.warn('[board_keys] move failed:', (err as Error).message);
     }
   }
 

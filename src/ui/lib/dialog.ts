@@ -105,3 +105,78 @@ export async function confirmTransition(opts: ConfirmTransitionOpts): Promise<bo
     okBtn.focus();
   });
 }
+
+// Phase 30.6 / Relay #58: substrate-orphaned advisory multi-choice
+// dialog. Used by moveWithAdvisory on backward moves where the
+// substrate-hygiene RPC detected orphan artifacts. Returns the
+// operator's pick or 'cancel' (closed via Esc / Cancel button).
+//
+// Layout mirrors confirmTransition (native <dialog>, focus trap, Esc
+// handling). Three explicit choices keep operator-decision parity with
+// the CLI flag set (--keep | --wipe | --branch).
+
+export type SubstrateAdvisoryChoice = 'keep' | 'wipe' | 'branch' | 'cancel';
+
+export interface SubstrateAdvisoryOpts {
+  cardId: string;
+  from: string;
+  to: string;
+  orphanedArtifacts: ReadonlyArray<{ runId: string; op: string }>;
+}
+
+export async function chooseSubstrateAdvisory(
+  opts: SubstrateAdvisoryOpts,
+): Promise<SubstrateAdvisoryChoice> {
+  const previouslyFocused = document.activeElement as HTMLElement | null;
+  const dialog = document.createElement('dialog');
+  const artifactsList = opts.orphanedArtifacts
+    .map((a) => `<li><code>${escapeHtml(a.runId)}/${escapeHtml(a.op)}.md</code></li>`)
+    .join('');
+  dialog.innerHTML = `
+    <h3>Substrate advisory: backward move <code>${escapeHtml(opts.from)}</code> → <code>${escapeHtml(opts.to)}</code></h3>
+    <p>Moving <code>${escapeHtml(opts.cardId)}</code> backward will orphan ${opts.orphanedArtifacts.length} substrate artifact(s):</p>
+    <ul class="substrate-orphan-list">${artifactsList}</ul>
+    <p><strong>Choose how to handle the orphan substrate:</strong></p>
+    <ul class="substrate-choices">
+      <li><strong>Keep</strong> — leave substrate intact; future work proceeds aware of prior history.</li>
+      <li><strong>Wipe</strong> — delete the orphan files (substrate is gitignored; no commit fired).</li>
+      <li><strong>Branch</strong> — move the entire run dir(s) to <code>.conductor/archive/runs/</code> (snapshot + fresh slate).</li>
+    </ul>
+    <div class="actions">
+      <button class="secondary" data-act="cancel">Cancel</button>
+      <button data-act="keep">Keep</button>
+      <button data-act="wipe">Wipe</button>
+      <button data-act="branch">Branch</button>
+    </div>`;
+  document.body.appendChild(dialog);
+
+  const button = (act: string): HTMLButtonElement =>
+    dialog.querySelector<HTMLButtonElement>(`[data-act="${act}"]`)!;
+
+  return new Promise<SubstrateAdvisoryChoice>((resolve) => {
+    let settled = false;
+    const finish = (value: SubstrateAdvisoryChoice): void => {
+      if (settled) return;
+      settled = true;
+      if (dialog.open) dialog.close();
+      dialog.remove();
+      if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
+        try { previouslyFocused.focus(); } catch { /* ignore */ }
+      }
+      resolve(value);
+    };
+
+    button('cancel').addEventListener('click', () => finish('cancel'));
+    button('keep').addEventListener('click', () => finish('keep'));
+    button('wipe').addEventListener('click', () => finish('wipe'));
+    button('branch').addEventListener('click', () => finish('branch'));
+
+    dialog.addEventListener('cancel', (ev) => {
+      ev.preventDefault();
+      finish('cancel');
+    });
+
+    dialog.showModal();
+    button('keep').focus(); // safest default focus
+  });
+}

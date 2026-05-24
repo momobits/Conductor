@@ -8,7 +8,7 @@
 
 import type { RpcClient } from '../api.js';
 import { isLegalTransition } from './board_validate.js';
-import { confirmTransition } from '../lib/dialog.js';
+import { moveWithAdvisory } from './move_with_advisory.js';
 
 type Column = 'discovered' | 'planned' | 'approved' | 'building' | 'verifying' | 'shipped' | 'archived';
 type Policy = 'manual' | 'assist' | 'auto';
@@ -58,26 +58,18 @@ export function attachDragDrop(opts: {
       const fromCol = sourceTile?.closest('.column');
       const from = fromCol?.getAttribute('data-column') as Column | undefined;
       if (!from || !to || from === to) return;
-      // Closes Relay #29: client-side pre-validation against the lifecycle.
-      // Mirrors canTransition via the shared board_validate module. Illegal
-      // drops shake the source tile and abort — no dialog, no server call,
-      // no alert.
+      // Closes Relay #29: client-side pre-validation against the
+      // lifecycle. After Phase 30.6 widen, only no-op (from === to)
+      // is rejected by the validator.
       if (!isLegalTransition(from, to)) {
         if (sourceTile) shakeTile(sourceTile);
         return;
       }
+      // Phase 30.6 / Relay #58: delegate to the shared advisory-aware
+      // mover so drag-drop + keyboard move (board_keys.ts) share one
+      // branch for backward moves with orphan substrate.
       const policy = (config.autonomy.transitions[`${from}_to_${to}`] ?? 'manual') as Policy;
-      const proceed = await confirmTransition({ id, from, to, policy });
-      if (!proceed) return;
-      try {
-        await rpc.call('transition', { id, to });
-      } catch (err) {
-        // Defense in depth: client validator should prevent server-side
-        // rejections, but log if one slips through (config race or schema
-        // drift). Closes Relay #29's alert path.
-        console.warn('[board_dnd] transition rejected by server:', (err as Error).message);
-      }
-      await onDropped();
+      await moveWithAdvisory({ rpc, id, from, to, policy, onDone: onDropped });
     });
   });
 }
