@@ -1,0 +1,18 @@
+{
+  "item": "56",
+  "file_path": ".relay/features/dual-driver-observer-advisor.md",
+  "complexity": "M",
+  "planner_used": "plan",
+  "pipeline": {
+    "analyze": {"status": "complete", "scope_decision_mode": "keep narrow (implied)", "related_work_findings": 6},
+    "plan": {"skill": "plan", "status": "complete", "step_count": 7, "files_touched_in_plan": 10},
+    "review": {"verdict": "APPROVED", "iterations": 1, "trivial_changes_applied": 0, "note": "Third clean APPROVED in a row (30.7, 30.8, 30.9)"},
+    "implement": {"status": "complete", "deviations_count": 4, "commits_during_impl": 1, "commit_shas_during_impl": ["ac7e37c"]},
+    "verify": {"verdict": "COMPLETE", "iterations": 1, "fixes_applied": 1, "subagent_escalation_used": false, "test_count_before": 994, "test_count_after": 1025},
+    "resolve": {"status": "complete", "commit_sha": "73d87cd", "implementation_doc": ".relay/implemented/dual-driver-observer-advisor.md", "archived_to": ".relay/archive/features/dual-driver-observer-advisor.md"}
+  },
+  "all_commit_shas_produced": ["ac7e37c", "73d87cd"],
+  "control_bridge": {"scope": "30.9", "scope_verified": true},
+  "exit_status": "resolved",
+  "errors": []
+}
