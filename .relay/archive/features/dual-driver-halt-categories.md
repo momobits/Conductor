@@ -1,8 +1,12 @@
 # Feature: Dual-Driver Halt Categories
 
+> **ARCHIVED 2026-05-24** — implemented at commit `ed1b974` (Phase 22 Relay / Control 30.10).
+> Implementation doc: [.relay/implemented/dual-driver-halt-categories.md](../../implemented/dual-driver-halt-categories.md).
+> Spec preserved verbatim below for audit; deviations from spec documented in the impl doc.
+
 *Created: 2026-05-23*
-*Brainstorm: [dual-driver-orchestration_brainstorm.md](dual-driver-orchestration_brainstorm.md)*
-*Status: DESIGNED*
+*Brainstorm: [dual-driver-orchestration_brainstorm.md](../../features/dual-driver-orchestration_brainstorm.md)*
+*Status: IMPLEMENTED*
 
 ## Summary
 
