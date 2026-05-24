@@ -1,0 +1,30 @@
+{
+  "session": "2026-05-24-030632",
+  "mode": "sweep",
+  "sweep_target": "all",
+  "created": "2026-05-24T03:06:32Z",
+  "last_activity": "2026-05-24T03:06:32Z",
+  "queue": [
+    {"id": "60", "title": "dual-driver-autonomy-spectrum-config", "file_path": ".relay/features/dual-driver-autonomy-spectrum-config.md", "complexity": "M", "recommended_planner": "plan", "dependencies": ["#54 ✓"], "phase": "22", "control_step": "30.7", "wave": 1},
+    {"id": "57", "title": "dual-driver-lead-handoff-reconciliation", "file_path": ".relay/features/dual-driver-lead-handoff-reconciliation.md", "complexity": "L", "complexity_raw": "M-L", "recommended_planner": "superplan", "dependencies": ["#54 ✓", "#55 ✓"], "phase": "22", "control_step": "30.8", "wave": 1, "blocks": ["#59"]},
+    {"id": "56", "title": "dual-driver-observer-advisor", "file_path": ".relay/features/dual-driver-observer-advisor.md", "complexity": "M", "recommended_planner": "plan", "dependencies": ["#54 ✓", "#55 ✓"], "phase": "22", "control_step": "30.9", "wave": 1},
+    {"id": "61", "title": "dual-driver-halt-categories", "file_path": ".relay/features/dual-driver-halt-categories.md", "complexity": "S", "recommended_planner": "plan", "dependencies": ["#54 ✓"], "phase": "22", "control_step": "30.10", "wave": 1},
+    {"id": "50", "title": "column-transition-op-triggering", "file_path": ".relay/features/column-transition-op-triggering.md", "complexity": "S", "recommended_planner": "plan", "dependencies": ["#48 ✓"], "phase": "20", "control_step": "30.11", "wave": 1},
+    {"id": "52", "title": "card-detail-run-history-surface", "file_path": ".relay/features/card-detail-run-history-surface.md", "complexity": "S", "recommended_planner": "plan", "dependencies": ["#47 ✓"], "phase": "20", "control_step": "30.12", "wave": 1},
+    {"id": "59", "title": "dual-driver-brain-loop-replacement", "file_path": ".relay/features/dual-driver-brain-loop-replacement.md", "complexity": "L", "recommended_planner": "superplan", "dependencies": ["#54 ✓", "#55 ✓", "#57 (lands in 30.8)", "#58 ✓", "#60 (lands in 30.7)", "#61 (lands in 30.10)"], "phase": "22", "control_step": "30.13", "wave": 2, "blocks": ["#62"], "note": "BIG-BANG SWITCH"},
+    {"id": "62", "title": "dual-driver-frame-b-chat-wire", "file_path": ".relay/features/dual-driver-frame-b-chat-wire.md", "complexity": "M", "recommended_planner": "plan", "dependencies": ["#54 ✓", "#55 ✓", "#59 (lands in 30.13)", "#60 (lands in 30.7)"], "phase": "22", "control_step": "30.14", "wave": 3, "blocks": ["#49"]},
+    {"id": "49", "title": "chat-driven-description-authoring", "file_path": ".relay/features/chat-driven-description-authoring.md", "complexity": "L", "recommended_planner": "superplan", "dependencies": ["#47 ✓", "#48 ✓", "#62 (lands in 30.14)"], "phase": "20", "control_step": "30.15", "wave": 4, "note": "FINAL ITEM — closes active backlog"}
+  ],
+  "completed": [],
+  "current_index": 0,
+  "status": "active",
+  "pause_reason": null,
+  "ordering_mtime_at_dispatch": 1779584373,
+  "control_bridge": {
+    "phase": "30",
+    "step_range": "30.7-30.15",
+    "steps_md_path": ".control/phases/phase-30-frame-b-and-dual-driver/steps.md",
+    "rows_pre_authored": true
+  },
+  "sweep_caveat": "9 items across S/M/L complexity. Estimated 3-5 hours of agent runtime. Pause triggers (review REJECTED, scope-undecided, blocker, verify-stuck) will STOP the sweep and surface to operator. Resumable via /relay-auto --resume --session 2026-05-24-030632."
+}
