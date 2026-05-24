@@ -37,7 +37,14 @@ export type DaemonEventKind =
   // card_detail is deferred to a future UI polish ticket; this union
   // extension just keeps the UI type-aware so the SSE forwarder doesn't
   // drop the variant at the browser.
-  | 'conductor-observer-advisory';
+  | 'conductor-observer-advisory'
+  // Phase 30.13 / Relay #59: contract-drift guards for the three new
+  // executor-side events (pending-decision approval flow + halt-loop
+  // circuit breaker). UI rendering deferred to a future polish ticket;
+  // these union entries just keep the SSE forwarder type-aware.
+  | 'conductor-pending-decision'
+  | 'conductor-pending-decision-resolved'
+  | 'conductor-halt-loop-detected';
 
 export interface DaemonEventEnvelope {
   kind: DaemonEventKind;

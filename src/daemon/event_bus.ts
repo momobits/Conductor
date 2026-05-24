@@ -14,6 +14,10 @@ import type { LeadState, LeadTransferReason } from '../conductor/lead.js';
 import type { Column } from '../engine/types.js';
 import type { CardDiff } from '../conductor/reconciliation_types.js';
 import type { HaltCategory } from '../conductor/halt.js';
+// Phase 30.13 / Relay #59: pending-decision flow carries the full
+// orchestrator decision so the SSE-consuming UI can render rationale,
+// confidence, and per-action params for the operator's approve/reject choice.
+import type { NarrowedDecision } from '../orchestrator/types.js';
 
 export type DaemonEvent =
   | WatcherEvent
@@ -116,6 +120,41 @@ export type DaemonEvent =
       ruleId: string;
       /** Confidence returned by decide(); useful for downstream filtering. */
       decisionConfidence: number;
+      ts: string;
+    }
+  // Phase 30.13 / Relay #59: pending-decision flow for assist mode + hybrid
+  // sub-threshold. Executor publishes conductor-pending-decision when the
+  // autonomy gate (per #60) decides SURFACE_TO_OPERATOR instead of EXECUTE.
+  // Operator responds via `pending_decision_resolve` RPC which publishes
+  // conductor-pending-decision-resolved with the chosen resolution. Executor
+  // awaits the matching pendingId then resumes dispatch (approve / amend) or
+  // defers (reject / timeout). All three events carry the `conductor-` prefix
+  // so BrainLogWriter persists them automatically (filter at brain_log.ts:50
+  // is `startsWith('conductor-')`).
+  | {
+      kind: 'conductor-pending-decision';
+      cardId: string;
+      pendingId: string;
+      decision: NarrowedDecision;
+      ts: string;
+    }
+  | {
+      kind: 'conductor-pending-decision-resolved';
+      pendingId: string;
+      resolution: 'approve' | 'reject' | 'amend' | 'timeout';
+      ts: string;
+    }
+  // Phase 30.13 / Relay #59: halt-loop circuit breaker tripped after N
+  // consecutive halt-with-handoff decisions on the same card (N =
+  // config.autonomy.budgets.<mode>.halt_loop_threshold, default 3). The
+  // brain auto-transfers lead to human + publishes this event so operator
+  // triage doesn't require correlating against the preceding N halt events.
+  | {
+      kind: 'conductor-halt-loop-detected';
+      cardId: string;
+      count: number;
+      lastCategory: HaltCategory;
+      lastRationale: string;
       ts: string;
     };
 
