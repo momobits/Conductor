@@ -64,14 +64,37 @@ See `steps.md` for the detailed checklist. The first step (30.1) is the kickoff 
 ## Done criteria
 All must be verified before `/phase-close` advances:
 
-- [ ] All items in `steps.md` checked off, each with a commit reference
-- [ ] `.control/issues/OPEN/` contains no items tagged `phase:30-blocker`
-- [ ] Automated tests pass: `npm test` (baseline 784 from Phase 29; deltas depend on which cluster ships first)
-- [ ] Sequencing decision documented in this README's "Why this phase exists" section (Frame B first / dual-driver first / interleaved per-feature)
-- [ ] Smoke test: <author at kickoff based on which features ship in 30.x>
-- [ ] Working tree is clean (`git status` shows nothing to commit)
-- [ ] All commits follow the `<type>(<phase>.<step>): <subject>` convention
+- [x] All items in `steps.md` checked off, each with a commit reference (30.1 + 30.2-30.15 = 15 steps)
+- [x] `.control/issues/OPEN/` contains no items tagged `phase:30-blocker` (directory empty)
+- [x] Automated tests pass: `npm test` → **1123/1123 pass** (baseline 784 from Phase 29; +339 net across Phase 30). Known flake on `tests/conductor/loop.test.ts > Daemon shutdown stops the conductor brain` re-ran clean per documented protocol.
+- [x] Sequencing decision documented in this README's "Why this phase exists" section: **Option 3 — Interleaved per-feature** (chosen at 30.1, executed across 30.2-30.15)
+- [x] Smoke test: `scripts/smoke-phase30.mjs` exercises the BIG-BANG SWITCH (Relay #59 / step 30.13) end-to-end — see the **Smoke** section below for scope, rationale, and results
+- [x] Working tree is clean (`git status` shows nothing to commit)
+- [x] All commits follow the `<type>(<phase>.<step>): <subject>` convention (verified via `git log` across the phase)
 - [ ] Phase will be tagged `phase-30-frame-b-and-dual-driver-closed` by `/phase-close`
+
+## Smoke
+
+`scripts/smoke-phase30.mjs` — engine-side BIG-BANG-SWITCH smoke harness, modeled on `scripts/smoke-phase28.mjs`. Re-runnable; creates its own tempdir each invocation.
+
+**Scope narrowing from "Playwright smoke" → engine-side smoke** (operator-approved 2026-05-24): The original `<author at kickoff>` placeholder for this criterion was never filled because the phase scaled from "30.1 kickoff + 30.2 first foundation" to "entire 14-feature backlog" via `/relay-auto` sweeps before any smoke plan was authored. A comprehensive Playwright UI smoke covering all of Frame B Cohort A+B + dual-driver brain-loop-replacement end-to-end would have been a multi-hour-scope deliverable. Per-feature `/relay-verify` already ran COMPLETE for all 14 features (visible in each feature's `.relay/.auto-session/*/<id>.json` summary), and the 1123-test suite covers integration + unit. The remaining verification gap was the architecturally-central thing: does the new orchestrator-driven Conductor loop actually walk a card end-to-end via decide() → executor dispatch? The engine-side smoke proves exactly this.
+
+**Coverage:**
+- **Phase A — Lead-bail guard** (Relay #55 lead-follow contract): Conductor with default lead `human` exits ≤1 iter without calling decide() (MockAdapter empty; would throw if invoked).
+- **Phase B — Orchestrator-driven advance-column walk** (Relay #59 BIG-BANG SWITCH): card walks `discovered → planned → approved → building` via 3 advance-column OrchestratorDecision JSON strings queued in MockAdapter. Verifies: card frontmatter column updates correctly; orchestrate.md audit artifact persists at `<runId>/orchestrate.md` with valid JSON; SSE bus emits 3 `task-event` transition envelopes (matches TaskAgent.transitionWithGate publish shape per `src/conductor/executor.ts` `dispatchAdvanceColumn:280`); `transferLead({to: 'llm', reason: 'brain-start'})` publishes 1 `lead-handed-off` event.
+
+**Run:**
+
+```bash
+node scripts/smoke-phase30.mjs
+# Overall: ✓ ALL PASS
+```
+
+**Not covered by this smoke** (each handled elsewhere):
+- Frame B UI surfaces (#47 multi-surface-view, #48 op-controls, #49 chat-driven-description-authoring, #50 column-trigger, #52 run-history) — covered by per-feature `/relay-verify` COMPLETE results + unit tests in `tests/ui/`. A future Playwright UI smoke would round this out; deferred unless dogfood surfaces friction.
+- Per-op execution (call-op:analyze, plan, review, etc.) — covered by existing unit tests in `tests/engine/`.
+- Deferred-reconciliation consumer (#57) — verified in `tests/conductor/loop.test.ts` (lead-bail + deferred-reconciliation consumer-wiring tests).
+- Substrate hygiene (#58) — verified in `tests/agent/substrate_hygiene.test.ts`.
 
 ## Rollback plan
 If this phase's changes need to be undone: `git reset --hard phase-29-ui-markdown-render-fix-closed` then force-push if applicable. Frame B work touches `src/ui/views/card_detail.ts` and surrounding UI; dual-driver work touches `src/conductor/loop.ts` and the brain factory. Both surfaces are independent and either cluster's work is revertible without affecting the other.
