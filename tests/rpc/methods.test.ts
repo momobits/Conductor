@@ -868,4 +868,88 @@ describe('rpc methods - lead protocol (Phase 22 / Control 30.3 feature #55)', ()
     expect(result.status).toBe('no-active-halt');
     expect(result.reason).toBe('no-bus');
   });
+
+  // Phase 30.6 / Relay #58: substrate-hygiene RPC handlers.
+
+  it('find_orphaned_substrate returns [] for forward transitions', async () => {
+    const repo = setupRepo();
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    const result = await methods.find_orphaned_substrate(ctx, {
+      cardId: 'card-x', from: 'planned', to: 'approved',
+    }) as { orphanedArtifacts: unknown[] };
+    expect(result.orphanedArtifacts).toEqual([]);
+  });
+
+  it('find_orphaned_substrate returns orphans for backward verifying→planned', async () => {
+    const repo = setupRepo();
+    const { mkdirSync, writeFileSync } = await import('node:fs');
+    const runDir = join(repo, '.conductor', 'runs', '20260524T120000-card-x');
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(runDir, 'plan.md'), '# plan', 'utf8');
+    writeFileSync(join(runDir, 'implement.md'), '# implement', 'utf8');
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    const result = await methods.find_orphaned_substrate(ctx, {
+      cardId: 'card-x', from: 'verifying', to: 'planned',
+    }) as { orphanedArtifacts: Array<{ runId: string; op: string }> };
+    expect(result.orphanedArtifacts.map((a) => a.op).sort()).toEqual(['implement', 'plan']);
+  });
+
+  it('wipe_substrate publishes substrate-orphaned event with appliedChoice=wipe + carries from/to', async () => {
+    const repo = setupRepo();
+    const { mkdirSync, writeFileSync } = await import('node:fs');
+    const runDir = join(repo, '.conductor', 'runs', '20260524T120000-card-w');
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(runDir, 'implement.md'), '# x', 'utf8');
+    const events: Array<{ kind: string; [k: string]: unknown }> = [];
+    const bus = { publish: (e: { kind: string; [k: string]: unknown }) => events.push(e) };
+    const ctx = {
+      repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime(),
+      bus: bus as unknown as Parameters<typeof methods.wipe_substrate>[0]['bus'],
+    };
+    const result = await methods.wipe_substrate(ctx, {
+      cardId: 'card-w', from: 'verifying', to: 'planned',
+      artifacts: [{ runId: '20260524T120000-card-w', op: 'implement' }],
+    }) as { removedFiles: string[]; commitSha?: string };
+    expect(result.removedFiles).toHaveLength(1);
+    expect(result.commitSha).toBeUndefined();
+    const evt = events.find((e) => e.kind === 'substrate-orphaned');
+    expect(evt).toBeDefined();
+    expect(evt!.from).toBe('verifying');
+    expect(evt!.to).toBe('planned');
+    expect(evt!.appliedChoice).toBe('wipe');
+  });
+
+  it('branch_substrate publishes substrate-orphaned event with appliedChoice=branch + carries from/to', async () => {
+    const repo = setupRepo();
+    const { mkdirSync, writeFileSync } = await import('node:fs');
+    const runDir = join(repo, '.conductor', 'runs', '20260524T120000-card-b');
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(runDir, 'implement.md'), '# x', 'utf8');
+    const events: Array<{ kind: string; [k: string]: unknown }> = [];
+    const bus = { publish: (e: { kind: string; [k: string]: unknown }) => events.push(e) };
+    const ctx = {
+      repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime(),
+      bus: bus as unknown as Parameters<typeof methods.branch_substrate>[0]['bus'],
+    };
+    const result = await methods.branch_substrate(ctx, {
+      cardId: 'card-b', from: 'building', to: 'approved',
+      artifacts: [{ runId: '20260524T120000-card-b', op: 'implement' }],
+      branchLabel: 'rpc-test',
+    }) as { branchedRunIds: string[]; archiveDir: string };
+    expect(result.branchedRunIds).toEqual(['20260524T120000-card-b']);
+    expect(result.archiveDir).toContain('rpc-test');
+    const evt = events.find((e) => e.kind === 'substrate-orphaned');
+    expect(evt).toBeDefined();
+    expect(evt!.from).toBe('building');
+    expect(evt!.to).toBe('approved');
+    expect(evt!.appliedChoice).toBe('branch');
+  });
+
+  it('wipe_substrate rejects empty artifacts array via schema', async () => {
+    const repo = setupRepo();
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    await expect(methods.wipe_substrate(ctx, {
+      cardId: 'card-x', from: 'verifying', to: 'planned', artifacts: [],
+    })).rejects.toThrow();
+  });
 });

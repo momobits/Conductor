@@ -24,6 +24,7 @@ import {
   OrchestratorDecideParams,
   LeadGetParams, LeadSetParams,
   OpInvokeParams, CardResumeParams,
+  FindOrphanedSubstrateParams, WipeSubstrateParams, BranchSubstrateParams,
 } from './schema.js';
 import { readRunArtifact, findLatestArtifactRunId } from '../agent/run_artifact.js';
 import { readChatLog } from '../engine/state/chat_log.js';
@@ -38,6 +39,11 @@ import { loadProjectConfig } from '../config/load.js';
 import { preserveYamlComments } from '../config/preserve_comments.js';
 import { readCard, writeCard, listCards, listCardsLenient, createCard } from '../engine/state/card.js';
 import { canTransition } from '../engine/lifecycle.js';
+import {
+  findOrphanedSubstrate,
+  wipeOrphanedSubstrate,
+  branchOrphanedSubstrate,
+} from '../engine/state/substrate_hygiene.js';
 import { TaskAgent } from '../agent/task_agent.js';
 import type { Column } from '../engine/types.js';
 import type { ModelAdapter } from '../adapters/adapter.js';
@@ -671,6 +677,54 @@ async function card_artifacts_index(ctx: MethodContext, raw: unknown) {
   return { ops };
 }
 
+// Phase 30.6 / Relay #58: substrate-hygiene RPC handlers. Compose the
+// substrate_hygiene primitives + publish the substrate-orphaned SSE
+// event. Wipe/branch handlers publish in post-action shape
+// (appliedChoice set). from/to come from the params so the event
+// carries the intended transition direction.
+
+async function find_orphaned_substrate(ctx: MethodContext, raw: unknown) {
+  const p = FindOrphanedSubstrateParams.parse(raw);
+  const orphanedArtifacts = await findOrphanedSubstrate(ctx.repo, p.cardId, p.from, p.to);
+  return { orphanedArtifacts };
+}
+
+async function wipe_substrate(ctx: MethodContext, raw: unknown) {
+  const p = WipeSubstrateParams.parse(raw);
+  const result = await wipeOrphanedSubstrate({
+    repo: ctx.repo, cardId: p.cardId, artifacts: p.artifacts,
+  });
+  ctx.bus?.publish({
+    kind: 'substrate-orphaned',
+    cardId: p.cardId,
+    from: p.from,
+    to: p.to,
+    orphanedArtifacts: p.artifacts.map((a) => ({ ...a })),
+    choices: ['keep', 'wipe', 'branch'] as const,
+    appliedChoice: 'wipe',
+    ts: new Date().toISOString(),
+  });
+  return result;
+}
+
+async function branch_substrate(ctx: MethodContext, raw: unknown) {
+  const p = BranchSubstrateParams.parse(raw);
+  const result = await branchOrphanedSubstrate({
+    repo: ctx.repo, cardId: p.cardId, artifacts: p.artifacts, branchLabel: p.branchLabel,
+  });
+  ctx.bus?.publish({
+    kind: 'substrate-orphaned',
+    cardId: p.cardId,
+    from: p.from,
+    to: p.to,
+    orphanedArtifacts: p.artifacts.map((a) => ({ ...a })),
+    choices: ['keep', 'wipe', 'branch'] as const,
+    appliedChoice: 'branch',
+    ts: new Date().toISOString(),
+  });
+  return result;
+}
+
 export const methods = {
   card_new,
   card_get,
@@ -706,6 +760,9 @@ export const methods = {
   lead_set,
   op_invoke,
   card_resume,
+  find_orphaned_substrate,
+  wipe_substrate,
+  branch_substrate,
 } satisfies Record<string, Handler<unknown, unknown>>;
 
 export type MethodName = keyof typeof methods;

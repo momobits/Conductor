@@ -195,3 +195,39 @@ export const ConductorStatusParams = z.object({});
 export const ConductorSetAutonomyParams = z.object({
   mode: z.enum(['escort', 'assist', 'auto', 'critical']),
 });
+
+// Phase 30.6 / Relay #58: substrate-hygiene RPC schemas. Mirror the
+// substrate-orphaned event shape (event_bus.ts) and the
+// substrate_hygiene module primitives. cardId regex matches
+// CardChatHistoryParams pattern (path-traversal guard at the boundary).
+//
+// from/to are required in WipeSubstrateParams + BranchSubstrateParams
+// so the post-action SSE event carries the intended transition
+// direction (caller already has these values from the find_orphaned
+// call — passing them through is cheap + makes the event meaningful).
+export const FindOrphanedSubstrateParams = z.object({
+  cardId: z.string().min(1).max(128).regex(/^[a-zA-Z0-9._-]+$/, 'cardId must match [a-zA-Z0-9._-]+'),
+  from: ColumnSchema,
+  to: ColumnSchema,
+}).strict();
+
+export const WipeSubstrateParams = z.object({
+  cardId: z.string().min(1).max(128).regex(/^[a-zA-Z0-9._-]+$/, 'cardId must match [a-zA-Z0-9._-]+'),
+  from: ColumnSchema,
+  to: ColumnSchema,
+  artifacts: z.array(z.object({
+    runId: z.string().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/, 'runId must match [a-zA-Z0-9_-]+'),
+    op: z.string().min(1).max(64).regex(/^[a-z][a-z0-9_-]*$/, 'op must match [a-z][a-z0-9_-]*'),
+  })).min(1),
+}).strict();
+
+export const BranchSubstrateParams = z.object({
+  cardId: z.string().min(1).max(128).regex(/^[a-zA-Z0-9._-]+$/, 'cardId must match [a-zA-Z0-9._-]+'),
+  from: ColumnSchema,
+  to: ColumnSchema,
+  artifacts: z.array(z.object({
+    runId: z.string().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/, 'runId must match [a-zA-Z0-9_-]+'),
+    op: z.string().min(1).max(64).regex(/^[a-z][a-z0-9_-]*$/, 'op must match [a-z][a-z0-9_-]*'),
+  })).min(1),
+  branchLabel: z.string().min(1).max(128).regex(/^[a-zA-Z0-9._:-]+$/, 'branchLabel must match [a-zA-Z0-9._:-]+').optional(),
+}).strict();
