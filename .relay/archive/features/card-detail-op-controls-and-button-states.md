@@ -1,8 +1,10 @@
 # Feature: Card-detail op controls + button state machine
 
+> **ARCHIVED** — Resolved. See [implementation doc](../../implemented/card-detail-op-controls-and-button-states.md)
+
 *Created: 2026-05-17*
 *Brainstorm: [[card-pipeline-ui_brainstorm.md]](card-pipeline-ui_brainstorm.md)*
-*Status: DESIGNED*
+*Status: IMPLEMENTED*
 
 ## Summary
 
@@ -1735,3 +1737,59 @@ The above three changes have been applied in-place to the Implementation Plan ab
   - **Reason**: [why the deviation was necessary]
 - Do NOT make changes beyond what the plan specifies.
 - Use commit scope `(30.5)` per the orchestrator brief's Control Bridge override.
+
+---
+
+## Verification Report
+
+*Verified: 2026-05-24*
+
+### Implementation Status
+
+| Step | Planned | Implemented | Correct |
+|------|---------|-------------|---------|
+| 1 | Zod schemas `OpInvokeParams` + `CardResumeParams` in `src/rpc/schema.ts` | YES | YES |
+| 2 | `op_invoke` + `card_resume` handlers in `src/rpc/methods.ts`; engine op + helper imports; methods-map registration | YES | YES |
+| 3 | `CONTROL_OPS`, `COLUMN_ENABLED_OPS`, `ButtonState`, `computeButtonStates` in `card_detail_helpers.ts` | YES | YES |
+| 4 | `renderCardDetail` refactor: op-controls sidebar HTML, button state machine reducer, per-op/work-all/continue click handlers, SSE handler with lead-handed-off branch + session-end fallback + transition column update; 30.4 v1 caveat closure (work_card → op_invoke swap in renderOpSectionInto) | YES | YES |
+| 5 | `cardKeyHandler` field added to `KeyContext` interface; delegation in `handleKey`; `AppContext` + `dispatch()` reset + `keyCtx` getter in `main.ts`; existing `keys.test.ts > stubCtx` helper updated | YES | YES |
+| 6 | `card_detail.ts` returns `cardKeys: { handle }`; `footer.ts` SHORTCUTS extended with 8 card-scoped per-op keys; `selectFooterShortcuts('card', ...)` returns `[W, Z, P, I, Esc, ?]` | YES | YES |
+| 7 | `.op-controls` CSS added to `app.css` (gap-column layout + per-op styling + signal-colored Continue) | YES | YES |
+
+### Test Results
+
+- **Typecheck**: `npx tsc --noEmit -p tsconfig.json` clean. `npx tsc --noEmit -p tsconfig.ui.json` clean.
+- **`tests/ui/card_detail_helpers.test.ts`**: 36/36 pass (was 22 in #47 — +14 new for CONTROL_OPS, COLUMN_ENABLED_OPS, computeButtonStates branches).
+- **`tests/ui/keys.test.ts`**: 29/29 pass (was 25 — +4 new for cardKeyHandler delegation + dialog-open gate).
+- **`tests/ui/footer.test.ts`**: 11/11 pass (updated `Card picks` assertion + added `Card scope includes all 8 per-op + Esc shortcuts`).
+- **`tests/rpc/methods.test.ts`**: 46/46 pass (was 38 — +8 new: op_invoke start/double-start/cost-ceiling/no-plan/enum-reject + card_resume happy/idempotency/no-bus).
+- **`tests/ui/` + `tests/rpc/` + `tests/conductor/`**: 292/292 pass across 19 test files.
+- **`npm test`** (full suite): **912/912 pass across 120 test files** in 18.91s.
+- **Baseline regression check**: 885 → 912 = +27 net new tests. No previously-passing test now fails. The known `tests/conductor/loop.test.ts > Daemon shutdown stops the conductor brain` flake did not fire on this run.
+
+### Issues Found
+
+**None.**
+
+Spot-check verifications performed during this pass:
+
+- **30.4 v1 caveat closure landed in-step.** Confirmed `src/ui/views/card_detail.ts > renderOpSectionInto` no longer calls `rpc.call('work_card', ...)` — both `data-act="run"` and `data-act="re-run"` click handlers swapped to `rpc.call('op_invoke', { cardId, op })`. Cross-check via `grep work_card src/ui/views/card_detail.ts` returns ONE match (the `Work all` handler `handleWorkAllClick` — correct: master pipeline still uses work_card). The placeholder "v1: card_work placeholder" string is gone from the codebase.
+- **Button state machine pure-reducer is unit-tested in isolation.** 14 new tests cover all 4 states × eligible/ineligible column branches + capitalized labels + ellipsis runningOp default. No DOM dependency in the helper.
+- **Cost-ceiling guard fires at op_invoke entry.** Test `op_invoke rejects when cost ceiling breached` proves the explicit check is in place; mirrors `Conductor.start`'s loop guard.
+- **Concurrent-op rejection works for op_invoke.** Test `op_invoke rejects double-start (already-running)` confirms identical behavior to `work_card`.
+- **Implement-step resolution falls back to `resolveNextStep` when omitted.** Test `op_invoke implement without step rejects when no plan substrate exists` confirms the resolveNextStep integration via the explicit error message "no plan substrate — run plan op first".
+- **Card resume idempotency works.** Test `card_resume returns no-active-halt when already llm (idempotency)` confirms `transferLead`'s `{changed: false}` no-op path maps correctly to the API response.
+- **Card resume no-bus discriminated failure works.** Test `card_resume returns no-active-halt + reason:no-bus` confirms the discriminated-failure shape mirrors `lead_set`'s no-bus pattern.
+- **`cardKeyHandler` delegation respects existing dialog-open + form-field gates.** Test `cardKeyHandler is bypassed when dialog open` confirms the gate. The existing `isInFormField` gate at `keys.ts:49` runs BEFORE the delegation branch, so per-op letters won't fire while the user types in the chat input.
+- **`tests/ui/keys.test.ts > stubCtx` updated for the extended `KeyContext`** — all 29 tests in that file pass post-update (existing 25 + 4 new).
+- **`tests/ui/footer.test.ts > Card picks` assertion updated** to expect the new per-op shortcut list. The card-scope `SHORTCUTS` array now contains 9 entries (8 per-op + Esc); existing help-overlay code filters by `scope === 'card'` so the overlay auto-renders the full set.
+- **No scope creep / drive-by refactors**: diff stats confirm changes are scoped to (1) RPC layer (schema + methods + 2 new RPC handlers), (2) UI sidebar (card_detail.ts + helpers + main.ts wiring + keys.ts + footer.ts + app.css), and (3) tests covering the above. No unrelated files modified. The `#work-btn` CSS rule at app.css:904 is left intact (dead CSS, harmless) per the plan's explicit choice.
+- **No undocumented deviations.** Every change matches the plan as written (including the three trivial changes applied during /relay-review: resolve-op confirmation, transition-event column update, main.ts wiring expansion).
+
+### Verification Fixes
+
+None — no issues required fixes.
+
+### Verdict
+
+**COMPLETE** — all 7 planned steps implemented as planned, all tests pass (912/912), typecheck clean across both tsconfigs, the 30.4 v1 caveat closure landed in-step per the orchestrator brief's cross-step coordination requirement, no regressions, no scope creep.
