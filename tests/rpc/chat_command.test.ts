@@ -149,4 +149,23 @@ describe('chat_command (Phase 22 / Control 30.14 feature #62)', () => {
     const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
     await expect(methods.chat_command(ctx, { cardId: '../escape', message: 'hi' })).rejects.toThrow();
   });
+
+  // Phase 30.15 / Relay #49: conversation-mode extras propagation. When chat()
+  // returns a diagnostic (adapter lacks tool support → fallback path), the
+  // conversation-mode discriminated-union variant must carry it through.
+  it('propagates diagnostic from conversation path to chat_command response', async () => {
+    const repo = setupRepo();
+    // ConversationalAdapter has capabilities.tools === false → chat_agent's
+    // fallback path sets diagnostic. chat() spreads result.diagnostic onto the
+    // RPC return; chat_command spreads the chat() result into the conversation
+    // variant. Both layers verified end-to-end here.
+    const adapter = new ConversationalAdapter();
+    const runtime = new InMemoryRuntime();
+    const bus = new EventBus();
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime, bus, adapter };
+    const { id } = await methods.card_new(ctx, { slug: 'diag-card', title: 'DiagCard', kind: 'feature' });
+    const r = await methods.chat_command(ctx, { cardId: id, message: 'plain question?' }) as { mode: string; reply?: string; diagnostic?: string };
+    expect(r.mode).toBe('conversation');
+    expect(r.diagnostic).toMatch(/Investigation unavailable/);
+  });
 });

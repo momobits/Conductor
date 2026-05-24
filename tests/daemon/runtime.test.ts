@@ -123,4 +123,56 @@ describe('InMemoryRuntime', () => {
     expect(list.length).toBe(2);
     expect(list.map((d) => d.cardId).sort()).toEqual(['card-a', 'card-b']);
   });
+
+  // Phase 30.15 / Relay #49: proposed-edit accessors (chat-driven authoring).
+  it('proposed edit roundtrip: set/get returns a copy of the record', () => {
+    const future = new Date('2026-05-24T10:10:00Z').getTime();
+    const r = new InMemoryRuntime({ now: () => new Date('2026-05-24T10:00:00Z') });
+    r.setProposedEdit('e-1', {
+      cardId: 'card-a', summary: 'tweak body', oldBody: 'old', newBody: 'new',
+      expiresAt: future,
+    });
+    const got = r.getProposedEdit('e-1');
+    expect(got).toBeDefined();
+    expect(got!.cardId).toBe('card-a');
+    expect(got!.summary).toBe('tweak body');
+    expect(got!.oldBody).toBe('old');
+    expect(got!.newBody).toBe('new');
+  });
+
+  it('getProposedEdit returns undefined past expiresAt and lazy-evicts', () => {
+    let nowMs = new Date('2026-05-24T10:00:00Z').getTime();
+    const r = new InMemoryRuntime({ now: () => new Date(nowMs) });
+    r.setProposedEdit('e-1', {
+      cardId: 'card-a', summary: 's', oldBody: 'o', newBody: 'n',
+      expiresAt: nowMs + 1000,
+    });
+    expect(r.getProposedEdit('e-1')).toBeDefined();
+    nowMs += 2000;
+    expect(r.getProposedEdit('e-1')).toBeUndefined();
+    // Lazy eviction: subsequent calls also return undefined (entry was removed).
+    expect(r.getProposedEdit('e-1')).toBeUndefined();
+  });
+
+  it('clearProposedEdit removes a specific entry', () => {
+    const r = new InMemoryRuntime({ now: () => new Date('2026-05-24T10:00:00Z') });
+    const future = new Date('2026-05-24T10:10:00Z').getTime();
+    r.setProposedEdit('e-1', { cardId: 'card-a', summary: 's', oldBody: 'o', newBody: 'n', expiresAt: future });
+    r.setProposedEdit('e-2', { cardId: 'card-b', summary: 's2', oldBody: 'o2', newBody: 'n2', expiresAt: future });
+    r.clearProposedEdit('e-1');
+    expect(r.getProposedEdit('e-1')).toBeUndefined();
+    expect(r.getProposedEdit('e-2')).toBeDefined();
+  });
+
+  it('clearProposedEditsForCard removes only matching cardId entries', () => {
+    const r = new InMemoryRuntime({ now: () => new Date('2026-05-24T10:00:00Z') });
+    const future = new Date('2026-05-24T10:10:00Z').getTime();
+    r.setProposedEdit('e-1', { cardId: 'card-a', summary: 's', oldBody: 'o', newBody: 'n', expiresAt: future });
+    r.setProposedEdit('e-2', { cardId: 'card-a', summary: 's', oldBody: 'o', newBody: 'n', expiresAt: future });
+    r.setProposedEdit('e-3', { cardId: 'card-b', summary: 's', oldBody: 'o', newBody: 'n', expiresAt: future });
+    r.clearProposedEditsForCard('card-a');
+    expect(r.getProposedEdit('e-1')).toBeUndefined();
+    expect(r.getProposedEdit('e-2')).toBeUndefined();
+    expect(r.getProposedEdit('e-3')).toBeDefined();
+  });
 });
