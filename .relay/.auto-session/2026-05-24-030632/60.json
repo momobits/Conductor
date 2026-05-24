@@ -1,0 +1,18 @@
+{
+  "item": "60",
+  "file_path": ".relay/features/dual-driver-autonomy-spectrum-config.md",
+  "complexity": "M",
+  "planner_used": "plan",
+  "pipeline": {
+    "analyze": {"status": "complete", "scope_decision_mode": "keep narrow", "related_work_findings": 10},
+    "plan": {"skill": "plan", "status": "complete", "step_count": 9, "files_touched_in_plan": 13},
+    "review": {"verdict": "APPROVED", "iterations": 1, "trivial_changes_applied": 0, "note": "First clean APPROVED of Phase 30 sweep"},
+    "implement": {"status": "deviated", "deviations_count": 5, "commits_during_impl": 1, "commit_shas_during_impl": ["dc2dde2"]},
+    "verify": {"verdict": "COMPLETE", "iterations": 2, "fixes_applied": 4, "subagent_escalation_used": false, "test_count_before": 945, "test_count_after": 966},
+    "resolve": {"status": "complete", "commit_sha": "0328da9", "implementation_doc": ".relay/implemented/dual-driver-autonomy-spectrum-config.md", "archived_to": ".relay/archive/features/dual-driver-autonomy-spectrum-config.md"}
+  },
+  "all_commit_shas_produced": ["dc2dde2", "0328da9"],
+  "control_bridge": {"scope": "30.7", "scope_verified": true},
+  "exit_status": "resolved",
+  "errors": []
+}
