@@ -1,7 +1,8 @@
 # Phase 31 Steps
 
 - [ ] 31.1 — Kickoff dogfood + discover pass: run `/relay-scan` then `/relay-discover` against the post-Phase-30 codebase. Validate the empty issue backlog claim (no regressions from the +339-test sweep). Document any P1/P2 findings as Relay issues. Settle Phase 31 scope direction based on findings — either (a) fix-bundle phase, OR (b) new strategic brainstorm. Author scope into this README's "Why this phase exists" section + add 31.2+ steps to this file.
-- [ ] 31.2 — <author at kickoff based on 31.1 outcome>
+- [x] 31.2 — `/relay-auto` ephemeral-state-persistence (#63): persist in-memory pending-decisions + proposed-edits across daemon restart via on-disk JSON files under `.conductor/`. Extends `RuntimeStore` with `PendingDecisionRecord` + 4 new methods.
+- [ ] 31.3 — `/relay-auto` brain-loop-ui-rendering (#64): render `conductor-pending-decision`, `conductor-pending-decision-resolved`, `conductor-halt-loop-detected` SSE events in `card_detail.ts` and `monitor.ts`.
 
 ## Step detail
 
@@ -21,6 +22,14 @@
 
 **Step-close commit:** `docs(31.1): dogfood + discover pass — <chosen direction>` (or `chore(31.1):` if the close-out includes a Phase 31 scope-decision rather than just docs).
 
-### 31.2 — <author at kickoff based on 31.1 outcome>
+### 31.2 — `/relay-auto` ephemeral-state-persistence (#63)
 
-<Step body authored after 31.1 closes.>
+**Relay item:** `.relay/features/ephemeral-state-persistence.md` (items 1 + 8d from post-Phase-30 polish brainstorm)
+**Pipeline:** analyze → plan → review → implement → verify → resolve (driven by `/relay-auto`)
+**Step-close commit:** `docs(31.2): /relay-auto close out ephemeral-state-persistence (commits: <sha-list>)`
+
+### 31.3 — `/relay-auto` brain-loop-ui-rendering (#64)
+
+**Relay item:** `.relay/features/brain-loop-ui-rendering.md` (item 5 from post-Phase-30 polish brainstorm)
+**Pipeline:** analyze → plan → review → implement → verify → resolve (driven by `/relay-auto`)
+**Step-close commit:** `docs(31.3): /relay-auto close out brain-loop-ui-rendering (commits: <sha-list>)`
