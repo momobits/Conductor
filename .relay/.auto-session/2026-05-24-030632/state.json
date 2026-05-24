@@ -3,28 +3,40 @@
   "mode": "sweep",
   "sweep_target": "all",
   "created": "2026-05-24T03:06:32Z",
-  "last_activity": "2026-05-24T03:06:32Z",
-  "queue": [
-    {"id": "60", "title": "dual-driver-autonomy-spectrum-config", "file_path": ".relay/features/dual-driver-autonomy-spectrum-config.md", "complexity": "M", "recommended_planner": "plan", "dependencies": ["#54 ✓"], "phase": "22", "control_step": "30.7", "wave": 1},
-    {"id": "57", "title": "dual-driver-lead-handoff-reconciliation", "file_path": ".relay/features/dual-driver-lead-handoff-reconciliation.md", "complexity": "L", "complexity_raw": "M-L", "recommended_planner": "superplan", "dependencies": ["#54 ✓", "#55 ✓"], "phase": "22", "control_step": "30.8", "wave": 1, "blocks": ["#59"]},
-    {"id": "56", "title": "dual-driver-observer-advisor", "file_path": ".relay/features/dual-driver-observer-advisor.md", "complexity": "M", "recommended_planner": "plan", "dependencies": ["#54 ✓", "#55 ✓"], "phase": "22", "control_step": "30.9", "wave": 1},
-    {"id": "61", "title": "dual-driver-halt-categories", "file_path": ".relay/features/dual-driver-halt-categories.md", "complexity": "S", "recommended_planner": "plan", "dependencies": ["#54 ✓"], "phase": "22", "control_step": "30.10", "wave": 1},
-    {"id": "50", "title": "column-transition-op-triggering", "file_path": ".relay/features/column-transition-op-triggering.md", "complexity": "S", "recommended_planner": "plan", "dependencies": ["#48 ✓"], "phase": "20", "control_step": "30.11", "wave": 1},
-    {"id": "52", "title": "card-detail-run-history-surface", "file_path": ".relay/features/card-detail-run-history-surface.md", "complexity": "S", "recommended_planner": "plan", "dependencies": ["#47 ✓"], "phase": "20", "control_step": "30.12", "wave": 1},
-    {"id": "59", "title": "dual-driver-brain-loop-replacement", "file_path": ".relay/features/dual-driver-brain-loop-replacement.md", "complexity": "L", "recommended_planner": "superplan", "dependencies": ["#54 ✓", "#55 ✓", "#57 (lands in 30.8)", "#58 ✓", "#60 (lands in 30.7)", "#61 (lands in 30.10)"], "phase": "22", "control_step": "30.13", "wave": 2, "blocks": ["#62"], "note": "BIG-BANG SWITCH"},
-    {"id": "62", "title": "dual-driver-frame-b-chat-wire", "file_path": ".relay/features/dual-driver-frame-b-chat-wire.md", "complexity": "M", "recommended_planner": "plan", "dependencies": ["#54 ✓", "#55 ✓", "#59 (lands in 30.13)", "#60 (lands in 30.7)"], "phase": "22", "control_step": "30.14", "wave": 3, "blocks": ["#49"]},
-    {"id": "49", "title": "chat-driven-description-authoring", "file_path": ".relay/features/chat-driven-description-authoring.md", "complexity": "L", "recommended_planner": "superplan", "dependencies": ["#47 ✓", "#48 ✓", "#62 (lands in 30.14)"], "phase": "20", "control_step": "30.15", "wave": 4, "note": "FINAL ITEM — closes active backlog"}
-  ],
-  "completed": [],
-  "current_index": 0,
-  "status": "active",
+  "last_activity": "2026-05-24T09:00:00Z",
+  "current_index": 9,
+  "status": "complete",
   "pause_reason": null,
   "ordering_mtime_at_dispatch": 1779584373,
-  "control_bridge": {
-    "phase": "30",
-    "step_range": "30.7-30.15",
-    "steps_md_path": ".control/phases/phase-30-frame-b-and-dual-driver/steps.md",
-    "rows_pre_authored": true
+  "control_bridge": {"phase": "30", "step_range": "30.7-30.15", "all_steps_closed": true},
+  "summary": {
+    "items_walked": "9/9 resolved",
+    "no_pauses": true,
+    "no_blockers": true,
+    "test_trajectory": "945 → 966 → 994 → 1025 → 1036 → 1057 → 1068 → 1085 → 1096 → 1123 (+178 net new tests across the sweep)",
+    "all_features_archived": true,
+    "active_backlog_now": "empty",
+    "review_verdict_distribution": {
+      "APPROVED clean": 5,
+      "APPROVED-WITH-CHANGES (trivial only)": 4,
+      "REJECTED": 0,
+      "DEFERRED": 0
+    },
+    "verify_verdict_distribution": {
+      "COMPLETE": 9,
+      "HAS-ISSUES": 0,
+      "INCOMPLETE": 0
+    }
   },
-  "sweep_caveat": "9 items across S/M/L complexity. Estimated 3-5 hours of agent runtime. Pause triggers (review REJECTED, scope-undecided, blocker, verify-stuck) will STOP the sweep and surface to operator. Resumable via /relay-auto --resume --session 2026-05-24-030632."
+  "completed": [
+    {"id": "60", "control_step": "30.7", "exit_status": "resolved", "test_delta": "945→966 (+21)", "commits": ["dc2dde2", "0328da9"]},
+    {"id": "57", "control_step": "30.8", "exit_status": "resolved", "test_delta": "966→994 (+28)", "commits": ["55f6872", "ff3a757"], "resumed_from_prior_agent": true},
+    {"id": "56", "control_step": "30.9", "exit_status": "resolved", "test_delta": "994→1025 (+31)", "commits": ["ac7e37c", "73d87cd"]},
+    {"id": "61", "control_step": "30.10", "exit_status": "resolved", "test_delta": "1025→1036 (+11)", "commits": ["ed1b974", "5c37883"]},
+    {"id": "50", "control_step": "30.11", "exit_status": "resolved", "test_delta": "1036→1057 (+21)", "commits": ["b1a7abf", "85b1bb6"]},
+    {"id": "52", "control_step": "30.12", "exit_status": "resolved", "test_delta": "1057→1068 (+11)", "commits": ["0fb4762", "57a9cf1"]},
+    {"id": "59", "control_step": "30.13", "exit_status": "resolved", "test_delta": "1068→1085 (+17)", "commits": ["5e3429f", "575c311", "25a89a2", "d4b0884", "76be840"], "milestone": "BIG-BANG SWITCH"},
+    {"id": "62", "control_step": "30.14", "exit_status": "resolved", "test_delta": "1085→1096 (+11)", "commits": ["5cbcebc", "42d9880"], "milestone": "cross-cluster bridge"},
+    {"id": "49", "control_step": "30.15", "exit_status": "resolved", "test_delta": "1096→1123 (+27)", "commits": ["62a7786", "e78fa5a", "88cec85", "32dd1ad", "5a56a53", "4384d09", "25a6cdd", "c6ff57d"], "milestone": "FINAL — backlog empty"}
+  ]
 }
