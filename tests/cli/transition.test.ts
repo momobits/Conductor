@@ -39,9 +39,15 @@ describe('runTransition', () => {
     expect(card.frontmatter.column).toBe('approved');
   });
 
-  it('rejects illegal transitions', async () => {
+  it('Phase 30.6: planned -> shipped is now legal (state machine widened)', async () => {
+    await runTransition({ cwd: tmp, cardId: id, target: 'shipped' });
+    const card = await readCard(cardPath);
+    expect(card.frontmatter.column).toBe('shipped');
+  });
+
+  it('rejects only no-op (from === to) transitions after widen', async () => {
     await expect(
-      runTransition({ cwd: tmp, cardId: id, target: 'shipped' }),
+      runTransition({ cwd: tmp, cardId: id, target: 'planned' }),
     ).rejects.toThrow(/illegal/i);
   });
 
