@@ -3,7 +3,7 @@
 > Single source of truth. Read this first every session. Updated at every
 > `/session-end` and by the `PreCompact` hook. Every field has a purpose -- fill each.
 
-**Last updated:** 2026-05-28 by /phase-close
+**Last updated:** 2026-05-28 by /session-end (sid-2026-05-28-session-end-post-phase-31)
 **Current phase:** 32 — TBD (kickoff pending)
 **Current step:** 32.1 — <author at kickoff>
 **Status:** Phase 31 closed (tag `phase-31-dogfood-and-discover-closed`). Phase 32 scaffolded. Both backlogs empty. Direction open — run `/relay-discover` or `/relay-brainstorm` to seed scope.
@@ -29,10 +29,10 @@
 
 ## Git state
 - **Branch:** main
-- **Last commit:** `<phase-close commit pending>`
-- **Uncommitted changes:** phase-close commit in progress (STATE.md, Phase 32 scaffold, journal, next.md).
-- **Last phase tag:** `phase-31-dogfood-and-discover-closed`
-- **Branch state:** main is ahead of origin/main by ~78 commits.
+- **Last commit:** `20ec179` chore(phase-31): close phase 31, kick off phase 32. Plus the upcoming `docs(state): session end` commit.
+- **Uncommitted changes:** STATE.md + journal.md + next.md regeneration about to land in session-end commit.
+- **Last phase tag:** `phase-31-dogfood-and-discover-closed` (predecessor: `phase-30-frame-b-and-dual-driver-closed`).
+- **Branch state:** main is ahead of origin/main by ~79 commits.
 
 ---
 
@@ -47,9 +47,9 @@
 ---
 
 ## Test / eval status
-- **Last test run:** 2026-05-24 — `npm test` → **1123/1123 pass across 137 test files** (verified during /phase-close; known parallel-runner flake on `tests/conductor/loop.test.ts > Daemon shutdown stops the conductor brain` re-ran clean per documented protocol). Typecheck clean (both engine + UI configs).
+- **Last test run:** 2026-05-28 — `npm test` → **1134/1134 pass** (known parallel-runner flake on `loop.test.ts` fired during full suite; re-ran clean in isolation per documented protocol).
 - **Eval score** (agent phases only): n/a.
-- **Phase-level test delta:** 784 → 1123 (+339 across Phase 30; per-step deltas: 30.2 +57, 30.3 +17, 30.4 +27, 30.5 +27, 30.6 +33, 30.7 +21, 30.8 +28, 30.9 +31, 30.10 +11, 30.11 +21, 30.12 +11, 30.13 +17, 30.14 +11, 30.15 +27).
+- **Phase-level test delta:** Phase 31: 1123 → 1134 (+11 across 31.2–31.3). Phase 30: 784 → 1123 (+339).
 
 ---
 
@@ -77,13 +77,13 @@
 ---
 
 ## Recently completed (last 5 commits)
+- `20ec179` — chore(phase-31): close phase 31, kick off phase 32 — 2026-05-28
 - `7a6c56d` — docs(31): sync state files — steps.md, README scope, STATE.md post-sweep — 2026-05-28
 - `d02ee29` — docs(31.3): /relay-auto close out brain-loop-ui-rendering — 2026-05-25
 - `7d176f2` — feat(31.3): render pending-decision + halt-loop SSE events in UI (#64) — 2026-05-25
 - `474defd` — docs(31.2): /relay-auto close out ephemeral-state-persistence — 2026-05-25
-- `4d41f0e` — docs(31.2): /relay-resolve close out ephemeral-state-persistence (#63) — 2026-05-25
 
-Phase 31 ran 3 steps: 31.1 dogfood + discover (brainstorm → design → scan → order), 31.2–31.3 via `/relay-auto --sweep all`. Both features resolved cleanly on first pass. Test suite: 1134 pass (+11 from Phase 30). Implemented: 55. Both backlogs empty.
+Phase 31 shipped 3 steps across 2026-05-24 (brainstorm + design), 2026-05-25 (sweep), and 2026-05-28 (state sync + phase close). Both features resolved cleanly on first pass. Test suite: 1134 (+11). Implemented: 55. Both backlogs empty. Phase 32 scaffolded.
 
 ---
 
@@ -115,44 +115,22 @@ Phase 31 ran 3 steps: 31.1 dogfood + discover (brainstorm → design → scan �
 
 ## Notes for next session
 
-**Resume at Phase 31 step 31.1: the kickoff dogfood + discover pass.** Read first to ground the discovery:
-
-1. `.relay/relay-status.md` (should be in "empty backlog" state — but verify; the autonomy commit from 30.7 + the BIG-BANG SWITCH from 30.13 are significant architectural shifts that may have introduced regressions not caught by unit tests)
-2. The implementation docs in `.relay/implemented/dual-driver-*` and `.relay/implemented/card-detail-*` and `.relay/implemented/column-transition-op-triggering.md` and `.relay/implemented/chat-driven-description-authoring.md` for any documented v1 caveats that may have surfaced as operator pain since (each impl doc has a Caveats section; the brain-loop-replacement one is particularly thorough — multiple deferred items flagged for future polish phases).
-3. `.control/phases/phase-31-dogfood-and-discover/steps.md` § 31.1 for the full discover-pass spec.
+**Resume at Phase 32 — direction TBD.** Both backlogs are empty. Phase 31 shipped the two highest-friction polish items from the Phase 30 Caveats assessment; the remaining 12 deferred items are documented but not prioritized.
 
 **Suggested first actions:**
 
-1. Run `/relay-scan` to confirm post-sweep state (expect 0 active issues, 0 active features).
-2. Run `/relay-discover` to surface any new findings against the architecturally-shifted codebase.
-3. Read the impl doc Caveats (especially `brain-loop-replacement.md`, which flags 6+ deferred items including: pending-decision persistence across daemon restart, amend payload plumb-through, bridgeSpectrumToConductMode dead-code cleanup, step_resolver.ts orphaned-helper retention decision, brain-loop UI rendering of new pending-decision / halt-loop / lead-handed-off events).
-4. Decide direction based on findings:
-   - If `/relay-discover` surfaces meaningful P1/P2 issues → Phase 31 is a fix-bundle phase
-   - If dogfood is clean + Caveat items are dogfood-priority → Phase 31 ships those caveats as polish
-   - If dogfood is clean + no priority caveats → Phase 31 may seed a new feature brainstorm (e.g., Frame C: cross-card memory, per the deferred-from-Frame-B list in `card-pipeline-ui_brainstorm.md`)
+1. Run `/relay-discover` to surface any new findings against the post-Phase-31 codebase (now with persistence + UI rendering for brain-loop events)
+2. Or run `/relay-brainstorm` for a new feature direction
+3. Re-seed Frame C strategic direction from `archive/features/frame-c-strategic-direction_brainstorm.md` if cross-card memory / project cursor / drift detection becomes operator-priority
+4. The 12 deferred polish items in `archive/features/post-phase-30-polish_brainstorm.md` § Deferred Items are available if dogfood surfaces pain (amend payload, dead-code cleanup, cost-ceiling tuning, multi-round tool cap, etc.)
 
-**Step-close commit for 31.1:** `chore(31.1): kickoff dogfood + discover — <chosen direction>` (or `docs(31.1):` if documentation-only).
+**Phase 31 shipped (2 of 16 assessed Caveats):**
+- **ephemeral-state-persistence** (31.2): `RuntimeStore` extended with `PendingDecisionRecord` + on-disk JSON persistence. `InMemoryRuntime` gains `dataDir` constructor option; mutations flush to `.conductor/proposed-edits.json` and `.conductor/pending-decisions.json`; startup hydrates + re-publishes unresolved pending decisions.
+- **brain-loop-ui-rendering** (31.3): `card_detail.ts` renders pending-decision (inline Approve/Reject), resolution status, halt-loop warnings. `monitor.ts` logs all 3 event kinds. New `.pending-decision` + `.halt-loop` CSS classes.
 
-**Pattern precedent recap** (cite if a future ADR session writes one — all currently at deferred status):
-- **Pure-helper extraction for testable contracts** (n=21 after Phase 30.13). Well past promotion threshold.
-- **Shared module designed for cross-feature consumption** (n=5+ after Phase 30; executor.ts as the dispatch surface consumed by brain loop + chat_command).
-- **JSONL/markdown-writer with prune-at-boot** (n=7 unchanged after Phase 30). Most overdue.
-- **Parallel-fork two clusters at common kickoff** (Phase 30.1 Option 3) — n=1; promote at n=2.
-- **Discriminated-union return shape for resolve-or-halt outcomes** (Phase 29.3) — n=1; promote at n=2.
-- **Layered defensive normalization for vendor-library output** (Phase 29.2) — n=1; promote at n=2.
+**Known parallel-runner flake** on `loop.test.ts` still fires occasionally; re-ran clean at Phase 31 close. Watch continues.
 
-ADR filing remains deferred per operator decision.
+**Outstanding issue against the Control framework** (filed at `G:\Projects\Small-Projects\Control\issues\2026-05-23-regenerate-next-md-ps1-utf8-encoding.md` — not in this repo): PowerShell `regenerate-next-md.ps1` mangles multi-byte UTF-8. Workaround: `bash .claude/hooks/regenerate-next-md.sh`.
 
-Carry-forward into Phase 31: Phase 30's `## Deferred to Phase 31 (or later)` section had only the `- <item>` template placeholder. Per the carry-forward rule, the literal `<item>` placeholder is skipped — no carry-forward seeding into Phase 31's "Why this phase exists" section. That section retains its `<Fill in during phase kickoff.>` placeholder and should be authored at 31.1 to record the discover-pass outcome.
-
-**Deferred items NOT in the Deferred section but worth flagging for 31.x consideration** (operator may decide to pull forward):
-- The brain-loop-replacement impl doc lists 6+ Caveats: pending-decision persistence across daemon restart; amend payload plumb-through; bridgeSpectrumToConductMode dead-code cleanup; step_resolver.ts orphaned-helper retention decision (KEEP for v1 but flag for cleanup if no consumer materializes); brain-loop UI rendering of new SSE events (deferred per #57 + #58 polish-ticket precedent); halt-loop reset semantics.
-- The lead-handoff-reconciliation impl doc lists deferred items around event persistence + reconciliation-pass cost ceiling tuning.
-- The chat-driven-description-authoring impl doc may list v1 → v2 evolution items (e.g., richer amend, cross-card chat history).
-- Phase 28.3 deferred items still outstanding: `appendSection` / `extractSection` cleanup pass (low priority).
-
-**Heads-up for Phase 31:** the test suite grew from 784 → 1123 (+339) across Phase 30, with substantial new surface in `src/orchestrator/`, `src/conductor/{lead, executor, autonomy, reconciliation_types}.ts`, `src/agent/substrate_hygiene.ts`, `src/rpc/chat_classifier.ts`, `src/engine/ops/chat_agent.ts`. Operator dogfood against this surface is the natural 31.1 deliverable. The known parallel-runner flake on `loop.test.ts` re-ran clean during Phase 30 close — may have been eliminated by the #59 loop rewrite; watch over the next several runs.
-
-**Outstanding issue against the Control framework** (filed at `G:\Projects\Small-Projects\Control\issues\2026-05-23-regenerate-next-md-ps1-utf8-encoding.md` — not in this repo): the PowerShell variant of `.claude/hooks/regenerate-next-md.ps1` mangles multi-byte UTF-8 characters when writing `next.md`. Cosmetic but pollutes every `docs(state)` commit on Windows hosts. Workaround: run the bash variant via `bash .claude/hooks/regenerate-next-md.sh`.
-
-Notebook step is skipped per `.relay/relay-config.md § Notebook Setup` (TypeScript-only project).
+**Pattern precedent recap** (all deferred; cite if a future ADR session writes one):
+- Pure-helper extraction (n=21). JSONL/markdown-writer (n=7). Shared module for cross-feature consumption (n=5+). All well past promotion threshold; operator-deferred per [[feedback-adr-scope-discipline]].

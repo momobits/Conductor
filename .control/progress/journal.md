@@ -2,6 +2,10 @@
 
 Append-only, newest on top. One entry per session, short. Minor fixes land here as one-line entries (see Issue flow in `.control/PROJECT_PROTOCOL.md`).
 
+## 2026-05-28 — session-end (sid-2026-05-28-session-end-post-phase-31)
+
+Session spanned 2026-05-24 → 2026-05-28. Phase 31 steps 31.1–31.3 shipped; phase closed (tag `phase-31-dogfood-and-discover-closed`, commit `20ec179`). Phase 32 scaffolded. Commits `313eed5`..`20ec179` (brainstorm seeds → design → scan → order → sweep → state sync → phase close). No issues opened or closed. No ADRs filed. Relay backlog fully drained — 0 active issues, 0 active features.
+
 ## 2026-05-28 — Phase 31 closed, Phase 32 scaffolded
 
 Phase 31 closed (tag: `phase-31-dogfood-and-discover-closed`). 3 steps shipped: 31.1 dogfood + discover (brainstorm → design → scan → order; scope-cut 16 Caveats to 2), 31.2 ephemeral-state-persistence (`25a9300`), 31.3 brain-loop-ui-rendering (`7d176f2`). Suite 1134/1134 (+11 from Phase 30). Implemented 53 → 55. Both backlogs empty. Phase 32 scaffolded at `.control/phases/phase-32-tbd/`.
