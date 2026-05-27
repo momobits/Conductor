@@ -1,0 +1,37 @@
+{
+  "session": "2026-05-25-phase31-polish",
+  "mode": "sweep",
+  "sweep_target": "all",
+  "created": "2026-05-25T00:00:00Z",
+  "last_activity": "2026-05-25T00:02:00Z",
+  "queue": [
+    {
+      "id": "63",
+      "title": "ephemeral-state-persistence",
+      "file_path": ".relay/features/ephemeral-state-persistence.md",
+      "complexity": "S",
+      "recommended_planner": "plan",
+      "dependencies": [],
+      "phase": "23",
+      "control_scope": "31.2"
+    },
+    {
+      "id": "64",
+      "title": "brain-loop-ui-rendering",
+      "file_path": ".relay/features/brain-loop-ui-rendering.md",
+      "complexity": "S",
+      "recommended_planner": "plan",
+      "dependencies": [],
+      "phase": "23",
+      "control_scope": "31.3"
+    }
+  ],
+  "completed": [
+    {"id": "63", "exit_status": "resolved", "summary_path": ".relay/.auto-session/2026-05-25-phase31-polish/63.json"},
+    {"id": "64", "exit_status": "resolved", "summary_path": ".relay/.auto-session/2026-05-25-phase31-polish/64.json"}
+  ],
+  "current_index": 2,
+  "status": "complete",
+  "pause_reason": null,
+  "ordering_mtime_at_dispatch": 1779659973
+}

@@ -3,10 +3,10 @@
 > Single source of truth. Read this first every session. Updated at every
 > `/session-end` and by the `PreCompact` hook. Every field has a purpose -- fill each.
 
-**Last updated:** 2026-05-24 by /session-end after Phase 30 close (sid-2026-05-24-session-end-post-phase-30)
-**Current phase:** 31 — Dogfood + discover (kickoff pending)
-**Current step:** 31.1 — Kickoff dogfood + discover pass
-**Status:** kicked-off (Phase 30 closed cleanly at tag `phase-30-frame-b-and-dual-driver-closed`; 15 sub-steps shipped including the BIG-BANG SWITCH at 30.13 and the cross-cluster chat bridge at 30.14; suite 1123/1123 across 137 test files; engine-side smoke at `scripts/smoke-phase30.mjs` verified the orchestrator-driven loop end-to-end; Phase 31 scaffold authored with 31.1 as the kickoff dogfood + discover pass and 31.2+ to be authored after; ready to resume with reading `.relay/relay-status.md` for the post-sweep state and running `/relay-discover` against the architecturally-shifted codebase)
+**Last updated:** 2026-05-28 (manual mid-session state sync)
+**Current phase:** 31 — Dogfood + discover
+**Current step:** all steps complete (31.1 ✓, 31.2 ✓, 31.3 ✓) — ready for `/phase-close`
+**Status:** all steps shipped. 31.1 dogfood assessed 16 impl-doc Caveats, scope-cut to 2. 31.2 shipped ephemeral-state-persistence (commit `25a9300`). 31.3 shipped brain-loop-ui-rendering (commit `7d176f2`). Both backlogs empty. Phase ready for close.
 
 ---
 
@@ -19,26 +19,23 @@
 
 ## Next action
 
-**Phase 31 active — post-sweep dogfood + discover pass is the kickoff deliverable.** Phase 30 closed cleanly (tag `phase-30-frame-b-and-dual-driver-closed`); 15 sub-steps shipped across the entire active feature backlog (14 features: 9 dual-driver + 5 Frame B; test trajectory 784 → 1123, +339 net tests). Architecturally consequential: the BIG-BANG SWITCH (30.13 / Relay #59) replaced `defaultAgentFactory` with orchestrator-driven dispatch; the dual-driver model is now real in code.
+**Phase 31 is ready for `/phase-close`.** All 3 steps are complete:
+- 31.1 ✓ — Dogfood + discover pass (scope decision: 2 polish features from 16 assessed Caveats)
+- 31.2 ✓ — ephemeral-state-persistence shipped (commit `25a9300`, bridge `474defd`)
+- 31.3 ✓ — brain-loop-ui-rendering shipped (commit `7d176f2`, bridge `d02ee29`)
 
-Phase 31 starts with **one kickoff step**:
+Both backlogs are empty (0 active issues, 0 active features). The Phase 31 README's "Why this phase exists" section has been authored with the scope rationale.
 
-- **31.1 — Kickoff dogfood + discover pass**: run `/relay-scan` then `/relay-discover` against the post-Phase-30 codebase. Validate the empty-backlog claim. Document any P1/P2 findings as Relay issues. Settle Phase 31 scope direction based on findings — either (a) a fix-bundle phase against discovery findings, OR (b) a new strategic-direction brainstorm if dogfood is clean. Author scope into the Phase 31 README's "Why this phase exists" section + add 31.2+ steps.
-
-Pipeline: 31.1 is a docs/decision step (not a Relay-issue pipeline step). After 31.1 closes, 31.2+ may be Relay-issue-shaped steps OR new feature-brainstorm steps depending on what surfaces.
-
-Phase 31 README + steps authored at `.control/phases/phase-31-dogfood-and-discover/`. The `## Why this phase exists` section has its `<Fill in during phase kickoff.>` placeholder — author during 31.1 to record the scope direction. (No carry-forward bullets seeded; Phase 30's Deferred section had only the literal `<item>` template placeholder per the runbook skip rule.)
-
-**After Phase 31** closes its chosen direction, Phase 32+ continues either with bundled fixes or a new feature-cluster brainstorm depending on 31.1's outcome.
+**Run `/phase-close` to tag `phase-31-dogfood-and-discover-closed` and scaffold Phase 32.** Phase 32 direction: open — run `/relay-discover` or `/relay-brainstorm` to seed scope.
 
 ---
 
 ## Git state
 - **Branch:** main
-- **Last commit:** `d9f4f29` chore(phase-30): close phase 30, kick off phase 31. Predecessors this session: `73faf88` (chore(phase-30): add smoke harness + fill done-criteria), `894f292` (docs(30.15): /relay-auto close out chat-driven-description-authoring FINAL), `17ba8d8` (docs(30.14): /relay-auto close out dual-driver-frame-b-chat-wire), `06e1ad3` (docs(30.13): /relay-auto close out dual-driver-brain-loop-replacement BIG-BANG SWITCH). Plus the upcoming `docs(state): session end for step 31.1` commit.
-- **Uncommitted changes:** STATE.md + journal.md + next.md regeneration about to land in this `docs(state):` session-end commit.
-- **Last phase tag:** `phase-30-frame-b-and-dual-driver-closed` (created at end of Phase 30; predecessor `phase-29-ui-markdown-render-fix-closed`).
-- **Branch state:** main is ahead of origin/main by 70 commits (Phase 30 sweep + close); push is not gated by Control protocol.
+- **Last commit:** `d02ee29` docs(31.3): /relay-auto close out brain-loop-ui-rendering (commits: 7d176f2). Predecessors this phase: `474defd` (docs(31.2): close out ephemeral-state-persistence), `4d41f0e` (docs(31.2): /relay-resolve), `25a9300` (feat(31.2): persist ephemeral state), `313eed5` (docs(issues): seed brainstorms), `e4e2511` (docs(state): session end for step 31.1).
+- **Uncommitted changes:** STATE.md + steps.md + README.md (mid-session state sync; pending commit).
+- **Last phase tag:** `phase-30-frame-b-and-dual-driver-closed` (Phase 31 tag pending `/phase-close`).
+- **Branch state:** main is ahead of origin/main by ~77 commits.
 
 ---
 
@@ -48,7 +45,7 @@ Phase 31 README + steps authored at `.control/phases/phase-31-dogfood-and-discov
 ---
 
 ## In-flight work
-- None. Phase 30 is fully closed; Phase 31 step 31.1 not yet started.
+- None. Phase 31 steps 31.1–31.3 all complete. Phase ready for close.
 
 ---
 
@@ -83,15 +80,13 @@ Phase 31 README + steps authored at `.control/phases/phase-31-dogfood-and-discov
 ---
 
 ## Recently completed (last 5 commits)
-- `d9f4f29` — chore(phase-30): close phase 30, kick off phase 31 — 2026-05-24
-- `73faf88` — chore(phase-30): add smoke harness for BIG-BANG SWITCH + fill done-criteria — 2026-05-24
-- `894f292` — docs(30.15): /relay-auto close out chat-driven-description-authoring FINAL — 2026-05-24
-- `c6ff57d` — docs(30.15): /relay-resolve close out chat-driven-description-authoring (#49) — 2026-05-24
-- `25a6cdd` — docs(30.15): /relay-verify report for #49 (COMPLETE, 1123/1123 +27) — 2026-05-24
+- `d02ee29` — docs(31.3): /relay-auto close out brain-loop-ui-rendering — 2026-05-25
+- `7d176f2` — feat(31.3): render pending-decision + halt-loop SSE events in UI (#64) — 2026-05-25
+- `474defd` — docs(31.2): /relay-auto close out ephemeral-state-persistence — 2026-05-25
+- `4d41f0e` — docs(31.2): /relay-resolve close out ephemeral-state-persistence (#63) — 2026-05-25
+- `25a9300` — feat(31.2): persist ephemeral state across daemon restart — 2026-05-25
 
-Earlier this phase: Phase 30 ran 15 sub-steps across 2026-05-23 (30.1 kickoff + 30.2-30.6 manual single-item /relay-auto dispatches) and 2026-05-24 (30.7-30.15 via `/relay-auto --sweep all`). Per-item bridge close-out commits across the entire phase. /relay-auto session artifacts persisted at `.relay/.auto-session/2026-05-{23,24}-*/`.
-
-Control phase tags placed: `phase-13-...-closed` through `phase-30-frame-b-and-dual-driver-closed` (18 in succession). Relay ordering: Phase 30 fully drained the active backlog. 0 active items remain in `.relay/issues/`. 0 active items in `.relay/features/` (excluding 2 brainstorm aggregators which are now also drained per their child features all archived).
+Phase 31 ran 3 steps: 31.1 dogfood + discover (brainstorm → design → scan → order), 31.2–31.3 via `/relay-auto --sweep all` (session `2026-05-25-phase31-polish`). Both features resolved cleanly on first pass with zero verification fix iterations. Implemented count: 53 → 55 (+2). Both backlogs empty.
 
 ---
 

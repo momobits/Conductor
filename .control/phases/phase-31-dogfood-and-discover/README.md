@@ -19,7 +19,12 @@ Architectural state: dual-driver Cohort A foundation (5 features) + Cohort B (2 
 
 ## Why this phase exists
 
-<Fill in during phase kickoff.>
+Post-Phase-30 dogfood pass. Phase 30 emptied the active feature backlog (14 features shipped, suite 784 → 1123). The dogfood assessed all impl-doc Caveats across the Phase 30 features and found 16 potential polish items. Operator assessment: most were speculative v1 trade-offs that hadn't bitten. Scope-cut to 2 items with real observed friction:
+
+1. **Ephemeral state persistence** (31.2) — daemon restart loses in-memory pending-decisions and proposed-edits. Highest-friction gap: chat turns show "expired" after restart; pending-decision gates silently dropped.
+2. **Brain-loop UI rendering** (31.3) — `conductor-pending-decision`, `conductor-pending-decision-resolved`, and `conductor-halt-loop-detected` SSE events flow through the bus but nothing in the UI renders them. Operator must tail `brain.log.jsonl`.
+
+The remaining 12 deferred items are documented in `archive/features/post-phase-30-polish_brainstorm.md` § Deferred Items — they resurface only if dogfood proves they matter. A Frame C strategic direction brainstorm (cross-card memory, project cursor, drift detection, etc.) was seeded then archived as abandoned — operator decided those directions aren't needed yet.
 
 ## Steps
 See `steps.md` for the detailed checklist. The first step (31.1) is the kickoff dogfood + discover pass; subsequent steps are added based on what surfaces.

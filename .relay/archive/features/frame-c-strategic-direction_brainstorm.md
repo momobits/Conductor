@@ -1,3 +1,5 @@
+> **ARCHIVED** — Abandoned. Brainstorming was not completed.
+
 # Feature Brainstorm: Frame C — Strategic Direction (Cross-Card / Product Layer)
 
 *Created: 2026-05-24*
@@ -28,6 +30,8 @@ Frame B (Phase 30) shipped the per-card UI surfaces — multi-surface card detai
 **Sub-problems**: archive layout (`.conductor/archive/cards/` is flat; needs structure for search?); retention policy; search ranking (keyword? embedding? hybrid?); UI surface design (in-chat suggestion? sidebar? dedicated search view?); cost-control (embedding generation = LLM call per archived card).
 
 **Why most-requested**: explicitly cited in Frame B brainstorm as the operator's top Frame-C-territory item.
+
+**Folded-in sub-item (added 2026-05-24)**: **Cross-card chat history surface** (originally item 8h in `.relay/features/post-phase-30-polish_brainstorm.md`, routed here during enumeration pass). Today chat history is per-card; operator can't see "what did I tell the agent about card X last Tuesday" while looking at card Y. Same archive-layout / retention / search-ranking / UI-surface sub-problems as agent-side cross-card memory — the consumer differs (operator browsing vs. agent investigating) but the underlying cross-card index is shared. Brainstorm together.
 
 ### 2. Project-wide cursor file
 
