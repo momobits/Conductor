@@ -3,10 +3,10 @@
 > Single source of truth. Read this first every session. Updated at every
 > `/session-end` and by the `PreCompact` hook. Every field has a purpose -- fill each.
 
-**Last updated:** 2026-05-28 (manual mid-session state sync)
-**Current phase:** 31 — Dogfood + discover
-**Current step:** all steps complete (31.1 ✓, 31.2 ✓, 31.3 ✓) — ready for `/phase-close`
-**Status:** all steps shipped. 31.1 dogfood assessed 16 impl-doc Caveats, scope-cut to 2. 31.2 shipped ephemeral-state-persistence (commit `25a9300`). 31.3 shipped brain-loop-ui-rendering (commit `7d176f2`). Both backlogs empty. Phase ready for close.
+**Last updated:** 2026-05-28 by /phase-close
+**Current phase:** 32 — TBD (kickoff pending)
+**Current step:** 32.1 — <author at kickoff>
+**Status:** Phase 31 closed (tag `phase-31-dogfood-and-discover-closed`). Phase 32 scaffolded. Both backlogs empty. Direction open — run `/relay-discover` or `/relay-brainstorm` to seed scope.
 
 ---
 
@@ -19,23 +19,20 @@
 
 ## Next action
 
-**Phase 31 is ready for `/phase-close`.** All 3 steps are complete:
-- 31.1 ✓ — Dogfood + discover pass (scope decision: 2 polish features from 16 assessed Caveats)
-- 31.2 ✓ — ephemeral-state-persistence shipped (commit `25a9300`, bridge `474defd`)
-- 31.3 ✓ — brain-loop-ui-rendering shipped (commit `7d176f2`, bridge `d02ee29`)
-
-Both backlogs are empty (0 active issues, 0 active features). The Phase 31 README's "Why this phase exists" section has been authored with the scope rationale.
-
-**Run `/phase-close` to tag `phase-31-dogfood-and-discover-closed` and scaffold Phase 32.** Phase 32 direction: open — run `/relay-discover` or `/relay-brainstorm` to seed scope.
+**Phase 32 is open — direction TBD.** Both backlogs are empty. Options:
+- Run `/relay-discover` to surface new issues against the post-Phase-31 codebase
+- Run `/relay-brainstorm` for a new feature direction
+- Re-seed the Frame C strategic direction (cross-card memory, project cursor, etc.) from `archive/features/frame-c-strategic-direction_brainstorm.md` if desired
+- The 12 deferred polish items in `archive/features/post-phase-30-polish_brainstorm.md` § Deferred Items are available if dogfood surfaces pain
 
 ---
 
 ## Git state
 - **Branch:** main
-- **Last commit:** `d02ee29` docs(31.3): /relay-auto close out brain-loop-ui-rendering (commits: 7d176f2). Predecessors this phase: `474defd` (docs(31.2): close out ephemeral-state-persistence), `4d41f0e` (docs(31.2): /relay-resolve), `25a9300` (feat(31.2): persist ephemeral state), `313eed5` (docs(issues): seed brainstorms), `e4e2511` (docs(state): session end for step 31.1).
-- **Uncommitted changes:** STATE.md + steps.md + README.md (mid-session state sync; pending commit).
-- **Last phase tag:** `phase-30-frame-b-and-dual-driver-closed` (Phase 31 tag pending `/phase-close`).
-- **Branch state:** main is ahead of origin/main by ~77 commits.
+- **Last commit:** `<phase-close commit pending>`
+- **Uncommitted changes:** phase-close commit in progress (STATE.md, Phase 32 scaffold, journal, next.md).
+- **Last phase tag:** `phase-31-dogfood-and-discover-closed`
+- **Branch state:** main is ahead of origin/main by ~78 commits.
 
 ---
 
@@ -45,7 +42,7 @@ Both backlogs are empty (0 active issues, 0 active features). The Phase 31 READM
 ---
 
 ## In-flight work
-- None. Phase 31 steps 31.1–31.3 all complete. Phase ready for close.
+- None. Phase 32 not yet started.
 
 ---
 
@@ -80,18 +77,18 @@ Both backlogs are empty (0 active issues, 0 active features). The Phase 31 READM
 ---
 
 ## Recently completed (last 5 commits)
+- `7a6c56d` — docs(31): sync state files — steps.md, README scope, STATE.md post-sweep — 2026-05-28
 - `d02ee29` — docs(31.3): /relay-auto close out brain-loop-ui-rendering — 2026-05-25
 - `7d176f2` — feat(31.3): render pending-decision + halt-loop SSE events in UI (#64) — 2026-05-25
 - `474defd` — docs(31.2): /relay-auto close out ephemeral-state-persistence — 2026-05-25
 - `4d41f0e` — docs(31.2): /relay-resolve close out ephemeral-state-persistence (#63) — 2026-05-25
-- `25a9300` — feat(31.2): persist ephemeral state across daemon restart — 2026-05-25
 
-Phase 31 ran 3 steps: 31.1 dogfood + discover (brainstorm → design → scan → order), 31.2–31.3 via `/relay-auto --sweep all` (session `2026-05-25-phase31-polish`). Both features resolved cleanly on first pass with zero verification fix iterations. Implemented count: 53 → 55 (+2). Both backlogs empty.
+Phase 31 ran 3 steps: 31.1 dogfood + discover (brainstorm → design → scan → order), 31.2–31.3 via `/relay-auto --sweep all`. Both features resolved cleanly on first pass. Test suite: 1134 pass (+11 from Phase 30). Implemented: 55. Both backlogs empty.
 
 ---
 
 ## Attempts that didn't work (current step only)
-- None (Phase 31 step 31.1 not yet started).
+- None (Phase 32 not yet started).
 
 ---
 
