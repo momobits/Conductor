@@ -47,11 +47,8 @@ coverage/
 .conductor/runs/
 .conductor/handoffs/
 
-# --- Control framework ---
-.control/snapshots/
-.control/.is-source-repo
+# Claude Code local settings override
 .claude/settings.local.json
-# --- /Control ---
 
 # Playwright MCP cache (dogfood sessions)
 .playwright-mcp/
