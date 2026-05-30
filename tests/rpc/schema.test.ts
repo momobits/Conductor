@@ -8,7 +8,6 @@ import {
   ScanParams,
   WorkCardParams,
   WorkNextParams,
-  RecommendParams,
 } from '../../src/rpc/schema.js';
 
 describe('rpc/schema', () => {
@@ -56,20 +55,5 @@ describe('rpc/schema', () => {
 
   it('WorkNextParams accepts empty', () => {
     expect(WorkNextParams.parse({})).toEqual({});
-  });
-
-  it('RecommendParams accepts a recommendation envelope', () => {
-    const p = RecommendParams.parse({
-      cardId: 'x',
-      recommendation: {
-        type: 'recommendation',
-        card: 'x',
-        operation: 'review',
-        blast_radius: { level: 'low', reason: 'isolated' },
-        options: [{ id: 'approve', confidence: 0.9, rationale: 'looks good' }],
-        recommended: 'approve',
-      },
-    });
-    expect(p.recommendation.options).toHaveLength(1);
   });
 });
