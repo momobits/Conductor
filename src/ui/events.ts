@@ -27,16 +27,9 @@ export type DaemonEventKind =
   // event stream + triggers card_artifacts_index re-query so per-op run
   // counts reflect the wipe/branch impact.
   | 'substrate-orphaned'
-  // Phase 22 / Control 30.8 (feature #57): contract-drift guard. UI rendering
-  // of a reconciliation banner is deferred to a future UI polish ticket; this
-  // union extension just keeps the UI type-aware of the new SSE event kind so
-  // the SSE forwarder doesn't drop unknown variants at the browser.
-  | 'conductor-reconciliation-summary'
-  // Phase 22 / Control 30.9 (feature #56): contract-drift guard for the
-  // observer-advisor SSE event. UI rendering of an advisor section in
-  // card_detail is deferred to a future UI polish ticket; this union
-  // extension just keeps the UI type-aware so the SSE forwarder doesn't
-  // drop the variant at the browser.
+  // Conductor advisory SSE event (brain-loop `advise` action). Forwarded to
+  // the browser; UI rendering of an advisor section is deferred to a future
+  // ticket — this union entry keeps the SSE forwarder type-aware.
   | 'conductor-observer-advisory'
   // Phase 30.13 / Relay #59: contract-drift guards for the three new
   // executor-side events (pending-decision approval flow + halt-loop

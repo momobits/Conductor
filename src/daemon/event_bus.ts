@@ -12,7 +12,6 @@ import type { TaskEvent } from '../agent/events.js';
 import type { WatcherEvent } from './watcher.js';
 import type { LeadState, LeadTransferReason } from '../conductor/lead.js';
 import type { Column } from '../engine/types.js';
-import type { CardDiff } from '../conductor/reconciliation_types.js';
 import type { HaltCategory } from '../conductor/halt.js';
 // Phase 30.13 / Relay #59: pending-decision flow carries the full
 // orchestrator decision so the SSE-consuming UI can render rationale,
@@ -79,38 +78,10 @@ export type DaemonEvent =
       appliedChoice?: 'keep' | 'wipe' | 'branch';
       ts: string;
     }
-  // Phase 22 / Control 30.8 (feature #57): dual-driver lead-handoff
-  // reconciliation pass completed. Fired ONCE per llm-takes-lead handoff
-  // after the per-card decide() loop finishes. NOTE: the spec proposes
-  // `brain-reconciliation-summary` — we deviate by prefixing with
-  // `conductor-` so the BrainLogWriter filter (`startsWith('conductor-')`)
-  // persists the event automatically and the taxonomy stays aligned with
-  // `conductor-iteration`/`conductor-decision`/`conductor-halt`/`conductor-status`.
-  | {
-      kind: 'conductor-reconciliation-summary';
-      totalCardsOnBoard: number;
-      /** -1 sentinel when no prior snapshot existed (first-run or pruned). */
-      cardsAffected: number;
-      cardsEvaluated: number;
-      cardsDeferred: number;
-      perCard: ReadonlyArray<{
-        cardId: string;
-        action: string;
-        rationale: string;
-        deferred: boolean;
-      }>;
-      durationMs: number;
-      ts: string;
-    }
-  // Phase 22 / Control 30.9 (feature #56): dual-driver observer-advisor.
-  // The observer watches the operator's actions during their lead session
-  // (cards-changed events) + runs a heuristic pre-filter to detect
-  // out-of-sequence transitions. On a match, it calls decide() with
-  // lead='human' to generate an advisory rationale, then publishes this
-  // event. Producer-only ship per #57 precedent; UI render deferred. The
+  // Conductor advisory event. Published by the brain loop's executor when a
+  // decide() returns the `advise` action (executor.ts dispatchAdvise). The
   // `conductor-` prefix ensures BrainLogWriter persists the event to
-  // .conductor/brain.log.jsonl automatically (filter is
-  // `startsWith('conductor-')`).
+  // .conductor/brain.log.jsonl automatically (filter is `startsWith('conductor-')`).
   | {
       kind: 'conductor-observer-advisory';
       cardId: string;

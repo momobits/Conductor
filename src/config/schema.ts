@@ -67,21 +67,6 @@ export const TransitionPolicy = z.enum(['manual', 'assist', 'auto']);
 export const AutonomyBudgetSchema = z
   .object({
     orchestrator_calls_per_card: z.number().int().positive().default(30),
-    observer_calls_per_minute: z.number().int().positive().default(20),
-    // Phase 22 / Control 30.8 (feature #57): per-mode cap on decide() calls
-    // dispatched during a single lead-handoff reconciliation pass. Cards
-    // beyond the cap are flagged in runtime.deferredReconciliations and
-    // re-evaluated lazily by the brain loop on first touch (consumer ships
-    // in feature #59). Placed under autonomy.budgets (not flat
-    // orchestrator.*) to align with #60's per-mode cost-ceiling framing.
-    max_reconciliation_calls_per_handoff: z.number().int().positive().default(10),
-    // Phase 22 / Control 30.9 (feature #56): per-card cooldown for the
-    // observer-advisor. After the observer publishes one advisory for a
-    // given card, additional advisories for THAT card are suppressed for
-    // this many milliseconds. Prevents spam when the operator rapidly
-    // edits/moves a card. Global per-minute ceiling is governed by
-    // `observer_calls_per_minute` above.
-    observer_advisory_rate_limit_ms: z.number().int().nonnegative().default(5000),
     // Phase 30.13 / Relay #59: halt-loop circuit-breaker threshold.
     // Number of consecutive halt-with-handoff decisions on the SAME card
     // before the brain auto-transfers lead to human + publishes
@@ -245,15 +230,6 @@ export const ProjectConfigSchema = z
       .object({
         keep_days: z.number().int().nonnegative().default(30),
         keep_last_n: z.number().int().positive().default(200),
-      })
-      .default({}),
-    // Phase 22 / Control 30.8 (feature #57): handoff-snapshot retention.
-    // Snapshots persist at .conductor/handoffs/<ts>.json each time the brain
-    // hands lead to the human; reconcile() loads the most recent on llm
-    // takeover. Default 50 matches run_log/brain_log precedent.
-    handoffs: z
-      .object({
-        keep_last_n: z.number().int().positive().default(50),
       })
       .default({}),
     tracker: z

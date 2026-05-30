@@ -154,12 +154,11 @@ export class Conductor {
     //
     // Sequence:
     //   1. Lead-check guard (bail if lead is 'human').
-    //   2. Deferred-reconciliation check (#57 consumer-side wiring).
-    //   3. decide() — orchestrator returns NarrowedDecision.
-    //   4. executeDecision — dispatch via shared executor.
-    //   5. Halt-loop circuit breaker (3 consecutive halt-with-handoff on
+    //   2. decide() — orchestrator returns NarrowedDecision.
+    //   3. executeDecision — dispatch via shared executor.
+    //   4. Halt-loop circuit breaker (3 consecutive halt-with-handoff on
     //      same card → transferLead to human + conductor-halt-loop-detected).
-    //   6. Return outcome flags for the outer-loop wedge detector + queueHalted.
+    //   5. Return outcome flags for the outer-loop wedge detector + queueHalted.
 
     // Lead-check guard. Outer loop will also bail next iter, but checking here
     // avoids a wasted decide() call when the operator just took lead.
@@ -172,46 +171,6 @@ export class Conductor {
     // any call-op artifact writes). Mirrors TaskAgent.runId format.
     const stamp = this.now().toISOString().replace(/[-:.]/g, '').slice(0, 15);
     const runId = `${stamp}-${cardId}`;
-
-    // Deferred-reconciliation check. #57 producer populates the deferred
-    // map on budget-exhausted reconciliation; #59 (here) is the live consumer.
-    // On first touch per card per session, re-decide on the deferred diff
-    // BEFORE the normal decide().
-    const deferred = this.runtime.getDeferredReconciliation(cardId);
-    if (deferred) {
-      try {
-        const reconDecision = await decide({
-          repo: this.repo, cardId, adapter: this.adapter, config: this.config,
-          lead: 'llm',
-          userMessage: `DEFERRED RECONCILIATION: re-evaluate this card. Diff: ${JSON.stringify(deferred)}`,
-        });
-        await executeDecision({
-          repo: this.repo, cardId, decision: reconDecision,
-          adapter: this.adapter, config: this.config,
-          bus: this.bus, runtime: this.runtime, runId,
-          now: this.now,
-        });
-      } catch (e) {
-        // Review HIGH-2: surface failure as halt (not swallow); preserve the
-        // deferred entry so next iter can retry on transient failure.
-        const haltReason = e instanceof Error ? e.message : String(e);
-        const classification = classifyHalt(haltReason);
-        this.haltCount += 1;
-        this.bus.publish({
-          kind: 'conductor-halt',
-          reason: `reconciliation-failed: ${classification.rawReason}`,
-          cardId,
-          category: classification.category,
-          rawReason: classification.rawReason,
-          context: classification.context,
-        });
-        return { queueHalted: false, advanced: false, halted: true };
-      }
-      // Clear only on success — the reconciliation may have moved the card or
-      // wiped substrate; the next iter (or fall-through below) re-decides
-      // fresh against the post-reconciliation state.
-      this.runtime.clearDeferredReconciliation(cardId);
-    }
 
     // Decide.
     let decision: NarrowedDecision;

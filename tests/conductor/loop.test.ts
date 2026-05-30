@@ -14,7 +14,6 @@
 //   - onCardComplete callback when card archives.
 // New coverage:
 //   - lead-bail (runOneCard returns queueHalted when lead !== 'llm').
-//   - deferred-reconciliation consumer-side wiring (#57 consumer).
 //   - halt-loop circuit breaker (3 consecutive halt-with-handoff →
 //     transferLead + conductor-halt-loop-detected).
 
@@ -209,64 +208,6 @@ describe('Conductor loop (orchestrator-driven, post-#59)', () => {
     expect(conductor.status().running).toBe(false);
   });
 
-  it('runOneCard reads deferredReconciliations on first touch (#57 consumer wiring)', async () => {
-    const repo = setupRepoWithOrdering(['card-a']);
-    const runtime = new InMemoryRuntime();
-    setLlmLead(runtime);
-    // Pre-populate a deferred diff (simulates #57 producer).
-    runtime.setDeferredReconciliation('card-a', {
-      cardId: 'card-a',
-      changes: ['body-edited'],
-      details: { columnFrom: 'planned', columnTo: 'planned' },
-    });
-    const bus = new EventBus();
-    const config = ProjectConfigSchema.parse({ autonomy: { default: 'autonomous' } });
-
-    // 2 decide() calls expected: 1 for reconciliation, 1 for normal flow.
-    const adapter = new MockAdapter([
-      mkDecision('no-op', { reason: 'reconciled' }),
-      mkDecision('no-op', { reason: 'nothing more' }),
-    ]);
-
-    const conductor = new Conductor({ repo, config, runtime, bus, adapter, iterationLimit: 1 });
-    await conductor.start();
-
-    // After successful reconciliation, the deferred map should be cleared.
-    expect(runtime.getDeferredReconciliation('card-a')).toBeUndefined();
-    // Both queued decisions should have been consumed (no-op fires both
-    // adapter calls per iter sequence above).
-    expect(adapter.allRequests.length).toBe(2);
-  });
-
-  it('deferred-reconciliation failure publishes halt + retains deferred entry (review HIGH-2)', async () => {
-    const repo = setupRepoWithOrdering(['card-a']);
-    const runtime = new InMemoryRuntime();
-    setLlmLead(runtime);
-    runtime.setDeferredReconciliation('card-a', {
-      cardId: 'card-a',
-      changes: ['body-edited'],
-      details: {},
-    });
-    const bus = new EventBus();
-    const config = ProjectConfigSchema.parse({ autonomy: { default: 'autonomous' } });
-    // Adapter throws on first call (reconciliation decide()).
-    const adapter = new MockAdapter([
-      // malformed JSON → parseJsonResponse throws
-      'not json',
-    ]);
-    const events: DaemonEvent[] = [];
-    bus.subscribe((e) => events.push(e));
-    const conductor = new Conductor({ repo, config, runtime, bus, adapter, iterationLimit: 1 });
-    await conductor.start();
-    // Halt published with reconciliation-failed prefix.
-    const halts = events.filter((e) => e.kind === 'conductor-halt');
-    expect(halts.length).toBe(1);
-    if (halts[0]?.kind === 'conductor-halt') {
-      expect(halts[0].reason).toMatch(/reconciliation-failed/);
-    }
-    // Deferred entry retained for next iter to retry.
-    expect(runtime.getDeferredReconciliation('card-a')).toBeDefined();
-  });
 });
 
 describe('Conductor halt-loop circuit breaker', () => {
