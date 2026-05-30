@@ -55,7 +55,6 @@ routing:
     scan:         gemini-2.5-pro         # large context
     discover:     gemini-2.5-pro
     order:        claude-haiku-4-5
-    detect_drift: local:llama-3.3-70b    # deterministic; regex+git
 # Phase 30.7 / Relay #60: spectrum-shape autonomy config. Project default is
 # one of assist (every decision surfaces to operator) | hybrid (threshold-gated
 # auto-execute) | autonomous (executor never surfaces). Per-card override via
@@ -63,6 +62,27 @@ routing:
 # default). Legacy transitions per-edge block (and legacy default values
 # escort | auto | critical) still accepted on input with a deprecation warning;
 # they're mapped to spectrum at load time.
+autonomy:
+  default: hybrid
+  hybrid_confidence_threshold: 0.7
+verify_command: npm test
+`;
+
+// Offline preset config: routes EVERY operation to the built-in deterministic
+// offline adapter. No network and no API key required — ideal for trying the
+// pipeline, CI, or dogfooding. It does NOT produce real implementations:
+// `implement` emits a placeholder file and the other ops return fixed valid
+// responses. Embedded (not in examples/) so `conductor init --provider offline`
+// works with zero external files.
+const OFFLINE_CONFIG = `# .conductor/config.yaml — Conductor project configuration (OFFLINE preset)
+#
+# Routes every operation to the built-in deterministic offline adapter:
+# no network, no API key. Ideal for trying the pipeline, CI, or dogfooding.
+# NOTE: the offline adapter is a STUB — it does NOT do real engineering.
+# \`implement\` emits a placeholder file under conductor-offline/ and the other
+# ops return fixed valid responses so a card can walk end-to-end with no keys.
+routing:
+  default: offline
 autonomy:
   default: hybrid
   hybrid_confidence_threshold: 0.7
@@ -137,11 +157,14 @@ export const KNOWN_PROVIDERS = [
   'openrouter',
   'lmstudio',
   'tracker',
+  'offline',
 ] as const;
 export type KnownProvider = (typeof KNOWN_PROVIDERS)[number];
 
 // Maps the user-facing --provider name to the examples/ directory slug.
-const PROVIDER_DIR: Record<KnownProvider, string> = {
+// 'offline' is intentionally absent: it has no examples/ dir; its config is
+// embedded (OFFLINE_CONFIG) and handled directly in resolveProviderConfig.
+const PROVIDER_DIR: Record<Exclude<KnownProvider, 'offline'>, string> = {
   minimal: 'minimal',
   subscription: 'with-claude-subscription',
   openrouter: 'with-openrouter',
@@ -155,7 +178,16 @@ function packageRoot(): string {
 }
 
 async function readExampleConfig(provider: KnownProvider): Promise<string> {
-  const path = join(packageRoot(), 'examples', PROVIDER_DIR[provider], '.conductor', 'config.yaml');
+  // The offline preset is embedded (no examples/ dir) so a keyless install
+  // never depends on bundled example files being present.
+  if (provider === 'offline') return OFFLINE_CONFIG;
+  const path = join(
+    packageRoot(),
+    'examples',
+    PROVIDER_DIR[provider as Exclude<KnownProvider, 'offline'>],
+    '.conductor',
+    'config.yaml',
+  );
   return readFile(path, 'utf8');
 }
 

@@ -14,6 +14,7 @@ import { ClaudeSubscriptionAdapter } from './claude-subscription.js';
 import { GeminiAdapter } from './gemini.js';
 import { LocalAdapter } from './local.js';
 import { MockAdapter } from './mock.js';
+import { OfflineAdapter } from './offline.js';
 import { OpenAIAdapter } from './openai.js';
 import { OpenRouterAdapter } from './openrouter.js';
 
@@ -44,6 +45,7 @@ export class RoutingAdapter implements ModelAdapter {
       gemini: opts.factories?.gemini ?? (() => new GeminiAdapter()),
       local: opts.factories?.local ?? (() => new LocalAdapter()),
       mock: opts.factories?.mock ?? (() => new MockAdapter()),
+      offline: opts.factories?.offline ?? (() => new OfflineAdapter()),
     };
     if (opts.adapters) {
       for (const [k, v] of Object.entries(opts.adapters)) {
