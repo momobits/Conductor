@@ -13,6 +13,7 @@ export const PROVIDERS = [
   'gemini',
   'local',
   'mock',
+  'offline',
 ] as const;
 export type Provider = (typeof PROVIDERS)[number];
 
@@ -50,10 +51,15 @@ export function resolveProvider(modelId: string): Provider {
     return 'local';
   }
   if (id === 'mock' || id.startsWith('mock-')) return 'mock';
+  // Offline stub adapter: bare "offline" or any "offline:<tag>" model id.
+  // Deterministic, zero-network — used for keyless CI/demo/dogfood runs.
+  if (id === 'offline' || id.startsWith('offline:') || id.startsWith('offline-')) {
+    return 'offline';
+  }
   throw new Error(
     `Unknown provider for model id "${modelId}". Recognized prefixes: ` +
       `claude-, claude-sub:, gpt-, codex, o1/o3/o4, gemini-, openrouter:, ` +
-      `local:, local-, ollama:, vllm:, lmstudio:, mock.`,
+      `local:, local-, ollama:, vllm:, lmstudio:, mock, offline.`,
   );
 }
 
