@@ -1,39 +1,45 @@
 // src/conductor/loop.ts
 //
-// Conductor — the queue-management loop. Phase 30.13 / Relay #59 replaced
-// the per-card TaskAgent-spawning model (defaultAgentFactory + hardcoded
-// column switch inside TaskAgent) with an orchestrator-driven loop: each
-// runOneCard call runs decide() then dispatches via the shared executor.
+// Conductor — the queue-management loop. Cohort 3.6 collapsed the two parallel
+// card-walking engines into ONE: the brain loop now drives each eligible card
+// via the deterministic TaskAgent (the same walker the CLI `conductor work` +
+// RPC `work_card`/`work_next` paths use) instead of the LLM decide()+executor
+// path that previously lived here.
 //
-// The Conductor public surface (start/stop/status) is preserved; only the
-// constructor signature changed (agentFactory → adapter) and the internal
-// runOneCard implementation. defaultAgentFactory is gone — its sole brain
-// caller was runOneCard; TaskAgent itself is retained for the CLI
-// `conductor work` + RPC `card_work` single-card walk path.
+// Each runOneCard call walks the picked card ONE column hop with TaskAgent:
+//   - resolve the implement `step` (step_resolver) when entering 'approved',
+//   - instantiate TaskAgent + consume its TaskEvent stream for one hop,
+//   - translate the terminal complete/halt into the loop's cost-check +
+//     halt-classify + conductor-iteration/status/halt SSE emission + the
+//     halt-loop circuit breaker.
+// The loop re-enters TaskAgent per hop (pickEligibleCard re-picks the same
+// card until it advances out of the queue or halts).
+//
+// The Conductor public surface (start/stop/status) + constructor signature
+// (adapter) are preserved. Cost ceilings, halt classification, the lead guard,
+// and the conductor-iteration/status/halt events all survive.
 
 import { join } from 'node:path';
 import { readFile } from 'node:fs/promises';
 import type { ProjectConfig } from '../config/schema.js';
 import type { RuntimeStore } from '../daemon/runtime.js';
 import type { EventBus } from '../daemon/event_bus.js';
-import { listCards } from '../engine/state/card.js';
+import { listCards, readCard } from '../engine/state/card.js';
 import { checkCostCeilings } from './cost_guard.js';
 import { classifyHalt, type HaltCategory } from './halt.js';
 import { getLead, transferLead } from './lead.js';
+import { resolveNextStep } from './step_resolver.js';
 import type { ModelAdapter } from '../adapters/adapter.js';
-import { decide } from '../orchestrator/index.js';
-import type { NarrowedDecision } from '../orchestrator/types.js';
-import { executeDecision } from './executor.js';
+import { TaskAgent } from '../agent/task_agent.js';
 
 export interface ConductorArgs {
   repo: string;
   config: ProjectConfig;
   runtime: RuntimeStore;
   bus: EventBus;
-  // Phase 30.13 / Relay #59: agentFactory removed. The orchestrator-driven
-  // loop calls decide() per card per iter + dispatches via the shared
-  // executor; the adapter is consumed by decide() + the executor's call-op
-  // dispatch path.
+  // Cohort 3.6: the loop drives each eligible card via TaskAgent; the adapter
+  // is forwarded into TaskAgent so the deterministic ops run against the
+  // configured provider (cost-tracked via onAdapterUsage into the runtime).
   adapter: ModelAdapter;
   iterationLimit?: number;
   now?: () => Date;
@@ -75,11 +81,10 @@ export class Conductor {
   // 21 Playwright dogfood surfaced. The `break;` itself is always still
   // executed; this only conditionally elides the redundant publish + counter.
   private lastIterationHalted = false;
-  // Phase 30.13 / Relay #59: halt-loop circuit breaker counter — number of
-  // consecutive halt-with-handoff decisions on the SAME card. Resets when
-  // a different outcome lands or a different card is picked. Crosses
-  // config.autonomy.budgets.<mode>.halt_loop_threshold → transferLead to
-  // human + publish conductor-halt-loop-detected.
+  // Cohort 3.6: halt-loop circuit breaker counter — number of consecutive halts
+  // on the SAME card. Resets when a different outcome lands or a different card
+  // is picked. Crosses config.autonomy.budgets.<mode>.halt_loop_threshold →
+  // transferLead to human + publish conductor-halt-loop-detected.
   private haltLoopCount = 0;
 
   constructor(args: ConductorArgs) {
@@ -150,124 +155,150 @@ export class Conductor {
   }
 
   private async runOneCard(cardId: string): Promise<{ queueHalted: boolean; advanced: boolean; halted: boolean }> {
-    // Phase 30.13 / Relay #59: orchestrator-driven runOneCard.
+    // Cohort 3.6: TaskAgent-driven runOneCard.
     //
     // Sequence:
-    //   1. Lead-check guard (bail if lead is 'human').
-    //   2. decide() — orchestrator returns NarrowedDecision.
-    //   3. executeDecision — dispatch via shared executor.
-    //   4. Halt-loop circuit breaker (3 consecutive halt-with-handoff on
-    //      same card → transferLead to human + conductor-halt-loop-detected).
+    //   1. Lead-check guard (bail if lead is not 'llm').
+    //   2. Resolve the implement `step` when the card is in 'approved'.
+    //   3. Walk ONE column hop via TaskAgent, republishing its TaskEvents.
+    //   4. Translate the terminal complete/halt into cost-aware SSE emission
+    //      + the halt-loop circuit breaker.
     //   5. Return outcome flags for the outer-loop wedge detector + queueHalted.
 
     // Lead-check guard. Outer loop will also bail next iter, but checking here
-    // avoids a wasted decide() call when the operator just took lead.
+    // avoids a wasted TaskAgent walk when the operator just took lead.
     const lead = getLead(this.runtime);
     if (lead.current !== 'llm') {
       return { queueHalted: true, advanced: false, halted: false };
     }
 
-    // Per-iter runId for substrate scoping (orchestrate.md audit +
-    // any call-op artifact writes). Mirrors TaskAgent.runId format.
-    const stamp = this.now().toISOString().replace(/[-:.]/g, '').slice(0, 15);
-    const runId = `${stamp}-${cardId}`;
-
-    // Decide.
-    let decision: NarrowedDecision;
+    // Resolve the implement step for the 'approved' column. TaskAgent's
+    // 'approved' branch REQUIRES a `step` arg; without it, it self-halts with
+    // a "requires --step" reason. We resolve it from plan substrate / git log
+    // via step_resolver and surface a specific classified halt when no step is
+    // available (no-plan / unparseable-plan / all-committed).
+    let step: string | undefined;
     try {
-      decision = await decide({
-        repo: this.repo, cardId, adapter: this.adapter, config: this.config,
-        lead: 'llm',
-      });
-    } catch (e) {
-      // decide() throws on adapter error or schema/parse validation failure.
-      const haltReason = e instanceof Error ? e.message : String(e);
-      const classification = classifyHalt(haltReason);
-      this.haltCount += 1;
-      this.bus.publish({
-        kind: 'conductor-halt',
-        reason: `${classification.category}: ${classification.rawReason}`,
-        cardId,
-        category: classification.category,
-        rawReason: classification.rawReason,
-        context: classification.context,
-      });
-      return { queueHalted: false, advanced: false, halted: true };
-    }
-
-    // Dispatch via the shared executor.
-    let result;
-    try {
-      result = await executeDecision({
-        repo: this.repo, cardId, decision,
-        adapter: this.adapter, config: this.config,
-        bus: this.bus, runtime: this.runtime, runId,
-        now: this.now,
-      });
-    } catch (e) {
-      // Executor throws when dispatch itself fails (e.g. transferLead failure,
-      // missing required step for call-op:implement). Classify + publish halt.
-      const haltReason = e instanceof Error ? e.message : String(e);
-      const classification = classifyHalt(haltReason);
-      this.haltCount += 1;
-      this.bus.publish({
-        kind: 'conductor-halt',
-        reason: `${classification.category}: ${classification.rawReason}`,
-        cardId,
-        category: classification.category,
-        rawReason: classification.rawReason,
-        context: classification.context,
-      });
-      return { queueHalted: false, advanced: false, halted: true };
-    }
-
-    // Halt-loop circuit breaker: N consecutive halt-with-handoff on the same
-    // card → transferLead to human + publish conductor-halt-loop-detected.
-    // Resets on any non-halt outcome or different card.
-    if (result.outcome.kind === 'halt-published') {
-      if (this.lastIterationCard === cardId && this.lastIterationHalted) {
-        this.haltLoopCount += 1;
-        const mode = this.config.autonomy.default;
-        const threshold = this.config.autonomy.budgets[mode].halt_loop_threshold;
-        if (this.haltLoopCount >= threshold) {
-          // Review HIGH-1: carry lastCategory + lastRationale so operator
-          // triage doesn't require correlating against preceding halts.
-          this.bus.publish({
-            kind: 'conductor-halt-loop-detected',
-            cardId,
-            count: this.haltLoopCount,
-            lastCategory: result.outcome.category as HaltCategory,
-            lastRationale: decision.rationale,
-            ts: this.now().toISOString(),
-          });
-          await transferLead({
-            runtime: this.runtime, bus: this.bus, to: 'human',
-            reason: 'halt-with-handoff',
-            context: `Halt loop detected on ${cardId} (${this.haltLoopCount} consecutive halts)`,
-          });
-          this.haltLoopCount = 0;
-          return { queueHalted: true, advanced: false, halted: true };
+      const card = await readCard(join(this.repo, '.conductor', 'cards', `${cardId}.md`));
+      if (card.frontmatter.column === 'approved') {
+        const resolution = await resolveNextStep({
+          repo: this.repo, cardId, phase: card.frontmatter.phase,
+        });
+        if (resolution.kind === 'resolved') {
+          step = resolution.step;
+        } else {
+          // No implement step resolved → classify + publish halt. The reason
+          // strings carry the "no implement step resolved" substring so
+          // classifyHalt maps them to the missing-step-arg category.
+          const reason =
+            resolution.kind === 'no-plan'
+              ? `no implement step resolved: no plan substrate for '${cardId}' (run plan op first)`
+              : resolution.kind === 'unparseable-plan'
+                ? `no implement step resolved: plan substrate for '${cardId}' has no parseable steps`
+                : `no implement step resolved: all plan steps for '${cardId}' already committed`;
+          return this.publishHalt(cardId, reason);
         }
-      } else {
-        // First halt on this card or different card → reset to 1 (current halt counts).
-        this.haltLoopCount = 1;
       }
-    } else {
-      // Non-halt outcome → reset.
-      this.haltLoopCount = 0;
+    } catch (e) {
+      // Card read / step-resolution failure → classify + publish halt.
+      const reason = e instanceof Error ? e.message : String(e);
+      return this.publishHalt(cardId, reason);
     }
 
-    const advanced = result.outcome.kind === 'op-called' || result.outcome.kind === 'column-advanced';
-    const halted = result.outcome.kind === 'halt-published';
-    // If the outcome advanced the card into 'archived', fire onCardComplete.
-    if (
-      result.outcome.kind === 'column-advanced' &&
-      result.outcome.to === 'archived' &&
-      this.onCardComplete
-    ) {
+    // Walk one column hop via TaskAgent. Republish each TaskEvent as a
+    // task-event DaemonEvent so the Monitor + card-detail surfaces see ops,
+    // transitions, and the terminal complete/halt exactly as the CLI/RPC walk
+    // path does. Cost telemetry accrues against the card via onAdapterUsage.
+    const agent = new TaskAgent({
+      repo: this.repo,
+      cardId,
+      adapter: this.adapter,
+      config: this.config,
+      step,
+      now: this.now,
+      onAdapterUsage: ({ inputTokens, outputTokens, dollars }) => {
+        this.runtime.addCost(cardId, { inputTokens, outputTokens, dollars });
+      },
+    });
+
+    let finalColumn: string | undefined;
+    let haltReason: string | undefined;
+    try {
+      for await (const event of agent.run()) {
+        this.bus.publish({ kind: 'task-event', cardId, runId: agent.runId, event });
+        if (event.kind === 'complete') {
+          finalColumn = event.finalColumn;
+        } else if (event.kind === 'halt') {
+          haltReason = event.reason;
+          finalColumn = event.finalColumn;
+        } else if (event.kind === 'error') {
+          haltReason = event.message;
+        }
+      }
+    } catch (e) {
+      // TaskAgent.run() throws on card-read errors (CardNotFound / parse). Treat
+      // as a classified halt rather than crashing the loop.
+      const reason = e instanceof Error ? e.message : String(e);
+      return this.publishHalt(cardId, reason);
+    }
+
+    // Terminal halt → classify, publish, run the circuit breaker.
+    if (haltReason !== undefined) {
+      return this.publishHalt(cardId, haltReason);
+    }
+
+    // Terminal complete → the card advanced one column. Reset the halt-loop
+    // counter. Fire onCardComplete when the card reached the terminal column.
+    this.haltLoopCount = 0;
+    if (finalColumn === 'archived' && this.onCardComplete) {
       try { await this.onCardComplete(cardId); } catch { /* best-effort */ }
     }
-    return { queueHalted: false, advanced, halted };
+    return { queueHalted: false, advanced: true, halted: false };
+  }
+
+  /** Classify + publish a conductor-halt for `cardId`, then apply the halt-loop
+   *  circuit breaker: N consecutive halts on the SAME card → transferLead to
+   *  human + publish conductor-halt-loop-detected + signal queueHalted. Returns
+   *  the outcome flags the outer loop consumes. */
+  private publishHalt(cardId: string, reason: string): { queueHalted: boolean; advanced: boolean; halted: boolean } {
+    const classification = classifyHalt(reason);
+    this.haltCount += 1;
+    this.bus.publish({
+      kind: 'conductor-halt',
+      reason: `${classification.category}: ${classification.rawReason}`,
+      cardId,
+      category: classification.category,
+      rawReason: classification.rawReason,
+      context: classification.context,
+    });
+
+    // Halt-loop circuit breaker: consecutive halts on the same card.
+    if (this.lastIterationCard === cardId && this.lastIterationHalted) {
+      this.haltLoopCount += 1;
+      const mode = this.config.autonomy.default;
+      const threshold = this.config.autonomy.budgets[mode].halt_loop_threshold;
+      if (this.haltLoopCount >= threshold) {
+        this.bus.publish({
+          kind: 'conductor-halt-loop-detected',
+          cardId,
+          count: this.haltLoopCount,
+          lastCategory: classification.category as HaltCategory,
+          lastRationale: classification.rawReason,
+          ts: this.now().toISOString(),
+        });
+        void transferLead({
+          runtime: this.runtime, bus: this.bus, to: 'human',
+          reason: 'halt-with-handoff',
+          context: `Halt loop detected on ${cardId} (${this.haltLoopCount} consecutive halts)`,
+        });
+        this.haltLoopCount = 0;
+        return { queueHalted: true, advanced: false, halted: true };
+      }
+    } else {
+      // First halt on this card or a different card → reset to 1 (current counts).
+      this.haltLoopCount = 1;
+    }
+    return { queueHalted: false, advanced: false, halted: true };
   }
 
   private async pickEligibleCard(): Promise<string | undefined> {

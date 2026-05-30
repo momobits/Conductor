@@ -14,7 +14,6 @@
 
 import type { Card, Autonomy, AutonomyMode } from '../engine/types.js';
 import type { ProjectConfig } from '../config/schema.js';
-import type { ConductMode } from '../engine/ops/conduct.js';
 
 /** Map a card-frontmatter autonomy value (which may carry legacy values) onto
  *  the canonical spectrum, or 'inherit' (the only card-only value). The
@@ -69,28 +68,5 @@ export function autoExecuteThreshold(
       return { kind: 'threshold', minConfidence: config.autonomy.hybrid_confidence_threshold };
     case 'assist':
       return { kind: 'always-surface' };
-  }
-}
-
-/** Bridge the spectrum mode to the legacy ConductMode consumed by
- *  `src/engine/ops/conduct.ts`. Used by the existing `loop.ts` path so the
- *  pre-orchestrator (#6/#59) decision flow keeps working unchanged.
- *
- *  assist     → 'assist'  (existing assist semantics: blast-radius + threshold)
- *  hybrid     → 'auto'    (existing auto: threshold-gated; the spectrum's
- *                          hybrid_confidence_threshold and the legacy
- *                          confidence.threshold both apply through different
- *                          codepaths; conduct.ts uses the latter)
- *  autonomous → 'auto'    (executor never surfaces; conduct.ts's auto path
- *                          escalates on low confidence but the executor (#6)
- *                          will short-circuit this once it lands) */
-export function bridgeSpectrumToConductMode(mode: AutonomyMode): ConductMode {
-  switch (mode) {
-    case 'assist':
-      return 'assist';
-    case 'hybrid':
-      return 'auto';
-    case 'autonomous':
-      return 'auto';
   }
 }

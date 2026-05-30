@@ -6,14 +6,12 @@
 //   - mapLegacyAutonomy: card-level legacy → spectrum mapping
 //   - effectiveAutonomy: card override vs project default resolution
 //   - autoExecuteThreshold: executor gating shape per mode
-//   - bridgeSpectrumToConductMode: spectrum → conduct.ts ConductMode
 
 import { describe, it, expect } from 'vitest';
 import {
   mapLegacyAutonomy,
   effectiveAutonomy,
   autoExecuteThreshold,
-  bridgeSpectrumToConductMode,
 } from '../../src/conductor/autonomy.js';
 import { ProjectConfigSchema } from '../../src/config/schema.js';
 import type { Card, Autonomy, AutonomyMode } from '../../src/engine/types.js';
@@ -109,20 +107,6 @@ describe('autoExecuteThreshold', () => {
       kind: 'threshold',
       minConfidence: 0.9,
     });
-  });
-});
-
-describe('bridgeSpectrumToConductMode', () => {
-  it('assist → assist', () => {
-    expect(bridgeSpectrumToConductMode('assist')).toBe('assist');
-  });
-
-  it('hybrid → auto', () => {
-    expect(bridgeSpectrumToConductMode('hybrid')).toBe('auto');
-  });
-
-  it('autonomous → auto', () => {
-    expect(bridgeSpectrumToConductMode('autonomous')).toBe('auto');
   });
 });
 

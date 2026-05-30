@@ -1,17 +1,16 @@
 // tests/adversarial/loop_redteam.test.ts
 //
-// Phase 30.13 / Relay #59: rewrite for the orchestrator-driven Conductor.
-// Each test preserves the original edge-case intent (destructive-action
-// classification, low-confidence surfacing, iterationLimit cap, auth-needed
-// classification, card-not-found classification) but expresses it in the
-// new decide()-driven pattern.
+// Cohort 3.6: rewrite for the TaskAgent-driven Conductor. The brain walks each
+// eligible card ONE column hop via TaskAgent (the deterministic walker) instead
+// of the LLM decide()+executeDecision() path. Each test preserves the original
+// edge-case intent but expresses it in the new walker-driven pattern.
 //
 // Edge cases covered:
-//   - destructive-action category fires when decide() throws with rm -rf
-//   - hybrid mode surfaces (not halts) decisions below threshold
-//   - iterationLimit caps a loop of advance-column decisions
-//   - auth-needed category fires when adapter throws on missing API key
-//   - decide()-throws Card-not-found surfaces as unknown-category halt
+//   - verify-failed category fires when TaskAgent's verify op returns FAIL
+//   - missing-step-arg category fires when an approved card has no plan step
+//   - iterationLimit caps a loop of advancing cards
+//   - auth-needed category fires when the op adapter throws on a missing key
+//   - card deleted mid-flight: loop exits cleanly (pickEligibleCard drops it)
 
 import { describe, it, expect } from 'vitest';
 import { mkdtempSync } from 'node:fs';
@@ -44,92 +43,80 @@ function mkRuntimeWithLlmLead(): InMemoryRuntime {
   return r;
 }
 
-function mkDecision(action: string, params: Record<string, unknown>, confidence = 0.9): string {
-  return JSON.stringify({ version: 1, action, rationale: 'r', confidence, params });
-}
-
-describe('Conductor loop — adversarial (orchestrator-driven, post-#59)', () => {
-  it('halts queue with destructive-action classification when decide() throws on rm -rf reason', async () => {
-    const { repo, cardId } = await setupCard();
+describe('Conductor loop — adversarial (TaskAgent-driven, post-Cohort-3.6)', () => {
+  it('halts queue with verify-failed classification when the verify op returns FAIL', async () => {
+    const { repo, cardId } = await setupCard('building');
     const cfg = ProjectConfigSchema.parse({
       routing: { default: 'mock' },
       autonomy: { default: 'autonomous' },
+      verify_command: 'true',
     });
     const events: DaemonEvent[] = [];
     const bus = new EventBus();
     bus.subscribe((e) => events.push(e));
-    // Adapter throws on first invoke → decide() propagates the message →
-    // runOneCard catches + classifyHalt fires the destructive-action pattern.
-    const adapter: ModelAdapter = {
-      id: 'throwing',
-      invoke: async () => { throw new Error('rm -rf required to proceed'); },
-      capabilities: (): AdapterCapabilities => ({
-        tools: false, contextWindowTokens: 100, streaming: false,
-        costTier: 'free', supportsExtendedThinking: false, supportsPromptCaching: false,
-      }),
-      estimateCost: () => ({ tokens: 0, dollars: 0 }),
-    };
+    // building runs verify; FAIL → TaskAgent halts → runOneCard classifies it.
+    const adapter = new MockAdapter([
+      JSON.stringify({ outcome: 'FAIL', summary: 'broken', failures: ['f1'] }),
+    ]);
     const c = new Conductor({
       repo, config: cfg, runtime: mkRuntimeWithLlmLead(), bus, adapter, iterationLimit: 5,
     });
     await c.start();
     const halt = events.find(
-      (e) => e.kind === 'conductor-halt' && /destructive-action/.test(e.reason),
+      (e) => e.kind === 'conductor-halt' && /verify-failed/.test(e.reason),
     );
     expect(halt).toBeDefined();
     expect(halt && halt.kind === 'conductor-halt' && halt.cardId).toBe(cardId);
   });
 
-  it('hybrid mode surfaces (does NOT halt) when confidence drops below threshold', async () => {
-    const { repo } = await setupCard();
+  it('halts queue with missing-step-arg classification when an approved card has no plan step', async () => {
+    // approved card with no plan substrate → step_resolver returns no-plan →
+    // runOneCard publishes a classified missing-step-arg halt before any walk.
+    const { repo, cardId } = await setupCard('approved');
     const cfg = ProjectConfigSchema.parse({
       routing: { default: 'mock' },
-      autonomy: {
-        default: 'hybrid',
-        hybrid_confidence_threshold: 0.8,
-        budgets: { hybrid: { pending_decision_timeout_ms: 50 } }, // short timeout
-      },
+      autonomy: { default: 'autonomous' },
     });
     const events: DaemonEvent[] = [];
     const bus = new EventBus();
     bus.subscribe((e) => events.push(e));
-    const adapter = new MockAdapter([
-      mkDecision('advance-column', { from: 'planned', to: 'approved' }, 0.4), // below 0.8
-    ]);
+    const adapter = new MockAdapter(); // never invoked — resolution fails first
     const c = new Conductor({
-      repo, config: cfg, runtime: mkRuntimeWithLlmLead(), bus, adapter, iterationLimit: 1,
+      repo, config: cfg, runtime: mkRuntimeWithLlmLead(), bus, adapter, iterationLimit: 5,
     });
     await c.start();
-    // Pending-decision surfaced; on timeout it deferred (no halt).
-    expect(events.some((e) => e.kind === 'conductor-pending-decision')).toBe(true);
-    // No conductor-halt published from this decision (cost-ceiling / wedge
-    // detector may publish later; the surface itself does NOT halt).
-    const haltsFromSurface = events.filter((e) =>
-      e.kind === 'conductor-halt' && !/idle.*wedged/.test(e.reason ?? ''),
+    const halt = events.find(
+      (e) => e.kind === 'conductor-halt' && /missing-step-arg/.test(e.reason),
     );
-    expect(haltsFromSurface.length).toBe(0);
+    expect(halt).toBeDefined();
+    expect(halt && halt.kind === 'conductor-halt' && halt.cardId).toBe(cardId);
   });
 
-  it('iterationLimit holds against a loop of advance-column decisions', async () => {
-    const { repo } = await setupCard();
+  it('iterationLimit holds against a card that keeps advancing', async () => {
+    const { repo } = await setupCard('discovered');
     const cfg = ProjectConfigSchema.parse({
       routing: { default: 'mock' },
       autonomy: { default: 'autonomous' },
     });
     const bus = new EventBus();
-    // Queue many decisions; iterationLimit=3 should cap regardless.
+    // Queue many analyze/plan pairs; iterationLimit=2 should cap regardless of
+    // how many hops the card could otherwise take.
     const adapter = new MockAdapter(
-      Array.from({ length: 10 }, () => mkDecision('advance-column', { from: 'planned', to: 'planned' })),
+      Array.from({ length: 20 }, (_, i) =>
+        i % 2 === 0
+          ? JSON.stringify({ analysis: 'a', risks: [], affected_files: [] })
+          : JSON.stringify({ steps: [{ id: '1.1', what: 'w', how: 'h', verify: 'v', commit_type: 'feat' }], rollback: 'r' }),
+      ),
     );
     const c = new Conductor({
-      repo, config: cfg, runtime: mkRuntimeWithLlmLead(), bus, adapter, iterationLimit: 3,
+      repo, config: cfg, runtime: mkRuntimeWithLlmLead(), bus, adapter, iterationLimit: 2,
     });
     await c.start();
-    expect(c.status().iteration).toBeLessThanOrEqual(3);
+    expect(c.status().iteration).toBeLessThanOrEqual(2);
   });
 
-  it('publishes conductor-halt with auth-needed classification when adapter throws on missing API key', async () => {
-    const { repo, cardId } = await setupCard();
+  it('publishes conductor-halt with auth-needed classification when the op adapter throws on a missing API key', async () => {
+    const { repo, cardId } = await setupCard('discovered');
     const cfg = ProjectConfigSchema.parse({
       routing: { default: 'mock' },
       autonomy: { default: 'autonomous' },
@@ -137,6 +124,8 @@ describe('Conductor loop — adversarial (orchestrator-driven, post-#59)', () =>
     const events: DaemonEvent[] = [];
     const bus = new EventBus();
     bus.subscribe((e) => events.push(e));
+    // The analyze op invokes the adapter; a throw propagates out of TaskAgent.run()
+    // and runOneCard classifies it (auth-needed pattern matches API_KEY).
     const adapter: ModelAdapter = {
       id: 'throwing',
       invoke: async () => { throw new Error('ANTHROPIC_API_KEY not found'); },
@@ -157,8 +146,9 @@ describe('Conductor loop — adversarial (orchestrator-driven, post-#59)', () =>
     expect(halt && halt.kind === 'conductor-halt' && halt.cardId).toBe(cardId);
   });
 
-  it('publishes conductor-halt when decide() throws Card-not-found (substrate-read failure path)', async () => {
-    // Setup card then delete it so buildSnapshot inside decide() throws.
+  it('exits cleanly when the card is deleted mid-flight (substrate-read failure path)', async () => {
+    // Setup card then delete it so pickEligibleCard no longer finds it via
+    // listCards; the loop exits without crashing.
     const { repo, cardId } = await setupCard();
     const fs = await import('node:fs/promises');
     await fs.unlink(join(repo, '.conductor', 'cards', `${cardId}.md`));
@@ -175,8 +165,8 @@ describe('Conductor loop — adversarial (orchestrator-driven, post-#59)', () =>
     });
     await c.start();
     // After the delete the ordering still lists the cardId but pickEligibleCard
-    // won't find it via listCards; the loop exits without halting. Verify
-    // the loop completes cleanly (no exception thrown, status not running).
+    // won't find it via listCards; the loop exits without halting. Verify the
+    // loop completes cleanly (no exception thrown, status not running).
     expect(c.status().running).toBe(false);
   });
 });
