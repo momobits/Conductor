@@ -247,4 +247,99 @@ describe('implement op', () => {
       implement({ repo: tmp, card, adapter, model: 'mock-model', step: '1.1', runId: '' }),
     ).rejects.toThrow(/runId arg required/);
   });
+
+  // Cohort 3.2: the agentic read-tool loop. The root-cause bug was that
+  // implement made ONE contextless invoke demanding full-file JSON, so a real
+  // model could not modify an existing file (it had to reproduce it from
+  // memory). The fix gives implement a read_file/grep/glob tool loop so the
+  // model reads the file BEFORE emitting its diff. This test scripts a
+  // MockAdapter that FIRST calls read_file, receives the file's content, THEN
+  // returns a modify diff whose new content depends on what it read. It would
+  // FAIL against the old contextless implement (no tool round existed) and
+  // PASSES against the fixed implement.
+  it('reads a file via the read_file tool before emitting a modify diff (Cohort 3.2)', async () => {
+    // Seed an existing file the model must read before modifying.
+    await mkdir(join(tmp, 'src'), { recursive: true });
+    await writeFile(join(tmp, 'src/counter.ts'), 'export const count = 1;\n');
+    const g = simpleGit(tmp);
+    await g.add('.');
+    await g.commit('add counter');
+
+    // Round 1: the model asks to read the file (a tool call, no final JSON yet).
+    // Round 2: with the file content fed back, the model emits a modify diff
+    // whose new content is derived from what it read (count 1 -> count 2).
+    const adapter = new MockAdapter();
+    adapter.push({
+      text: 'Let me read the file first.',
+      toolCalls: [{ name: 'read_file', input: { path: 'src/counter.ts' } }],
+      inputTokens: 10, outputTokens: 10,
+    });
+    adapter.push({
+      text: JSON.stringify({
+        step: '1.2',
+        commit_type: 'fix',
+        commit_subject: 'bump counter',
+        files: [{ path: 'src/counter.ts', action: 'modify', content: 'export const count = 2;\n' }],
+        notes: 'incremented based on read content',
+      }),
+      inputTokens: 10, outputTokens: 10,
+    });
+
+    const card = await readCard(cardPath);
+    const diff = await implement({ repo: tmp, card, adapter, model: 'mock-model', step: '1.2', runId: IMPLEMENT_RUN_ID });
+
+    // (a) The read_file tool was actually invoked: there were TWO adapter
+    //     invokes (the tool round + the final-diff round), and the FIRST
+    //     request offered tools.
+    expect(adapter.allRequests).toHaveLength(2);
+    expect(adapter.allRequests[0]?.tools).toBeDefined();
+    expect(adapter.allRequests[0]?.tools?.some((t) => t.name === 'read_file')).toBe(true);
+    // The tool's output (the file's actual content) must be stitched into the
+    // second request so the model's diff is grounded in what it read.
+    expect(adapter.allRequests[1]?.user).toContain('export const count = 1;');
+
+    // (b) The file on disk was modified to the expected content.
+    const written = await readFile(join(tmp, 'src/counter.ts'), 'utf8');
+    expect(written).toBe('export const count = 2;\n');
+
+    // (c) It was committed with the spec format.
+    expect(diff.step).toBe('1.2');
+    const log = await simpleGit(tmp).log({ maxCount: 1 });
+    expect(log.latest?.message).toBe('fix(2.1.2): bump counter');
+  });
+
+  it('handles multiple read rounds before the final diff (Cohort 3.2)', async () => {
+    await mkdir(join(tmp, 'src'), { recursive: true });
+    await writeFile(join(tmp, 'src/a.ts'), 'A-CONTENT\n');
+    await writeFile(join(tmp, 'src/b.ts'), 'B-CONTENT\n');
+    const g = simpleGit(tmp);
+    await g.add('.');
+    await g.commit('add a and b');
+
+    const adapter = new MockAdapter();
+    // Round 1: read a.ts
+    adapter.push({ text: '', toolCalls: [{ name: 'read_file', input: { path: 'src/a.ts' } }] });
+    // Round 2: read b.ts
+    adapter.push({ text: '', toolCalls: [{ name: 'read_file', input: { path: 'src/b.ts' } }] });
+    // Round 3: final diff that depends on both reads.
+    adapter.push({
+      text: JSON.stringify({
+        step: '1.3',
+        commit_type: 'refactor',
+        commit_subject: 'merge a and b',
+        files: [{ path: 'src/a.ts', action: 'modify', content: 'A-CONTENT\nB-CONTENT\n' }],
+        notes: '',
+      }),
+    });
+
+    const card = await readCard(cardPath);
+    await implement({ repo: tmp, card, adapter, model: 'mock-model', step: '1.3', runId: IMPLEMENT_RUN_ID });
+
+    expect(adapter.allRequests).toHaveLength(3);
+    // Each final-round request carries the accumulated tool outputs.
+    expect(adapter.allRequests[2]?.user).toContain('A-CONTENT');
+    expect(adapter.allRequests[2]?.user).toContain('B-CONTENT');
+    const written = await readFile(join(tmp, 'src/a.ts'), 'utf8');
+    expect(written).toBe('A-CONTENT\nB-CONTENT\n');
+  });
 });
