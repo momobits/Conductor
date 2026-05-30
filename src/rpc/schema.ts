@@ -75,29 +75,6 @@ export const WorkCardParams = z.object({
 
 export const WorkNextParams = z.object({});
 
-export const RecommendParams = z.object({
-  cardId: z.string().min(1),
-  recommendation: z.object({
-    type: z.literal('recommendation'),
-    card: z.string(),
-    operation: z.string(),
-    blast_radius: z.object({
-      level: z.enum(['low', 'medium', 'high']),
-      reason: z.string(),
-    }),
-    options: z
-      .array(
-        z.object({
-          id: z.string(),
-          confidence: z.number().min(0).max(1),
-          rationale: z.string(),
-        }),
-      )
-      .min(1),
-    recommended: z.string(),
-  }),
-});
-
 export const ConfigGetParams = z.object({});
 export const ConfigSetParams = z.object({
   config: ProjectConfigSchema,

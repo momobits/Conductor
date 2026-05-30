@@ -14,6 +14,8 @@ import { COMMIT_TYPES, type Card, type CommitType, type Diff, type DiffFile } fr
 import { RunArtifactWriter, findLatestArtifactRunId } from '../../agent/run_artifact.js';
 import { commitStep } from '../state/git.js';
 import { parseJsonResponse } from '../util/parse_json_response.js';
+import { runAgenticReadLoop } from '../agentic_read.js';
+import type { OperationResponse } from '../operation.js';
 
 export interface ImplementArgs {
   repo: string;
@@ -27,6 +29,18 @@ export interface ImplementArgs {
 const SYSTEM_PROMPT = `You are an experienced software engineer applying ONE
 step of an implementation plan. Read the plan carefully, identify the
 requested step, and produce a concrete diff.
+
+You have READ-ONLY tools to inspect the working tree before you write anything:
+- read_file: read a file's current content (repo-relative path)
+- grep_codebase: search the repo for a regex pattern
+- glob_files: list files matching a glob pattern
+
+CRITICAL: Before you emit a diff with action "modify", you MUST first call
+read_file on that file to see its CURRENT content. You cannot reproduce an
+existing file from memory — read it, then produce the COMPLETE new content
+based on what you read. Use these tools as many times as you need. When you
+have everything you need, STOP calling tools and reply with ONLY the final
+JSON object.
 
 Return ONLY a single JSON object on one line, no Markdown fence, matching:
 
@@ -42,6 +56,7 @@ Return ONLY a single JSON object on one line, no Markdown fence, matching:
 
 Rules:
 - Use full file content (not patches) so the apply step is deterministic.
+- For "modify", read the file FIRST, then return the complete updated content.
 - Paths MUST be repo-relative POSIX (no leading slash, no '..').
 - Do NOT include files outside what this single step requires.`.trim();
 
@@ -123,12 +138,35 @@ export async function implement(args: ImplementArgs): Promise<Diff> {
     plan,
   ].join('\n');
 
-  const resp = await adapter.invoke({
-    operation: 'implement',
-    model,
-    system: SYSTEM_PROMPT,
-    user: userPrompt,
-  });
+  // Cohort 3.2: drive an agentic READ-tool loop so the model can read the
+  // files it will modify BEFORE emitting its diff. Previously implement made
+  // ONE contextless invoke demanding full-file JSON; a real model had to
+  // reproduce existing files from memory (corruption/truncation). The loop
+  // returns the model's FINAL response once it stops calling read tools — and
+  // a model that returns the diff immediately with zero tool calls (the
+  // scripted MockAdapter in these tests + full-lifecycle-sweep) still works on
+  // round 1, unchanged. Adapters without tool support fall back to a single
+  // tool-less invoke (the model loses file-reading context but the contract is
+  // preserved end-to-end).
+  let resp: OperationResponse;
+  if (adapter.capabilities().tools) {
+    const loop = await runAgenticReadLoop({
+      repo,
+      adapter,
+      operation: 'implement',
+      model,
+      system: SYSTEM_PROMPT,
+      user: userPrompt,
+    });
+    resp = loop.response;
+  } else {
+    resp = await adapter.invoke({
+      operation: 'implement',
+      model,
+      system: SYSTEM_PROMPT,
+      user: userPrompt,
+    });
+  }
 
   let diff: Diff;
   try {

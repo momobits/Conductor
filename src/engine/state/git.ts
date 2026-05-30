@@ -98,6 +98,53 @@ export async function lastCommitSha(repo: string): Promise<string> {
   return log.latest?.hash ?? '';
 }
 
+/**
+ * Cohort 3.3 — list the repo-relative files changed by the commits whose
+ * subject references `cardId`. Used by `resolve` to derive `files_changed`
+ * from the card's ACTUAL git history rather than trusting the model to recall
+ * what it touched (the model hallucinated filenames because resolve fed it the
+ * emptied card body).
+ *
+ * "References the card" = the commit message contains the cardId substring.
+ * Conductor's commit-per-step subjects don't embed the cardId directly, but
+ * the orchestrator/`work` flows commit card-scoped changes whose messages
+ * include the id (e.g. `chat(<cardId>): ...`); callers that have a tighter
+ * commit range can prefer the implement artifact's diff instead. Returns a
+ * sorted, de-duplicated list. Never throws — git failures yield `[]` so
+ * resolve degrades to "(none reported)" rather than failing the archive.
+ */
+export async function listCardChangedFiles(
+  repo: string,
+  cardId: string,
+): Promise<string[]> {
+  const g = git(repo);
+  const files = new Set<string>();
+  try {
+    const log = await g.log();
+    const shas = log.all
+      .filter((c) => c.message.includes(cardId))
+      .map((c) => c.hash);
+    for (const sha of shas) {
+      // `git show --name-only --pretty=format:` prints only the paths the
+      // commit touched, one per line (no commit header, no diff body).
+      const out = await g.raw([
+        'show',
+        '--no-renames',
+        '--name-only',
+        '--pretty=format:',
+        sha,
+      ]);
+      for (const line of out.split('\n')) {
+        const file = line.trim();
+        if (file) files.add(file);
+      }
+    }
+  } catch {
+    return [];
+  }
+  return [...files].sort();
+}
+
 export async function describeRef(repo: string): Promise<string> {
   try {
     const out = await git(repo).raw(['describe', '--tags', '--always']);

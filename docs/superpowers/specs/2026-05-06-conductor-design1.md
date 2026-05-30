@@ -14,6 +14,11 @@ upstream_references:
   - G:\Projects\Small-Projects\Control (original Control project)
 ---
 
+> **Superseded 2026-05-30:** Conductor is being re-scoped to **Relay + Symphony**;
+> the **Control** contribution (drift detection, phases, ADRs, the STATE.md cursor)
+> is being removed from the product. This document describes the original three-tool
+> design and is retained for historical context only.
+
 > **For implementers:** The Relay, Control, and Symphony folders inside this
 > repo (`Harness\Relay`, `Harness\Control`, `Harness\symphony`) are the
 > authoritative reference implementations Conductor draws from. When this

@@ -13,7 +13,7 @@ import {
   CardNewParams, CardGetParams, CardListParams, CardUpdateParams,
   TransitionParams, ScanParams, OrderParams, DiscoverParams,
   ExerciseNewParams, ExerciseFileParams,
-  WorkCardParams, WorkNextParams, RecommendParams,
+  WorkCardParams, WorkNextParams,
   ConfigGetParams, SessionStatusParams,
   ChatParams, ChatCommandParams,
   ChatApplyEditParams, ChatProposedEditGetParams,
@@ -245,14 +245,6 @@ async function work_next(ctx: MethodContext, raw: unknown) {
   if (!first) return { halted: true as const, reason: 'No eligible cards.' };
   const result = await work_card(ctx, { id: first.frontmatter.id });
   return { id: first.frontmatter.id, ...result };
-}
-
-async function recommend(_ctx: MethodContext, raw: unknown) {
-  RecommendParams.parse(raw);
-  // Phase 4: TaskAgent already writes recommendations to the run log when
-  // it surfaces them. This entry point exists for foreign tools (plugins)
-  // that want to file a recommendation manually.
-  return { ok: true as const };
 }
 
 async function config_get(ctx: MethodContext, raw: unknown) {
@@ -1007,7 +999,6 @@ export const methods = {
   exercise_file,
   work_card,
   work_next,
-  recommend,
   config_get,
   config_set,
   session_status,
