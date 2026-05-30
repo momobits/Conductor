@@ -3,13 +3,23 @@
 // Operation: archive a shipped card. Generates a concise summary via the
 // model, moves the card to archive/cards/, writes archive/implemented/,
 // removes from cards/. Returns a ResolutionDoc.
+//
+// Cohort 3.3: resolve no longer summarises from `card.body`. Phase 21/28
+// emptied the body of all lifecycle sections (analyze/plan/implement/verify
+// now live in the per-run substrate), so the old "Card body (full lifecycle)"
+// prompt was near-empty and the model GUESSED its files_changed. resolve now
+//   (1) reads the plan / implement / verify artifacts from the run substrate
+//       via findLatestArtifactRunId (same pattern as review.ts / implement.ts),
+//   (2) derives files_changed from the card's ACTUAL git commits (not the
+//       model), and tells the model that list is authoritative.
 
 import { writeFile, mkdir, rm } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import type { ModelAdapter } from '../../adapters/adapter.js';
 import type { Card, ResolutionDoc } from '../types.js';
 import { writeCard } from '../state/card.js';
-import { lastCommitSha } from '../state/git.js';
+import { lastCommitSha, listCardChangedFiles } from '../state/git.js';
+import { findLatestArtifactRunId } from '../../agent/run_artifact.js';
 import { parseJsonResponse } from '../util/parse_json_response.js';
 
 export interface ResolveArgs {
@@ -20,31 +30,62 @@ export interface ResolveArgs {
 }
 
 const SYSTEM_PROMPT = `You are summarising a fully shipped change for the
-project's "implemented" archive. Read the card and produce a 3-5 sentence
-ship summary plus the list of files changed.
+project's "implemented" archive. You are given the plan, implementation, and
+verification records for the card, plus the authoritative list of files the
+card's commits actually changed. Produce a 3-5 sentence ship summary.
 
 Return ONLY a single JSON object on one line, no Markdown fence:
 
   {
-    "summary": "<3-5 sentences describing what shipped and why>",
-    "files_changed": ["<repo-relative path>", ...]
-  }`.trim();
+    "summary": "<3-5 sentences describing what shipped and why>"
+  }
+
+Note: files_changed is derived from git and is supplied to you for context —
+do NOT try to recall or invent the file list yourself.`.trim();
 
 export async function resolve(args: ResolveArgs): Promise<ResolutionDoc> {
   const { repo, card, adapter, model } = args;
+  const cardId = card.frontmatter.id;
 
   if (card.frontmatter.column !== 'shipped') {
     throw new Error(
-      `Card ${card.frontmatter.id} must be in 'shipped' to resolve; currently '${card.frontmatter.column}'.`,
+      `Card ${cardId} must be in 'shipped' to resolve; currently '${card.frontmatter.column}'.`,
     );
   }
 
+  // Cohort 3.3: lifecycle context comes from the run substrate, NOT card.body
+  // (emptied in Phase 21/28). Mirror review.ts / implement.ts: locate the most
+  // recent run that produced each op artifact.
+  const plan = (await findLatestArtifactRunId(repo, cardId, 'plan'))?.text ?? '_(no plan artifact)_';
+  const implementText =
+    (await findLatestArtifactRunId(repo, cardId, 'implement'))?.text ?? '_(no implement artifact)_';
+  const verifyText =
+    (await findLatestArtifactRunId(repo, cardId, 'verify'))?.text ?? '_(no verify artifact)_';
+
+  // Cohort 3.3: files_changed is derived from the card's real git history, not
+  // the model's recall. The model is told this list is authoritative.
+  let filesChanged: string[];
+  try {
+    filesChanged = await listCardChangedFiles(repo, cardId);
+  } catch {
+    filesChanged = [];
+  }
+
   const userPrompt = [
-    `Card: ${card.frontmatter.id}`,
+    `Card: ${cardId}`,
     `Title: ${card.frontmatter.title}`,
     '',
-    '--- Card body (full lifecycle) ---',
-    card.body.trim(),
+    '--- Implementation Plan (from substrate) ---',
+    plan,
+    '',
+    '--- Implementation record (from substrate) ---',
+    implementText,
+    '',
+    '--- Verification record (from substrate) ---',
+    verifyText,
+    '',
+    '--- Files changed (derived from git — authoritative) ---',
+    filesChanged.length > 0 ? filesChanged.map((f) => `- ${f}`).join('\n') : '(none found)',
   ].join('\n');
 
   const resp = await adapter.invoke({
@@ -54,13 +95,10 @@ export async function resolve(args: ResolveArgs): Promise<ResolutionDoc> {
     user: userPrompt,
   });
 
-  let parsed: { summary: string; files_changed: string[] };
+  let parsed: { summary: string };
   try {
-    const raw = parseJsonResponse<{ summary?: string; files_changed?: unknown[] }>(resp.text, { op: 'resolve' });
-    parsed = {
-      summary: String(raw.summary ?? ''),
-      files_changed: Array.isArray(raw.files_changed) ? raw.files_changed.map(String) : [],
-    };
+    const raw = parseJsonResponse<{ summary?: string }>(resp.text, { op: 'resolve' });
+    parsed = { summary: String(raw.summary ?? '') };
   } catch (e) {
     throw new Error(`Failed to parse resolve JSON: ${(e as Error).message}\n--- raw ---\n${resp.text}`);
   }
@@ -72,9 +110,9 @@ export async function resolve(args: ResolveArgs): Promise<ResolutionDoc> {
     sha = '';
   }
   const doc: ResolutionDoc = {
-    card_id: card.frontmatter.id,
+    card_id: cardId,
     summary: parsed.summary,
-    files_changed: parsed.files_changed,
+    files_changed: filesChanged,
     ship_commit: sha,
   };
 
@@ -110,8 +148,8 @@ export async function resolve(args: ResolveArgs): Promise<ResolutionDoc> {
     '',
     '## Files changed',
     '',
-    parsed.files_changed.length > 0
-      ? parsed.files_changed.map((f) => `- ${f}`).join('\n')
+    filesChanged.length > 0
+      ? filesChanged.map((f) => `- ${f}`).join('\n')
       : '(none reported)',
     '',
   ].join('\n');

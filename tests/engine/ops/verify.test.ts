@@ -131,4 +131,34 @@ describe('verify op', () => {
       repo: tmp, runId: VERIFY_RUN_ID,
     })).rejects.toThrow(/Invalid outcome/);
   });
+
+  // Cohort 3.3: verify is a deterministic shell-runner + an LLM that ONLY
+  // classifies the runner's own stdout/stderr. It deliberately does NOT read
+  // the changed files / diff / implement artifact — the verify_command is the
+  // source of truth for correctness — so it is NOT given the agentic read-tool
+  // loop. This regression locks that contract: exit_code is the runner's real
+  // exit code, and no read tools are offered to the model.
+  it('classifies the runner output without offering repo read tools', async () => {
+    const adapter = new MockAdapter();
+    adapter.push({
+      text: JSON.stringify({ outcome: 'FAIL', summary: 'tests failed', failures: ['x'] }),
+      inputTokens: 1, outputTokens: 1,
+    });
+    const card = await readCard(cardPath);
+    // Runner reports a real non-zero exit; the model's classification is what
+    // the walker gates on, but exit_code must reflect the actual runner.
+    const runner = async () => ({ stdout: 'some output', stderr: 'boom', exitCode: 2 });
+    const report = await verify({
+      card, adapter, model: 'mock-model',
+      command: 'npm test', runner,
+      repo: tmp, runId: VERIFY_RUN_ID,
+    });
+
+    expect(report.exit_code).toBe(2); // straight from the runner, not the model
+    // No read-tool surface: verify never lets the model browse the repo.
+    expect(adapter.lastRequest?.tools).toBeUndefined();
+    // The model only ever saw the runner's captured output.
+    expect(adapter.lastRequest?.user).toContain('some output');
+    expect(adapter.lastRequest?.user).toContain('boom');
+  });
 });
