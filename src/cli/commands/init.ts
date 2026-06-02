@@ -116,16 +116,18 @@ const DEFAULT_JOURNAL = `# Journal
 const GITIGNORE_SENTINEL_HEADER =
   '# --- conductor managed artifacts (added by `conductor init`) ---';
 const GITIGNORE_SENTINEL_FOOTER = '# --- /conductor ---';
-const GITIGNORE_BLOCK = [
-  GITIGNORE_SENTINEL_HEADER,
+const GITIGNORE_PATTERNS = [
   '.conductor/auth.token',
   '.conductor/daemon.pid',
   '.conductor/daemon.endpoint',
   '.conductor/mcp.endpoint',
   '.conductor/runs/',
   '.conductor/snapshots/',
-  GITIGNORE_SENTINEL_FOOTER,
-].join('\n');
+];
+
+function gitignoreBlock(patterns: string[]): string {
+  return [GITIGNORE_SENTINEL_HEADER, ...patterns, GITIGNORE_SENTINEL_FOOTER].join('\n');
+}
 
 async function ensureGitignoreBlock(
   repo: string,
@@ -139,14 +141,24 @@ async function ensureGitignoreBlock(
     if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
     existed = false;
   }
+  // Idempotency gate 1: our sentinel block is already present.
   if (existing.includes(GITIGNORE_SENTINEL_HEADER)) {
     return 'unchanged';
   }
+  // Idempotency gate 2: the entries may already exist WITHOUT our sentinel —
+  // e.g. added by hand, by a prior tool, or by an older init. Only append the
+  // patterns that aren't already ignored, so we never write a duplicate block.
+  // (Match on a trimmed exact-line basis; comments/blank lines are ignored.)
+  const existingLines = new Set(
+    existing.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith('#')),
+  );
+  const missing = GITIGNORE_PATTERNS.filter((p) => !existingLines.has(p));
+  if (missing.length === 0) {
+    return 'unchanged';
+  }
   const trimmedEnd = existing.replace(/\s+$/, '');
-  const merged =
-    trimmedEnd === ''
-      ? GITIGNORE_BLOCK + '\n'
-      : trimmedEnd + '\n\n' + GITIGNORE_BLOCK + '\n';
+  const block = gitignoreBlock(missing);
+  const merged = trimmedEnd === '' ? block + '\n' : trimmedEnd + '\n\n' + block + '\n';
   await writeFile(path, merged, 'utf8');
   return existed ? 'appended' : 'created';
 }

@@ -188,6 +188,51 @@ describe('runInit', () => {
     expect(after).toBe(edited);
     expect(after).not.toContain('.conductor/snapshots/');
   });
+
+  it('does NOT append a duplicate block when .conductor entries exist without the sentinel (dogfood regression)', async () => {
+    // A repo that already ignores all the .conductor runtime artifacts by hand
+    // (no sentinel header). Older init appended a second, duplicate block here.
+    await writeFile(
+      join(tmp, '.gitignore'),
+      [
+        'node_modules/',
+        '.conductor/auth.token',
+        '.conductor/daemon.pid',
+        '.conductor/daemon.endpoint',
+        '.conductor/mcp.endpoint',
+        '.conductor/runs/',
+        '.conductor/snapshots/',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    const result = await runInit({ cwd: tmp });
+    expect(result.gitignore).toBe('unchanged');
+    const after = await readFile(join(tmp, '.gitignore'), 'utf8');
+    // No sentinel block added, and each entry appears exactly once.
+    expect(after).not.toContain('# --- conductor managed artifacts');
+    expect(after.match(/\.conductor\/auth\.token/g) ?? []).toHaveLength(1);
+    expect(after.match(/\.conductor\/runs\//g) ?? []).toHaveLength(1);
+  });
+
+  it('appends only the MISSING .conductor entries when some pre-exist without the sentinel', async () => {
+    // Only two of the six entries are pre-ignored, by hand, no sentinel.
+    await writeFile(
+      join(tmp, '.gitignore'),
+      'node_modules/\n.conductor/auth.token\n.conductor/runs/\n',
+      'utf8',
+    );
+    const result = await runInit({ cwd: tmp });
+    expect(result.gitignore).toBe('appended');
+    const after = await readFile(join(tmp, '.gitignore'), 'utf8');
+    // The pre-existing two are not duplicated...
+    expect(after.match(/\.conductor\/auth\.token/g) ?? []).toHaveLength(1);
+    expect(after.match(/\.conductor\/runs\//g) ?? []).toHaveLength(1);
+    // ...and the missing ones got added (under the sentinel block).
+    expect(after).toContain('# --- conductor managed artifacts');
+    expect(after).toContain('.conductor/snapshots/');
+    expect(after).toContain('.conductor/daemon.pid');
+  });
 });
 
 describe('detectPythonVerifyCommand', () => {
