@@ -48,3 +48,25 @@ Built breadth-first, verified against mocks → scaffolding complete, **load-bea
 6. Harden autonomy: persist cost counters/ceilings; brain walks a card across steps; verify HALT via red-team pack.
 
 Full raw audit (271k chars): `<tmp>/tasks/wsjmah0tz.output`.
+
+---
+
+## Resolution log (what actually shipped, 2026-05-30 → 2026-06-02)
+
+The audit drove a focused remediation. Status of each thread:
+
+**Done (merged to `main`):**
+- **Control removed** from the product (drift detection, phase machinery, Control importer, ADR-needed HALT, `state.md` cursor) and as the dev-process (`.control/` scaffolding gone; `.relay/` is the sole tracker). Open decision #2 resolved: `[control:drift]` was removed *with* drift (operator call).
+- **Dead code deleted:** the Frame-C observer/reconciliation ring (~2,140 LOC, producer-only), the engine Hook Bus, the no-op `recommend` RPC, the dead `conduct` op. Open decision #3 resolved: hard-deleted.
+- **Hollow core fixed:** `analyze`/`implement` got an agentic read-tool loop (`src/engine/agentic_read.ts`); `resolve` reads the run substrate + derives `files_changed` from real git; `verify` left deterministic (runs the real command, LLM only classifies).
+- **One decision engine.** Open decision #1 resolved: the deterministic **TaskAgent** is the single card-walker; the brain queue-loop drives cards through it. The LLM `decide()`/`executor`/`orchestrator` ring survives only as the Frame-B chat-command backend, not as a second walker.
+- **Proven, not assumed:** offline adapter (keyless deterministic runs) + an `ANTHROPIC_API_KEY`-gated live smoke (real model edits a real file) + a headless Playwright UI e2e (board + card-detail per-op render). CI runs the keyless gate + e2e on every push; live-smoke is secret-gated. Actually running it found+fixed 3 real bugs mock tests missed: brittle JSON parsing, `verify` wrong-cwd, and artifact discovery gated on `events.jsonl`.
+
+**Decided — §13 dogfooding is a NON-GOAL for this repo.** The spec's "Conductor manages building Conductor" mandate is explicitly *not* adopted here: a `.conductor/` tracker alongside `.relay/` would recreate the dual-tracking friction Control was removed to escape. Dogfooding confidence comes from throwaway-repo runs + the UI e2e + the live smoke instead. `.relay/` remains the sole tracker for this repo.
+
+**Still open (smaller, real):**
+- Cost ceilings can't fire — every adapter's `estimateCost` returns `dollars: 0` (no price table); the advertised per-card/per-day halt is inert.
+- MCP exposes ~26 of ~42 RPC methods (no parity test).
+- `conductor init` appends a **duplicate** `.gitignore` block when prior `.conductor/` ignore lines exist without the sentinel header (found dogfooding; affects any real user). `src/cli/commands/init.ts` `ensureGitignoreBlock`.
+- `conductor card list` is missing (the spec lists it; `scan` covers the need). `card_list` RPC already exists — pure CLI wiring.
+- Playwright e2e coverage is analyze+plan only (review/implement/verify/resolve, board drag, chat, routing, brain start/stop not yet exercised); first real Linux-CI run is the only true cross-OS proof.
