@@ -10,6 +10,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { ModelAdapter, AdapterCapabilities } from './adapter.js';
 import type { OperationRequest, OperationResponse, ToolCall } from '../engine/operation.js';
+import { dollarsForUsage } from './pricing.js';
 
 export interface ClaudeAdapterOptions {
   /** SDK client; defaults to a new Anthropic() instance. */
@@ -82,9 +83,13 @@ export class ClaudeAdapter implements ModelAdapter {
   }
 
   estimateCost(req: OperationRequest): { tokens: number; dollars: number } {
-    // Rough: prompt chars / 4 ≈ tokens; pricing tier-dependent.
-    // Phase 1 placeholder; Phase 7 hardens cost accounting.
-    const tokens = Math.ceil((req.system.length + req.user.length) / 4);
-    return { tokens, dollars: 0 };
+    // Pre-call ESTIMATE: prompt chars / 4 ≈ input tokens; assume output ≈ the
+    // configured max_tokens cap. Real billing uses the response's actual token
+    // counts (see wrapWithUsage in task_agent.ts), but this gives callers a
+    // non-zero forward estimate so cost-aware routing/ceilings can reason.
+    const inputTokens = Math.ceil((req.system.length + req.user.length) / 4);
+    const outputTokens = req.maxTokens ?? this.defaultMaxTokens;
+    const dollars = dollarsForUsage(req.model, inputTokens, outputTokens);
+    return { tokens: inputTokens + outputTokens, dollars };
   }
 }

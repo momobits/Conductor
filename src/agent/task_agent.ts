@@ -18,6 +18,7 @@ import { verify, defaultRunner, type Runner } from '../engine/ops/verify.js';
 import { notebook } from '../engine/ops/notebook.js';
 import { resolve as resolveOp } from '../engine/ops/resolve.js';
 import { RoutingAdapter } from '../adapters/routing.js';
+import { dollarsForUsage } from '../adapters/pricing.js';
 import type { TaskEvent } from './events.js';
 import { RunLogWriter } from './runlog.js';
 import { transitionPolicy, type TransitionPolicy } from '../engine/lifecycle.js';
@@ -342,12 +343,15 @@ function wrapWithUsage(
     id: `${inner.id}+usage`,
     invoke: async (req) => {
       const resp = await inner.invoke(req);
-      const cost = inner.estimateCost(req);
+      // Compute dollars from the REAL response token counts (not the pre-call
+      // estimateCost guess, which returned 0 — that made cost ceilings
+      // un-enforceable). resp.model is the model the provider actually billed.
+      const dollars = dollarsForUsage(resp.model || req.model, resp.inputTokens, resp.outputTokens);
       onUsage({
         model: resp.model,
         inputTokens: resp.inputTokens,
         outputTokens: resp.outputTokens,
-        dollars: cost.dollars,
+        dollars,
       });
       return resp;
     },

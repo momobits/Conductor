@@ -8,6 +8,7 @@
 import { Command } from 'commander';
 import { attachInit } from './commands/init.js';
 import { attachCardNew } from './commands/card-new.js';
+import { attachCardList } from './commands/card-list.js';
 import { attachCardBackward } from './commands/card-backward.js';
 import { attachWork } from './commands/work.js';
 import { attachTransition } from './commands/transition.js';
@@ -33,6 +34,7 @@ program
 
 attachInit(program);
 attachCardNew(program);
+attachCardList(program); // attaches to the 'card' command group created by attachCardNew
 attachCardBackward(program); // must run after attachCardNew (attaches to the 'card' command group)
 attachWork(program);
 attachTransition(program);

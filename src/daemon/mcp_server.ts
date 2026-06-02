@@ -48,7 +48,39 @@ const TOOLS: readonly ToolDef[] = [
   { name: 'conductor.run_replay', description: 'Replay a Task Agent run by id (returns the JSONL events).' },
   { name: 'conductor.run_prune', description: 'Prune run logs per run_log retention policy.' },
   { name: 'conductor.cost_show', description: "Today's spend, per-card spend on active sessions, and configured ceilings." },
+  // Post-spec operational surface — exposed so foreign AI CLIs can drive the
+  // pipeline at op granularity, manage the human|llm lead, inspect artifacts,
+  // and run substrate hygiene. (Parity with the RPC layer is enforced by a
+  // test against the methods registry — see tests/daemon/mcp_server.test.ts.)
+  { name: 'conductor.op_invoke', description: 'Run a single pipeline op (analyze|plan|review|implement|verify|notebook|resolve) on a card without advancing its column.' },
+  { name: 'conductor.run_artifact_get', description: 'Fetch the text of a per-run op artifact (.conductor/runs/<runId>/<op>.md).' },
+  { name: 'conductor.card_resume', description: 'Resume a card from its last completed op (re-derives the next step).' },
+  { name: 'conductor.orchestrator_decide', description: 'Ask the orchestrator for the next decision on a card (LLM-routed) without executing it.' },
+  { name: 'conductor.lead_get', description: 'Get the current lead (human | llm) that owns the queue.' },
+  { name: 'conductor.lead_set', description: 'Set the lead (human | llm); transfers control of the queue.' },
+  { name: 'conductor.pending_decision_resolve', description: 'Approve or reject a pending decision the brain surfaced to the operator.' },
+  { name: 'conductor.find_orphaned_substrate', description: 'List run-substrate artifacts orphaned by a backward column move.' },
+  { name: 'conductor.wipe_substrate', description: 'Delete orphaned run-substrate for a card (operator hygiene action).' },
+  { name: 'conductor.branch_substrate', description: 'Branch/preserve orphaned run-substrate before a backward column move.' },
 ];
+
+// RPC methods deliberately NOT exposed as MCP tools, with the reason. These are
+// UI-internal surfaces (the web chat panel + the card-detail render queries):
+// a foreign AI CLI has no use for them, and exposing them would clutter the
+// tool list. The parity test asserts every methods-registry key is EITHER an
+// MCP tool OR listed here — so any NEW method forces a deliberate keep/exclude
+// decision instead of silently drifting out of MCP coverage.
+export const INTENTIONALLY_NOT_MCP_TOOLS: ReadonlySet<MethodName> = new Set<MethodName>([
+  'chat_command',           // web chat-panel command routing; agents use conductor.chat
+  'chat_apply_edit',        // web chat-panel diff Apply button
+  'chat_proposed_edit_get', // web chat-panel proposed-edit fetch
+  'card_chat_history',      // web card-detail chat history render
+  'card_artifacts_index',   // web card-detail per-op index render
+  'card_runs_list',         // web card-detail run-history render
+]);
+
+/** The MCP tool list — exported for the parity test. */
+export const MCP_TOOLS = TOOLS;
 
 export function listToolNames(): string[] {
   return TOOLS.map((t) => t.name);
