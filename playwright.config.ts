@@ -26,7 +26,10 @@ export default defineConfig({
   workers: 1,
   fullyParallel: false,
   forbidOnly: !!process.env['CI'],
-  reporter: [['list']],
+  // `list` for live console output; `html` (never auto-opened) so CI has a
+  // self-contained report to upload on failure (actions/upload-artifact picks
+  // up playwright-report/). The HTML dir is gitignored.
+  reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]],
   // Screenshots / traces / results land in a gitignored dir.
   outputDir: 'e2e/.output/results',
   use: {

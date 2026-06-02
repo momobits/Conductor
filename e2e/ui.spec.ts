@@ -99,6 +99,8 @@ test.beforeAll(async () => {
   await git.commit('chore: conductor init + seed card');
 
   // 4. Start the real daemon on a random port (port 0). Import from dist.
+  //    startDaemon() awaits server.listen() before resolving, so the HTTP
+  //    server is already accepting connections by the time the handle returns.
   const mod = (await import(DIST_DAEMON)) as { startDaemon: StartDaemon };
   handle = await mod.startDaemon({ repo: tmp, port: 0 });
   baseURL = handle.url;
@@ -106,13 +108,72 @@ test.beforeAll(async () => {
   // 5. Read the auth token the daemon wrote. The UI authenticates via
   //    ?token=<token> on first load.
   token = readFileSync(join(tmp, '.conductor', 'auth.token'), 'utf8').trim();
+
+  // 6. Deterministic readiness gate: poll the daemon over real HTTP until it
+  //    answers an authenticated request before any browser navigation. This
+  //    closes the (theoretical) window between server.listen() resolving and
+  //    the first request being serviceable, and keeps CI (slower, Linux) from
+  //    racing the very first page.goto against a not-quite-warm server.
+  await waitForDaemonReady(baseURL, token);
 });
 
+/**
+ * Probe the daemon over HTTP (the same auth path the UI uses) until it returns
+ * a non-5xx response or the deadline elapses. We hit `/` (the UI shell) with the
+ * bearer token; any 2xx/3xx/4xx means the listener + auth middleware are live.
+ * Uses Node's global fetch (Node 20+); no Playwright browser needed.
+ */
+async function waitForDaemonReady(base: string, tok: string, timeoutMs = 20_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let lastErr: unknown;
+  while (Date.now() < deadline) {
+    try {
+      const r = await fetch(`${base}/?token=${encodeURIComponent(tok)}`, {
+        headers: { authorization: `Bearer ${tok}` },
+      });
+      // Drain the body so the socket is released promptly (no lingering
+      // half-open connection that server.close() would later wait on).
+      await r.arrayBuffer().catch(() => undefined);
+      if (r.status < 500) return;
+      lastErr = new Error(`daemon not ready: HTTP ${r.status}`);
+    } catch (e) {
+      lastErr = e;
+    }
+    await new Promise((res) => setTimeout(res, 100));
+  }
+  throw new Error(`daemon did not become ready within ${timeoutMs}ms: ${String(lastErr)}`);
+}
+
 test.afterAll(async () => {
+  // Teardown ordering matters. The daemon's HTTP server.close() waits for all
+  // in-flight connections to drain — and the UI holds a long-lived SSE stream
+  // (GET /events) open for the duration of each page. Playwright tears down the
+  // per-test page (and thus its SSE fetch) before this afterAll runs, so the
+  // connection is normally already gone. But to make teardown BULLETPROOF
+  // regardless of client timing, we race shutdown() against a hard cap so the
+  // suite can never hang on a stray half-open SSE socket. After the daemon is
+  // down, the browser-side SSE client (events.ts connectLoop) would see
+  // ECONNREFUSED — that error is caught internally and the spec never asserts on
+  // console errors, so post-shutdown reconnect noise is benign by construction.
   try {
-    if (handle) await handle.shutdown();
+    if (handle) {
+      await Promise.race([
+        handle.shutdown(),
+        new Promise<void>((res) => setTimeout(res, 10_000)),
+      ]);
+    }
+  } catch {
+    // A shutdown error must not mask test results or leak the temp dir.
   } finally {
-    if (tmp) rmSync(tmp, { recursive: true, force: true });
+    if (tmp) {
+      try {
+        rmSync(tmp, { recursive: true, force: true });
+      } catch {
+        // Windows can briefly hold a handle on the just-closed sqlite/runtime
+        // file; force:true already retries. Swallow any residual EBUSY so a
+        // teardown filesystem hiccup never reports the run as failed.
+      }
+    }
   }
 });
 
@@ -184,11 +245,20 @@ test('Run analyze: section renders artifact (regression guard for artifact disco
   await gotoWithToken(page, `#/card/${cardId}`);
 
   const analyzeSection = page.locator('section.op-section[data-op="analyze"]');
-  // Pre-state: not yet run.
+  // Pre-state: not yet run. (Web-first retry covers the async per-op render that
+  // fires on mount — if the section paints empty-then-populated we still catch
+  // the CTA before the click.)
   await expect(analyzeSection).toContainText('— not yet run —');
 
   // Click the sidebar "Analyze" button (op_invoke runs the offline analyze op).
-  await page.locator('#op-controls button[data-op="analyze"]').click();
+  // Wait for the button-state machine to enable it first: the sidebar handler is
+  // bound at mount but applyButtonStates() runs after the card RPC resolves, so
+  // on a cold/slow box the button is briefly present-but-disabled. click()
+  // already auto-waits for actionability, but the explicit toBeEnabled() turns a
+  // silent no-op click into a clear, fast failure if enablement ever regresses.
+  const analyzeBtn = page.locator('#op-controls button[data-op="analyze"]');
+  await expect(analyzeBtn).toBeEnabled();
+  await analyzeBtn.click();
 
   // Web-first wait: op_complete SSE fires → section re-queries the artifacts
   // index and re-renders. The header now shows "last run:" and the section no
@@ -207,7 +277,9 @@ test('Run plan: section renders its artifact (per-op index + op chain)', async (
   const planSection = page.locator('section.op-section[data-op="plan"]');
   await expect(planSection).toContainText('— not yet run —');
 
-  await page.locator('#op-controls button[data-op="plan"]').click();
+  const planBtn = page.locator('#op-controls button[data-op="plan"]');
+  await expect(planBtn).toBeEnabled();
+  await planBtn.click();
 
   await expect(planSection).toContainText('last run:', { timeout: 30_000 });
   await expect(planSection).not.toContainText('— not yet run —');

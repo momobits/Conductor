@@ -46,6 +46,54 @@ jobs:
       - name: Test (keyless — offline adapter; live-smoke skips without a key)
         run: npm test
 
+  # Headless Playwright e2e: drives the real Control Room UI against a live
+  # daemon serving a KEYLESS offline .conductor/ repo. The spec owns its own
+  # daemon + temp-repo lifecycle (e2e/ui.spec.ts beforeAll/afterAll); every op
+  # routes to the deterministic OfflineAdapter, so there is NO API key and NO
+  # network — this gates every push/PR exactly like the unit `test` job (it is
+  # NOT secret-gated like live-smoke). Gated `needs: test` so it only spends
+  # browser-install minutes after the cheaper typecheck+unit gate is green.
+  # One OS (ubuntu) is sufficient coverage for the UI surface.
+  e2e:
+    name: e2e (Playwright, keyless offline)
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium (+ OS deps)
+        run: npx playwright install --with-deps chromium
+
+      - name: Build (engine + UI)
+        run: npm run build
+
+      - name: Run Playwright e2e (keyless — offline adapter, no API key)
+        run: npx playwright test
+
+      # On failure, surface the Playwright report + traces/screenshots so the
+      # failure is debuggable without re-running locally. retain-on-failure
+      # traces + only-on-failure screenshots land under e2e/.output (see
+      # playwright.config.ts outputDir); the HTML report lands in
+      # playwright-report/. Both are gitignored locally.
+      - name: Upload Playwright report + artifacts
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            e2e/.output/
+          retention-days: 7
+          if-no-files-found: ignore
+
   # Live smoke: drives a real card through the pipeline against a real Claude
   # model and asserts implement edits an existing file correctly. Runs ONLY
   # when the ANTHROPIC_API_KEY secret is configured (it is paid + non-
