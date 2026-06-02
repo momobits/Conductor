@@ -20,6 +20,7 @@
     "pretest": "npm run build:ui",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "npm run build && playwright test",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.ui.json",
     "dev": "tsx src/cli/index.ts"
   },

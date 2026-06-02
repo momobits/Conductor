@@ -53,5 +53,10 @@ coverage/
 # Playwright MCP cache (dogfood sessions)
 .playwright-mcp/
 
+# Playwright e2e output (screenshots, traces, results)
+e2e/.output/
+test-results/
+playwright-report/
+
 # Dogfood screenshot dumps at repo root
 /[0-9][0-9]-*.png
