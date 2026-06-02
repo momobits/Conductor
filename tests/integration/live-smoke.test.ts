@@ -4,15 +4,22 @@
 // real card through the real pipeline against a REAL Claude model. Everything
 // else in the suite is mock/offline-driven and never touches the network.
 //
-// What it proves: a real LLM can walk a card through the TaskAgent lifecycle
-// and — critically — MODIFY AN EXISTING FILE correctly. That exercises the
-// implement op's agentic read-tool loop (src/engine/agentic_read.ts): the model
-// must `read_file` math.js to see its current content BEFORE emitting a
-// `modify` diff, then return the COMPLETE updated file (add `subtract` without
-// clobbering the existing `add`). applyDiffFile() rejects a `modify` whose file
-// doesn't exist and a `create` whose file already exists, so a model that
-// hallucinated the file or skipped the read would fail here. This is the bug we
-// just fixed; this test is its real-model proof.
+// What it proves, in two parts:
+//   PART A — the real model executes analyze + plan + review and the ops parse
+//     its output. Verdict-agnostic: review may legitimately return NEEDS-INFO /
+//     NEEDS-CHANGES on a terse card (its prompt instructs that), so Part A only
+//     asserts review RUNS and yields a VALID verdict outcome — it does not bet
+//     the smoke on an APPROVE.
+//   PART B — the implement op's agentic read-tool loop (src/engine/agentic_read.ts)
+//     MODIFIES AN EXISTING FILE correctly. The model must `read_file` math.js to
+//     see its current content BEFORE emitting a `modify` diff, then return the
+//     COMPLETE updated file (add `subtract` without clobbering the existing
+//     `add`). applyDiffFile() rejects a `modify` whose file doesn't exist and a
+//     `create` whose file already exists, so a model that hallucinated the file
+//     or skipped the read would fail here. This is the bug we just fixed; this
+//     is its real-model proof. Part B runs analyze+plan for real, then forces
+//     the card to 'approved' (sidestepping the non-deterministic review verdict
+//     proven valid in Part A) so it deterministically reaches implement.
 //
 // HOW TO RUN (live):
 //   ANTHROPIC_API_KEY=sk-... npx vitest run tests/integration/live-smoke.test.ts
@@ -45,7 +52,7 @@ import { createRequire } from 'node:module';
 import { simpleGit } from 'simple-git';
 import { TaskAgent } from '../../src/agent/task_agent.js';
 import { ProjectConfigSchema } from '../../src/config/schema.js';
-import { readCard } from '../../src/engine/state/card.js';
+import { readCard, writeCard } from '../../src/engine/state/card.js';
 import type { TaskEvent } from '../../src/agent/events.js';
 import type { Column } from '../../src/engine/types.js';
 
@@ -177,44 +184,103 @@ async function commitCount(repo: string): Promise<number> {
   return (await simpleGit(repo).log()).total;
 }
 
-describe.skipIf(!LIVE)('Live smoke (REAL Claude model, paid)', () => {
-  it(
-    'drives a real card to modify an existing math.js via the real TaskAgent + ClaudeAdapter',
-    async () => {
-      const cardId = '2026-05-30-live-smoke';
-      const { repo, cardPath, mathPath } = await setupGitRepo(cardId);
+// Force a card's column on disk. The 'planned -> approved' transition is the
+// ONLY lifecycle edge gated on a non-deterministic LLM verdict (review may
+// legitimately return NEEDS-INFO / NEEDS-CHANGES on a terse card — its prompt
+// explicitly instructs that). We assert review *runs and returns a valid
+// verdict* in Part A, then deterministically place the card in 'approved' here
+// so Part B can prove the thing that actually matters — implement's agentic
+// read-loop editing a real file — without betting the whole smoke on a verdict
+// lottery. Everything else (analyze, plan, implement, verify) IS exercised
+// against the real model.
+async function forceColumn(cardPath: string, column: Column): Promise<void> {
+  const card = await readCard(cardPath);
+  card.frontmatter.column = column;
+  await writeCard(card);
+}
 
+function lastOpComplete(events: TaskEvent[], op: string): boolean {
+  return events.some((e) => e.kind === 'op_complete' && e.operation === op);
+}
+
+describe.skipIf(!LIVE)('Live smoke (REAL Claude model, paid)', () => {
+  // PART A — the real model executes the front of the pipeline. Verdict-
+  // agnostic: we prove analyze, plan, and review each RUN and produce valid
+  // output, accepting ANY valid review verdict (APPROVED | NEEDS-CHANGES |
+  // NEEDS-INFO). This is the "the pipeline talks to a real model and the ops
+  // parse its output" proof.
+  it(
+    'runs analyze + plan + review against the real model and produces valid op output',
+    async () => {
+      const cardId = '2026-05-30-live-smoke-a';
+      const { repo, cardPath } = await setupGitRepo(cardId);
       expect(await columnOf(cardPath)).toBe('discovered');
-      const commitsBefore = await commitCount(repo);
 
       // Hop 1: discovered -> planned (analyze + plan via the real model).
       const hop1 = await runOneHop({ repo, cardId, now: hopClock(0) });
+      expect(lastOpComplete(hop1, 'analyze')).toBe(true);
+      expect(lastOpComplete(hop1, 'plan')).toBe(true);
       expect(hop1[hop1.length - 1]).toMatchObject({ kind: 'complete', finalColumn: 'planned' });
       expect(await columnOf(cardPath)).toBe('planned');
 
-      // Hop 2: planned -> approved (review). A reasonable model APPROVES a
-      // sound one-line plan; if it doesn't, the walk halts at 'planned' and the
-      // assertion below surfaces it clearly rather than hanging.
+      // The plan op wrote a real plan artifact to the run substrate (this is
+      // what implement reads in Part B). Prove it exists and is non-trivial.
+      const { findLatestArtifactRunId } = await import('../../src/agent/run_artifact.js');
+      const planArtifact = await findLatestArtifactRunId(repo, cardId, 'plan');
+      expect(planArtifact, 'plan op must persist a plan.md artifact to the run substrate').not.toBeNull();
+      expect(planArtifact!.text.trim().length).toBeGreaterThan(20);
+
+      // Hop 2: planned -> review. The op MUST run and return a VALID verdict;
+      // we do NOT require a specific decision (a terse card legitimately draws
+      // NEEDS-INFO). Either it APPROVED (advanced to 'approved') or it halted
+      // in 'planned' with a NEEDS-* verdict — both are valid review outcomes.
       const hop2 = await runOneHop({ repo, cardId, now: hopClock(1) });
+      expect(lastOpComplete(hop2, 'review')).toBe(true);
+      const last2 = hop2[hop2.length - 1];
+      const col2 = await columnOf(cardPath);
+      const approvedAndAdvanced = last2.kind === 'complete' && col2 === 'approved';
+      const haltedWithVerdict =
+        last2.kind === 'halt' && /Review returned (NEEDS-INFO|NEEDS-CHANGES)/.test(last2.reason) && col2 === 'planned';
+      expect(
+        approvedAndAdvanced || haltedWithVerdict,
+        `Review must run and yield a valid verdict outcome. col=${col2}, last=${JSON.stringify(last2)}`,
+      ).toBe(true);
+    },
+    LIVE_TIMEOUT_MS,
+  );
+
+  // PART B — the real model's implement op edits an EXISTING file via the
+  // agentic read-loop. This is the bug we fixed (implement.ts could not modify
+  // a file it had not read). We run analyze+plan for real, deterministically
+  // place the card in 'approved' (sidestepping the verdict lottery proven in
+  // Part A), then run implement for real and verify the on-disk result.
+  it(
+    'implement modifies an existing math.js via the real read-loop, and a real verify passes',
+    async () => {
+      const cardId = '2026-05-30-live-smoke-b';
+      const { repo, cardPath, mathPath } = await setupGitRepo(cardId);
+      const commitsBefore = await commitCount(repo);
+
+      // Hop 1: discovered -> planned (analyze + plan via the real model). This
+      // produces the REAL plan artifact implement will read.
+      const hop1 = await runOneHop({ repo, cardId, now: hopClock(0) });
+      expect(hop1[hop1.length - 1]).toMatchObject({ kind: 'complete', finalColumn: 'planned' });
+
+      // Deterministically advance to 'approved' (see forceColumn rationale).
+      await forceColumn(cardPath, 'approved');
+      expect(await columnOf(cardPath)).toBe('approved');
+
+      // Hop 2: approved -> building. implement runs the agentic read-loop: it
+      // must read_file math.js, then emit a `modify` diff with the COMPLETE new
+      // content. step '1.1' supplied as the CLI/offline path supplies it.
+      const hop2 = await runOneHop({ repo, cardId, step: '1.1', now: hopClock(1) });
+      expect(lastOpComplete(hop2, 'implement')).toBe(true);
       const col2 = await columnOf(cardPath);
       expect(
-        col2,
-        `Expected review to APPROVE and advance to 'approved'; got '${col2}'. ` +
+        ['building', 'verifying', 'shipped', 'archived'],
+        `Expected implement to run and advance past 'approved'; got '${col2}'. ` +
           `Last event: ${JSON.stringify(hop2[hop2.length - 1])}`,
-      ).toBe('approved');
-
-      // Hop 3: approved -> building (implement step 1.1 — the read-loop MODIFY).
-      // step '1.1' is supplied exactly like the offline test supplies it at the
-      // approved column.
-      const hop3 = await runOneHop({ repo, cardId, step: '1.1', now: hopClock(2) });
-      const col3 = await columnOf(cardPath);
-      expect(
-        col3,
-        `Expected implement to run and advance past 'approved'; got '${col3}'. ` +
-          `Last event: ${JSON.stringify(hop3[hop3.length - 1])}`,
-      ).not.toBe('approved');
-      // Implement ran and produced a forward transition (building or beyond).
-      expect(['building', 'verifying', 'shipped', 'archived']).toContain(col3);
+      ).toContain(col2);
 
       // ---- Assertion 1: the EXISTING file was MODIFIED, not clobbered. ----
       expect(existsSync(mathPath)).toBe(true);
@@ -223,35 +289,30 @@ describe.skipIf(!LIVE)('Live smoke (REAL Claude model, paid)', () => {
       expect(mathSrc).toMatch(/\badd\b/); // the original function survived
 
       // ---- Assertion 2: the modified file BEHAVES correctly. ----
-      // Bust the require cache (a same-named file from a prior run in the same
-      // worker could otherwise be cached) by requiring the unique temp path.
       const requireFromTest = createRequire(import.meta.url);
       delete requireFromTest.cache[requireFromTest.resolve(mathPath)];
-      const m = requireFromTest(mathPath) as { add: (a: number, b: number) => number; subtract: (a: number, b: number) => number };
+      const m = requireFromTest(mathPath) as {
+        add: (a: number, b: number) => number;
+        subtract: (a: number, b: number) => number;
+      };
       expect(typeof m.subtract).toBe('function');
       expect(m.subtract(5, 3)).toBe(2);
       expect(m.add(2, 3)).toBe(5);
 
-      // ---- Assertion 3: at least one commit landed during the walk. ----
-      // implement commits its step (`feat(live-smoke.1.1): ...`).
+      // ---- Assertion 3: implement committed its step. ----
       const commitsAfter = await commitCount(repo);
       expect(commitsAfter).toBeGreaterThan(commitsBefore);
 
-      // ---- Assertion 4: the card advanced past 'approved' (implement ran). ----
-      // (col3 already asserted above; re-state the lifecycle invariant plainly.)
-      expect(['building', 'verifying', 'shipped', 'archived']).toContain(col3);
-
-      // Hop 4 (optional but stable): building -> verifying. The real verify
-      // command runs (node -e require math.js, checks subtract). We only drive
-      // this hop if hop 3 stopped at 'building' (it normally does). This proves
-      // the change passes a REAL verify against REAL code.
-      if (col3 === 'building') {
-        const hop4 = await runOneHop({ repo, cardId, now: hopClock(3) });
-        const col4 = await columnOf(cardPath);
+      // ---- Assertion 4: a REAL verify passes against the REAL change. ----
+      // If implement stopped at 'building', drive the verify hop: the real
+      // verify_command (node -e require math.js; check subtract) must PASS.
+      if (col2 === 'building') {
+        const hop3 = await runOneHop({ repo, cardId, now: hopClock(2) });
+        const col3 = await columnOf(cardPath);
         expect(
-          col4,
-          `Expected real verify_command to PASS and advance to 'verifying'; got '${col4}'. ` +
-            `Last event: ${JSON.stringify(hop4[hop4.length - 1])}`,
+          col3,
+          `Expected real verify_command to PASS and advance to 'verifying'; got '${col3}'. ` +
+            `Last event: ${JSON.stringify(hop3[hop3.length - 1])}`,
         ).toBe('verifying');
       }
     },
