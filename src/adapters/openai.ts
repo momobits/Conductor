@@ -12,6 +12,7 @@ import type {
   ToolCall,
   ToolSchema,
 } from '../engine/operation.js';
+import { dollarsForUsage } from './pricing.js';
 
 export interface OpenAIAdapterOptions {
   /** SDK client; defaults to a new OpenAI() instance (reads OPENAI_API_KEY). */
@@ -121,7 +122,9 @@ export class OpenAIAdapter implements ModelAdapter {
   }
 
   estimateCost(req: OperationRequest): { tokens: number; dollars: number } {
-    const tokens = Math.ceil((req.system.length + req.user.length) / 4);
-    return { tokens, dollars: 0 };
+    const inputTokens = Math.ceil((req.system.length + req.user.length) / 4);
+    const outputTokens = req.maxTokens ?? this.defaultMaxTokens;
+    const dollars = dollarsForUsage(req.model, inputTokens, outputTokens);
+    return { tokens: inputTokens + outputTokens, dollars };
   }
 }
