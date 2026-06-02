@@ -16,7 +16,12 @@ export interface RunnerResult {
   exitCode: number;
 }
 
-export type Runner = (command: string) => Promise<RunnerResult>;
+/** A runner executes the project's verify command and returns its result.
+ *  `cwd` is the repo root the command must run in — verify commands are
+ *  written relative to the project (e.g. `npm test`, `node -e "require('./x')"`),
+ *  so running them anywhere else spuriously fails. The op always passes its
+ *  `repo` arg as `cwd`; a custom runner may honor or ignore it. */
+export type Runner = (command: string, cwd?: string) => Promise<RunnerResult>;
 
 export interface VerifyArgs {
   card: Card;
@@ -60,7 +65,10 @@ export async function verify(args: VerifyArgs): Promise<VerifyReport> {
     throw new Error(`verify: runId arg required (received: ${JSON.stringify(runId)}).`);
   }
 
-  const result = await runner(command);
+  // Pass the repo root as cwd: verify commands are written relative to the
+  // project, so they must run there — not in whatever directory the daemon/CLI
+  // process happens to be in.
+  const result = await runner(command, repo);
 
   const userPrompt = [
     `Card: ${card.frontmatter.id}`,
@@ -123,11 +131,13 @@ export async function verify(args: VerifyArgs): Promise<VerifyReport> {
   return report;
 }
 
-// Default runner — used by CLI invocations. Importable for production but
-// not pulled into tests so we can keep test runs hermetic.
-export async function defaultRunner(command: string): Promise<RunnerResult> {
+// Default runner — used by CLI/daemon invocations. Importable for production
+// but not pulled into tests so we can keep test runs hermetic. Runs the
+// command in `cwd` (the repo root, passed by verify()); falls back to the
+// process cwd only if no cwd is supplied (e.g. a direct caller).
+export async function defaultRunner(command: string, cwd?: string): Promise<RunnerResult> {
   const { execa } = await import('execa');
-  const proc = await execa(command, { shell: true, reject: false });
+  const proc = await execa(command, { shell: true, reject: false, cwd });
   return {
     stdout: proc.stdout ?? '',
     stderr: proc.stderr ?? '',

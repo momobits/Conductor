@@ -57,6 +57,42 @@ describe('parseJsonResponse', () => {
     expect(r.n).toBe(2);
   });
 
+  // Regression: a live-smoke run against claude-haiku-4-5 had implement fail
+  // because the model returned prose + a ```javascript illustration (whose
+  // `{ ... }` is NOT valid JSON) + the real ```json block. The old
+  // "first balanced block wins" fallback grabbed the JS snippet and gave up.
+  it('extracts the json fence when prose + a non-json fence precede it (real Haiku shape)', () => {
+    const text = [
+      'I\'ll modify it to:',
+      '```javascript',
+      'module.exports = { add: (a, b) => a + b, subtract: (a, b) => a - b };',
+      '```',
+      '',
+      'Here is the diff:',
+      '```json',
+      '{"step":"1.1","commit_type":"feat","files":[{"path":"math.js","action":"modify"}]}',
+      '```',
+    ].join('\n');
+    const r = parseJsonResponse<{ step: string; files: unknown[] }>(text, { op: 'implement' });
+    expect(r.step).toBe('1.1');
+    expect(r.files).toHaveLength(1);
+  });
+
+  it('skips a leading non-json brace block and parses a later unfenced JSON object', () => {
+    // No fences at all: a prose `{add}` illustration, then the real object.
+    const text =
+      'Example shape: { add } then the answer follows. {"decision":"APPROVED","reasoning":"ok"}';
+    const r = parseJsonResponse<{ decision: string }>(text, { op: 'review' });
+    expect(r.decision).toBe('APPROVED');
+  });
+
+  it('prefers a ```json block over an earlier ```text block with invalid json', () => {
+    const text =
+      '```text\n{not valid json}\n```\n```json\n{"ok":true}\n```';
+    const r = parseJsonResponse<{ ok: boolean }>(text, { op: 'test' });
+    expect(r.ok).toBe(true);
+  });
+
   it('throws with op name and raw snippet on unparseable input', () => {
     expect(() =>
       parseJsonResponse('this is definitely not json', { op: 'discover' }),
