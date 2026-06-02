@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+# Cancel superseded runs on the same ref to save minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Keyless gate: typecheck, build, and the full vitest suite. Everything here
+  # runs without any API key — the offline adapter + offline-lifecycle test
+  # prove the pipeline end-to-end deterministically, and the live-smoke test
+  # skips cleanly when ANTHROPIC_API_KEY is absent. This job is the required
+  # status check for merging to main.
+  test:
+    name: typecheck + test (Node ${{ matrix.node }}, ${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: ['20', '22']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build (engine + UI)
+        run: npm run build
+
+      - name: Test (keyless — offline adapter; live-smoke skips without a key)
+        run: npm test
+
+  # Live smoke: drives a real card through the pipeline against a real Claude
+  # model and asserts implement edits an existing file correctly. Runs ONLY
+  # when the ANTHROPIC_API_KEY secret is configured (it is paid + non-
+  # deterministic), and never blocks the merge gate. On forks / repos without
+  # the secret this job is skipped, not failed.
+  live-smoke:
+    name: live smoke (real model)
+    needs: test
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build (engine + UI)
+        run: npm run build
+
+      - name: Run live smoke (skips cleanly if ANTHROPIC_API_KEY is unset)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Cheapest capable model for the smoke; override here if desired.
+          CONDUCTOR_SMOKE_MODEL: claude-haiku-4-5
+        run: npx vitest run tests/integration/live-smoke.test.ts
