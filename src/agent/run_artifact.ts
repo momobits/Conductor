@@ -12,7 +12,7 @@
 
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { listRuns } from './runlog_store.js';
+import { listRunDirs } from './runlog_store.js';
 
 // Writer-side op kinds. Phase 28 shipped the original 6 ops via 3 commits
 // (28.1 added 'review'; 28.2 added 'verify' + 'notebook'; 28.3 added
@@ -100,7 +100,7 @@ export async function readRunArtifact(
 
 /**
  * Find the most-recent run for a card that produced a usable `<op>.md`
- * artifact. Filters `listRuns()` (mtime DESC) by the canonical runId shape
+ * artifact. Filters `listRunDirs()` (mtime DESC) by the canonical runId shape
  * `<YYYYMMDDTHHMMSS>-<cardId>` (regex + length-equality combined: the
  * regex anchors the timestamp prefix shape; the length check pins the
  * cardId portion to be exactly the trailing suffix — together they block
@@ -124,7 +124,10 @@ export async function findLatestArtifactRunId(
   // before the cardId. Combined regex (shape) + length (cardId boundary).
   const expectedLen = 16 + cardId.length;
   const PREFIX_SHAPE = /^\d{8}T\d{6}-/;
-  const runs = await listRuns(repo);
+  // Discover by directory, not events.jsonl: a UI per-op op_invoke writes
+  // only <op>.md (no event log), so events.jsonl-gated listRuns() would miss
+  // it. We only need r.runId here.
+  const runs = await listRunDirs(repo);
   for (const r of runs) {
     if (!PREFIX_SHAPE.test(r.runId)) continue;
     if (r.runId.length !== expectedLen) continue;

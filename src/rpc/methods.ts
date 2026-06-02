@@ -33,7 +33,7 @@ import { readRunArtifact, findLatestArtifactRunId } from '../agent/run_artifact.
 import { readChatLog, appendChatTurn } from '../engine/state/chat_log.js';
 import { trackerPull } from '../engine/ops/tracker_pull.js';
 import { makeTrackerAdapter } from '../trackers/factory.js';
-import { listRuns, pruneRuns, replayRun } from '../agent/runlog_store.js';
+import { listRuns, listRunDirs, pruneRuns, replayRun } from '../agent/runlog_store.js';
 import { getCostSummary } from '../daemon/cost_summary.js';
 import { Conductor } from '../conductor/loop.js';
 import { dump as yamlDump } from 'js-yaml';
@@ -871,7 +871,10 @@ async function card_artifacts_index(ctx: MethodContext, raw: unknown) {
   const expectedLen = 16 + cardId.length;
   const PREFIX_SHAPE = /^\d{8}T\d{6}-/;
   const suffix = `-${cardId}`;
-  const runs = await listRuns(ctx.repo);
+  // Discover by directory (not events.jsonl): the UI per-op op_invoke writes
+  // only <op>.md, so a run dir with artifacts but no event log must still be
+  // counted. listRunDirs returns { runId, mtime } — both used below.
+  const runs = await listRunDirs(ctx.repo);
   type OpKey = 'analyze' | 'plan' | 'review' | 'verify' | 'notebook' | 'implement' | 'orchestrate';
   const OPS: readonly OpKey[] = ['analyze', 'plan', 'review', 'verify', 'notebook', 'implement', 'orchestrate'] as const;
   const ops: Record<OpKey, { latestRunId: string | null; latestTs: string | null; runCount: number }> = {
@@ -917,7 +920,8 @@ async function card_runs_list(ctx: MethodContext, raw: unknown) {
   const expectedLen = 16 + cardId.length;
   const PREFIX_SHAPE = /^\d{8}T\d{6}-/;
   const suffix = `-${cardId}`;
-  const runs = await listRuns(ctx.repo);
+  // Discover by directory (not events.jsonl): see card_artifacts_index above.
+  const runs = await listRunDirs(ctx.repo);
   const out: Array<{ runId: string; timestamp: string; ops: string[] }> = [];
   for (const run of runs) {
     if (!PREFIX_SHAPE.test(run.runId)) continue;

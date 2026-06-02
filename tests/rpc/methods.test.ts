@@ -580,6 +580,26 @@ describe('rpc methods - card_artifacts_index', () => {
     expect(res.ops['orchestrate']!.runCount).toBe(0);
   });
 
+  // Regression for the op_invoke discovery bug: the UI per-op button writes
+  // <op>.md to .conductor/runs/<runId>/ but NO events.jsonl. Discovery must
+  // not be gated on events.jsonl. Uses a cardId that itself contains date
+  // digits (the live Playwright case) to exercise the runId-shape filter.
+  it('counts a run that has analyze.md but NO events.jsonl (op_invoke shape)', async () => {
+    const repo = setupRepo();
+    const { RunArtifactWriter } = await import('../../src/agent/run_artifact.js');
+    const cardId = '2026-06-02-foo';
+    const runId = `20260602T120000-${cardId}`;
+    // Deliberately do NOT write events.jsonl — only the artifact, like op_invoke.
+    await new RunArtifactWriter({ repo, runId }).write('analyze', 'ANALYZED');
+    const ctx = { repo, config: ProjectConfigSchema.parse({}), runtime: new InMemoryRuntime() };
+    const res = await methods.card_artifacts_index(ctx, { cardId }) as {
+      ops: Record<string, { latestRunId: string | null; latestTs: string | null; runCount: number }>;
+    };
+    expect(res.ops['analyze']!.runCount).toBe(1);
+    expect(res.ops['analyze']!.latestRunId).toBe(runId);
+    expect(res.ops['analyze']!.latestRunId).not.toBeNull();
+  });
+
   it('runCount sums across multiple runs; latest tracks mtime-DESC first', async () => {
     const repo = setupRepo();
     const { RunArtifactWriter } = await import('../../src/agent/run_artifact.js');

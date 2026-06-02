@@ -14,13 +14,15 @@ afterEach(async () => {
   await rm(repo, { recursive: true, force: true });
 });
 
-// Test fixture helper for findLatestArtifactRunId (which goes through listRuns()).
-// listRuns at runlog_store.ts:36-43 filters out dirs without a readable
-// events.jsonl, so seeding a runId-dir with only `<op>.md` is invisible. This
-// helper writes BOTH events.jsonl AND each requested artifact under
-// .conductor/runs/<runId>/. Optionally backdates mtimes when given an mtime arg
-// so multi-run mtime-DESC ordering tests are deterministic on Windows (whose
-// filesystem mtime granularity is ~100ms).
+// Test fixture helper for findLatestArtifactRunId. Since Phase (this fix)
+// findLatestArtifactRunId discovers via listRunDirs() (the DIRECTORY itself),
+// not events.jsonl — so a run dir with only `<op>.md` is now visible. This
+// helper still writes events.jsonl (to keep the pre-existing logged-run tests
+// realistic) plus each requested artifact under .conductor/runs/<runId>/.
+// Optionally backdates mtimes when given an mtime arg so multi-run mtime-DESC
+// ordering tests are deterministic on Windows (whose filesystem mtime
+// granularity is ~100ms). Backdates BOTH the events.jsonl mtime (for listRuns
+// consumers) AND the dir mtime (listRunDirs sorts by dir mtime).
 async function seedRun(
   repoArg: string,
   runId: string,
@@ -36,6 +38,26 @@ async function seedRun(
   }
   if (mtime) {
     await utimes(eventsPath, mtime, mtime);
+    await utimes(dir, mtime, mtime);
+  }
+}
+
+// Seed a run dir holding ONLY <op>.md files — no events.jsonl. This is the
+// shape the UI per-op `op_invoke` path writes; before the fix it was invisible
+// to findLatestArtifactRunId (gated on events.jsonl via listRuns).
+async function seedArtifactOnlyRun(
+  repoArg: string,
+  runId: string,
+  artifacts: Record<string, string>,
+  mtime?: Date,
+): Promise<void> {
+  const dir = join(repoArg, '.conductor', 'runs', runId);
+  await mkdir(dir, { recursive: true });
+  for (const [op, content] of Object.entries(artifacts)) {
+    await writeFile(join(dir, `${op}.md`), content, 'utf8');
+  }
+  if (mtime) {
+    await utimes(dir, mtime, mtime);
   }
 }
 
@@ -120,6 +142,17 @@ describe('findLatestArtifactRunId', () => {
 
   it('returns null when no run matches', async () => {
     expect(await findLatestArtifactRunId(repo, 'cardA', 'plan')).toBeNull();
+  });
+
+  // Regression: a run dir written by the UI per-op op_invoke path has plan.md
+  // but NO events.jsonl. It must now be found so the "Run plan" → "Run review/
+  // implement" chain works (review reads the UI-written plan).
+  it('finds a run dir with plan.md but no events.jsonl', async () => {
+    await seedArtifactOnlyRun(repo, '20260602T120000-cardA', { plan: 'UI-written plan' });
+    const found = await findLatestArtifactRunId(repo, 'cardA', 'plan');
+    expect(found).not.toBeNull();
+    expect(found?.runId).toBe('20260602T120000-cardA');
+    expect(found?.text).toBe('UI-written plan');
   });
 
   it('skips runs for other cards', async () => {

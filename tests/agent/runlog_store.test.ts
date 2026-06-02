@@ -3,7 +3,7 @@ import { mkdtempSync } from 'node:fs';
 import { mkdir, writeFile, readdir, utimes } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { listRuns, pruneRuns, replayRun } from '../../src/agent/runlog_store.js';
+import { listRuns, listRunDirs, pruneRuns, replayRun } from '../../src/agent/runlog_store.js';
 
 async function makeRun(repo: string, runId: string, ts: Date, lines: string[]): Promise<void> {
   const dir = join(repo, '.conductor', 'runs', runId);
@@ -88,5 +88,56 @@ describe('runlog store', () => {
     expect(events).toHaveLength(2);
     expect(events[0]?.kind).toBe('op_start');
     expect(events[1]?.kind).toBe('op_complete');
+  });
+});
+
+describe('runlog store - listRunDirs (events.jsonl-independent discovery)', () => {
+  let repo: string;
+  beforeEach(async () => {
+    repo = mkdtempSync(join(tmpdir(), 'cond-rd-'));
+    await mkdir(join(repo, '.conductor', 'runs'), { recursive: true });
+  });
+
+  // Seed a run dir holding only an artifact file (no events.jsonl) — the UI
+  // per-op op_invoke shape. Backdates the DIR mtime (listRunDirs sorts by dir
+  // mtime) so multi-dir ordering is deterministic on Windows.
+  async function makeArtifactOnlyRun(runId: string, op: string, ts: Date): Promise<void> {
+    const dir = join(repo, '.conductor', 'runs', runId);
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, `${op}.md`), `# ${op}\nbody\n`, 'utf8');
+    await utimes(dir, ts, ts);
+  }
+
+  it('discovers a dir with only <op>.md (no events.jsonl) AND a dir with events.jsonl, mtime-DESC; excludes stray files', async () => {
+    // (a) artifact-only run dir — invisible to listRuns
+    await makeArtifactOnlyRun('20260601T000000-only-analyze', 'analyze', new Date('2026-06-01T00:00:00Z'));
+    // (b) logged run dir — visible to both
+    await makeRun(repo, '20260602T000000-has-events', new Date('2026-06-02T00:00:00Z'), [
+      JSON.stringify({ ts: '2026-06-02T00:00:00Z', kind: 'op_start' }),
+    ]);
+    // listRuns backdates events.jsonl mtime, not the dir; pin the dir mtime too
+    // so the dir-mtime ordering is deterministic across both seed helpers.
+    await utimes(join(repo, '.conductor', 'runs', '20260602T000000-has-events'), new Date('2026-06-02T00:00:00Z'), new Date('2026-06-02T00:00:00Z'));
+    // (c) stray FILE directly under runs/ (not a directory)
+    await writeFile(join(repo, '.conductor', 'runs', 'README.txt'), 'not a run dir', 'utf8');
+
+    const dirs = await listRunDirs(repo);
+    expect(dirs.map((d) => d.runId)).toEqual([
+      '20260602T000000-has-events', // newer dir mtime first
+      '20260601T000000-only-analyze',
+    ]);
+    // Stray file excluded.
+    expect(dirs.map((d) => d.runId)).not.toContain('README.txt');
+    // Shape: RunDirMeta carries runId + mtime, NO events count.
+    expect(dirs[0]).not.toHaveProperty('events');
+
+    // Contrast: listRuns is gated on events.jsonl, so it returns ONLY (b).
+    const logged = await listRuns(repo);
+    expect(logged.map((r) => r.runId)).toEqual(['20260602T000000-has-events']);
+  });
+
+  it('returns [] when .conductor/runs is missing', async () => {
+    const empty = mkdtempSync(join(tmpdir(), 'cond-rd-empty-'));
+    expect(await listRunDirs(empty)).toEqual([]);
   });
 });

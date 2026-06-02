@@ -16,10 +16,53 @@ export interface RunMeta {
   mtime: Date;
 }
 
+/** Lightweight run-directory descriptor for artifact discovery. Unlike
+ *  {@link RunMeta} it carries no `events` count and is NOT gated on an
+ *  events.jsonl existing — the directory itself is the signal that a run
+ *  produced substrate (e.g. a UI per-op `op_invoke` writes only `<op>.md`,
+ *  never events.jsonl). */
+export interface RunDirMeta {
+  runId: string;
+  mtime: Date;
+}
+
 export interface PruneOpts {
   keepLastN: number;
   keepDays: number;
   now?: () => Date;
+}
+
+/**
+ * Discover run directories by the DIRECTORY itself, independent of whether
+ * `events.jsonl` exists. Returns one `{ runId, mtime }` per child directory of
+ * `.conductor/runs/` (dir mtime), sorted mtime-DESC like {@link listRuns}.
+ * Non-directories (stray files) and unreadable entries are skipped.
+ *
+ * This is the discovery substrate for artifact lookups (findLatestArtifactRunId,
+ * card_artifacts_index, card_runs_list): a run dir that has `<op>.md` but no
+ * event log must still be visible. {@link listRuns} deliberately stays gated on
+ * events.jsonl (it reports the event count and is the basis for `run list` and
+ * pruning, which key off *logged* runs).
+ */
+export async function listRunDirs(repo: string): Promise<RunDirMeta[]> {
+  const root = join(repo, '.conductor', 'runs');
+  let entries: string[];
+  try {
+    entries = await readdir(root);
+  } catch {
+    return [];
+  }
+  const out: RunDirMeta[] = [];
+  for (const id of entries) {
+    try {
+      const s = await stat(join(root, id));
+      if (!s.isDirectory()) continue;
+      out.push({ runId: id, mtime: s.mtime });
+    } catch {
+      /* ignore — unreadable entry */
+    }
+  }
+  return out.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
 }
 
 export async function listRuns(repo: string): Promise<RunMeta[]> {
